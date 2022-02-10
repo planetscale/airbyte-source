@@ -64,13 +64,13 @@ func checkConfig(configFilePath string) (ConnectionStatus, PlanetScaleConnection
 	if err = psc.Check(); err != nil {
 		return ConnectionStatus{
 			Status:  "FAILED",
-			Message: fmt.Sprintf("Unable to connect to PlanetScale keyspace %v at host %v with username %v. Failed with \n %v", psc.Keyspace, psc.Host, psc.Username, err),
+			Message: fmt.Sprintf("Unable to connect to PlanetScale database %v at host %v with username %v. Failed with \n %v", psc.Database, psc.Host, psc.Username, err),
 		}, psc, err
 	}
 
 	return ConnectionStatus{
 		Status:  "SUCCEEDED",
-		Message: fmt.Sprintf("Successfully connected to PlanetScale keyspace %v at host %v with username %v", psc.Keyspace, psc.Host, psc.Username),
+		Message: fmt.Sprintf("Successfully connected to database keyspace %v at host %v with username %v", psc.Database, psc.Host, psc.Username),
 	}, psc, nil
 
 }

@@ -43,7 +43,7 @@ func (p PlanetScaleMySQLDatabase) DiscoverSchema(ctx context.Context, psc Planet
 		return c, err
 	}
 	defer db.Close()
-	tableNamesQR, err := db.Query(fmt.Sprintf("SHOW TABLES FROM `%s`", psc.Keyspace))
+	tableNamesQR, err := db.Query(fmt.Sprintf("SHOW TABLES FROM `%s`", psc.Database))
 	if err != nil {
 		return c, err
 	}
@@ -60,7 +60,7 @@ func (p PlanetScaleMySQLDatabase) DiscoverSchema(ctx context.Context, psc Planet
 	}
 
 	for _, tableName := range tables {
-		stream, err := getStreamForTable(tableName, psc.Keyspace, db)
+		stream, err := getStreamForTable(tableName, psc.Database, db)
 		if err != nil {
 			// print something here and move on.
 		}

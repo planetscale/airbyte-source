@@ -7,9 +7,9 @@ import (
 
 type PlanetScaleConnection struct {
 	Host     string `json:"host"`
-	Keyspace string `json:"keyspace"`
+	Database string `json:"database"`
 	Username string `json:"username"`
-	Password string `json"password""`
+	Password string `json:"password""`
 }
 
 func (psc PlanetScaleConnection) DSN() string {
@@ -17,7 +17,7 @@ func (psc PlanetScaleConnection) DSN() string {
 	config.Net = "tcp"
 	config.Addr = psc.Host
 	config.User = psc.Username
-	config.DBName = psc.Keyspace
+	config.DBName = psc.Database
 	config.Passwd = psc.Password
 	config.TLSConfig = "true"
 	return config.FormatDSN()
