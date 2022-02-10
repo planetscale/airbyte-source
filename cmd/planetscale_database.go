@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -96,11 +97,24 @@ func getStreamForTable(tableName string, keyspace string, db *sql.DB) (Stream, e
 			return stream, err
 		}
 
-		stream.Schema.Properties[name] = PropertyType{"string"}
+		stream.Schema.Properties[name] = PropertyType{getJsonSchemaType(columnType)}
 		columns = append(columns, name)
 	}
 
 	return stream, nil
+}
+
+// Convert columnType to Airbyte type.
+func getJsonSchemaType(mysqlType string) string {
+	if strings.HasPrefix(mysqlType, "int") {
+		return "integer"
+	}
+
+	if mysqlType == "tinyint(1)" {
+		return "boolean"
+	}
+
+	return "string"
 }
 
 func (p PlanetScaleMySQLDatabase) Read(ctx context.Context, psc PlanetScaleConnection, table Stream, state string) error {
@@ -136,9 +150,6 @@ func (p PlanetScaleMySQLDatabase) Read(ctx context.Context, psc PlanetScaleConne
 		}
 
 		printRecord(table.Name, m)
-		printState(map[string]string{
-			"vgtid": "{shard_gtids:{keyspace:\"keyspace\" shard:\"-\" gtid:\"MySQL56/32f1f690-8465-11ec-a0c9-46f19e9f0fcb:1-59\"}}",
-		})
 	}
 	return nil
 }

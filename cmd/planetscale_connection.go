@@ -24,7 +24,7 @@ func (psc PlanetScaleConnection) DSN() string {
 }
 
 func (psc PlanetScaleConnection) database() IPlanetScaleDatabase {
-	return PlanetScaleVstreamDatabase{}
+	return PlanetScaleMySQLDatabase{}
 }
 
 func (psc PlanetScaleConnection) Check() error {
