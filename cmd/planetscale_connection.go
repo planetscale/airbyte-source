@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"github.com/go-sql-driver/mysql"
 )
 
@@ -23,11 +24,11 @@ func (psc PlanetScaleConnection) DSN() string {
 }
 
 func (psc PlanetScaleConnection) database() IPlanetScaleDatabase {
-	return PlanetScaleMySQLDatabase{}
+	return PlanetScaleVstreamDatabase{}
 }
 
 func (psc PlanetScaleConnection) Check() error {
-	_, err := psc.database().CanConnect(psc)
+	_, err := psc.database().CanConnect(context.Background(), psc)
 	if err != nil {
 		return err
 	}
@@ -35,9 +36,9 @@ func (psc PlanetScaleConnection) Check() error {
 }
 
 func (psc PlanetScaleConnection) DiscoverSchema() (c Catalog, err error) {
-	return psc.database().DiscoverSchema(psc)
+	return psc.database().DiscoverSchema(context.Background(), psc)
 }
 
 func (psc PlanetScaleConnection) Read(table Stream, state string) error {
-	return psc.database().Read(psc, table, state)
+	return psc.database().Read(context.Background(), psc, table, state)
 }

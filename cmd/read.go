@@ -35,8 +35,17 @@ var readCmd = &cobra.Command{
 			//return err
 		}
 
+		state := ""
+		if stateFilePath != "" {
+			b, err := ioutil.ReadFile(stateFilePath)
+			if err != nil {
+				fmt.Println("Unable to read state")
+			}
+			state = string(b)
+		}
+
 		for _, table := range catalog.Streams {
-			psc.Read(table.Stream, "")
+			psc.Read(table.Stream, state)
 		}
 	},
 }

@@ -9,6 +9,7 @@ type Stream struct {
 	Name               string       `json:"name"`
 	Schema             StreamSchema `json:"json_schema"`
 	SupportedSyncModes []string     `json:"supported_sync_modes"`
+	Namespace          string       `json:"namespace"`
 }
 
 func (s *Stream) GetSelectQuery() string {

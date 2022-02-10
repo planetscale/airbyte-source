@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -9,15 +10,15 @@ import (
 )
 
 type IPlanetScaleDatabase interface {
-	CanConnect(ps PlanetScaleConnection) (bool, error)
-	DiscoverSchema(ps PlanetScaleConnection) (Catalog, error)
-	Read(ps PlanetScaleConnection, s Stream, state string) error
+	CanConnect(ctx context.Context, ps PlanetScaleConnection) (bool, error)
+	DiscoverSchema(ctx context.Context, ps PlanetScaleConnection) (Catalog, error)
+	Read(ctx context.Context, ps PlanetScaleConnection, s Stream, state string) error
 }
 
 type PlanetScaleMySQLDatabase struct {
 }
 
-func (p PlanetScaleMySQLDatabase) CanConnect(psc PlanetScaleConnection) (bool, error) {
+func (p PlanetScaleMySQLDatabase) CanConnect(ctx context.Context, psc PlanetScaleConnection) (bool, error) {
 	var db *sql.DB
 	db, err := sql.Open("mysql", psc.DSN())
 	if err != nil {
@@ -33,7 +34,7 @@ func (p PlanetScaleMySQLDatabase) CanConnect(psc PlanetScaleConnection) (bool, e
 	return true, nil
 }
 
-func (p PlanetScaleMySQLDatabase) DiscoverSchema(psc PlanetScaleConnection) (c Catalog, err error) {
+func (p PlanetScaleMySQLDatabase) DiscoverSchema(ctx context.Context, psc PlanetScaleConnection) (c Catalog, err error) {
 	var db *sql.DB
 
 	db, err = sql.Open("mysql", psc.DSN())
@@ -76,6 +77,7 @@ func getStreamForTable(tableName string, keyspace string, db *sql.DB) (Stream, e
 		Name:               tableName,
 		Schema:             schema,
 		SupportedSyncModes: []string{"full_refresh"},
+		Namespace:          keyspace,
 	}
 
 	var columns []string
@@ -101,7 +103,7 @@ func getStreamForTable(tableName string, keyspace string, db *sql.DB) (Stream, e
 	return stream, nil
 }
 
-func (p PlanetScaleMySQLDatabase) Read(psc PlanetScaleConnection, table Stream, state string) error {
+func (p PlanetScaleMySQLDatabase) Read(ctx context.Context, psc PlanetScaleConnection, table Stream, state string) error {
 	db, err := sql.Open("mysql", psc.DSN())
 	if err != nil {
 		log.Printf("Unable to open connection to read stream : %v", err)
@@ -127,13 +129,13 @@ func (p PlanetScaleMySQLDatabase) Read(psc PlanetScaleConnection, table Stream, 
 		}
 		// Create our map, and retrieve the value for each column from the pointers slice,
 		// storing it in the map with the name of the column as the key.
-		m := make(map[string]string)
+		m := make(map[string]interface{})
 		for i, colName := range cols {
 			val := columnPointers[i].(*string)
 			m[colName] = *val
 		}
 
-		printRecord(table, m)
+		printRecord(table.Name, m)
 		printState(map[string]string{
 			"vgtid": "{shard_gtids:{keyspace:\"keyspace\" shard:\"-\" gtid:\"MySQL56/32f1f690-8465-11ec-a0c9-46f19e9f0fcb:1-59\"}}",
 		})
@@ -141,12 +143,12 @@ func (p PlanetScaleMySQLDatabase) Read(psc PlanetScaleConnection, table Stream, 
 	return nil
 }
 
-func printRecord(table Stream, record map[string]string) error {
+func printRecord(tableName string, record map[string]interface{}) error {
 	now := time.Now()
 	amsg := AirbyteMessage{
 		Type: RECORD,
 		Record: &AirbyteRecord{
-			Stream:    table.Name,
+			Stream:    tableName,
 			Data:      record,
 			EmittedAt: now.UnixMilli(),
 		},
