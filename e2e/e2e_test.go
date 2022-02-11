@@ -12,6 +12,10 @@ import (
 )
 
 func TestCheck(t *testing.T) {
+	if _, ok := os.LookupEnv("END_TO_END_TEST_RUN"); !ok {
+		t.Skip("Please run end-to-end tests with the script/e2e.sh script")
+	}
+
 	checkCommand := cmd.CheckCommand(cmd.DefaultHelper())
 	sourceFileEnv, found := os.LookupEnv("SOURCE_CONFIG_FILE")
 	require.True(t, found)
@@ -30,6 +34,9 @@ func TestCheck(t *testing.T) {
 }
 
 func TestDiscover(t *testing.T) {
+	if _, ok := os.LookupEnv("END_TO_END_TEST_RUN"); !ok {
+		t.Skip("Please run end-to-end tests with the script/e2e.sh script")
+	}
 	discover := cmd.DiscoverCommand(cmd.DefaultHelper())
 	sourceFileEnv, found := os.LookupEnv("SOURCE_CONFIG_FILE")
 	require.True(t, found)
