@@ -25,5 +25,6 @@ export SOURCE_CONFIG_FILE="../$SOURCE_FILE_NAME"
 startMysql
 importData
 generateSource
-go test -test.v ./e2e/
+
+END_TO_END_TEST_RUN=1 go test -count=1 -test.v ./e2e/
 rm "$SOURCE_FILE_NAME"

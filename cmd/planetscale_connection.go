@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/go-sql-driver/mysql"
 	"io"
+	"os"
 )
 
 type PlanetScaleConnection struct {
@@ -21,7 +22,9 @@ func (psc PlanetScaleConnection) DSN() string {
 	config.User = psc.Username
 	config.DBName = psc.Database
 	config.Passwd = psc.Password
-	//config.TLSConfig = "true"
+	if useSecureConnection() {
+		config.TLSConfig = "true"
+	}
 	return config.FormatDSN()
 }
 
@@ -39,4 +42,16 @@ func (psc PlanetScaleConnection) DiscoverSchema() (c Catalog, err error) {
 
 func (psc PlanetScaleConnection) Read(w io.Writer, table Stream, state string) error {
 	return psc.database.Read(context.Background(), w, psc, table, state)
+}
+
+func useSecureConnection() bool {
+	e2eTestRun, found := os.LookupEnv("END_TO_END_TEST_RUN")
+	if found && (e2eTestRun == "yes" ||
+		e2eTestRun == "y" ||
+		e2eTestRun == "true" ||
+		e2eTestRun == "1") {
+		return false
+	}
+
+	return true
 }
