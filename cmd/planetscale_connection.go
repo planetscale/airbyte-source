@@ -21,7 +21,7 @@ func (psc PlanetScaleConnection) DSN() string {
 	config.User = psc.Username
 	config.DBName = psc.Database
 	config.Passwd = psc.Password
-	config.TLSConfig = "true"
+	//config.TLSConfig = "true"
 	return config.FormatDSN()
 }
 
