@@ -56,7 +56,7 @@ func SpecCommand() *cobra.Command {
 			}
 
 			msg, _ := json.Marshal(specMessage)
-			fmt.Fprintf(cmd.OutOrStdout(), string(msg))
+			fmt.Fprintf(cmd.OutOrStdout(), "%s\n", string(msg))
 		},
 	}
 }

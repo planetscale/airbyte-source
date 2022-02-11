@@ -8,16 +8,13 @@ import (
 	"testing"
 )
 
-func TestExecute(t *testing.T) {
-	readCommand := SpecCommand()
+func Test_Spec_Execute(t *testing.T) {
+	specCommand := SpecCommand()
 	b := bytes.NewBufferString("")
-	readCommand.SetOut(b)
-	readCommand.Execute()
+	specCommand.SetOut(b)
+	specCommand.Execute()
 	out, err := ioutil.ReadAll(b)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	assert.NoError(t, err)
 	var specMessage SpecMessage
 	err = json.Unmarshal(out, &specMessage)
 	assert.Nil(t, err, "should unmarshal spec JSON")

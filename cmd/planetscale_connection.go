@@ -10,6 +10,7 @@ type PlanetScaleConnection struct {
 	Database string `json:"database"`
 	Username string `json:"username"`
 	Password string `json:"password""`
+	database IPlanetScaleDatabase
 }
 
 func (psc PlanetScaleConnection) DSN() string {
@@ -23,12 +24,12 @@ func (psc PlanetScaleConnection) DSN() string {
 	return config.FormatDSN()
 }
 
-func (psc PlanetScaleConnection) database() IPlanetScaleDatabase {
-	return PlanetScaleMySQLDatabase{}
-}
+//func (psc PlanetScaleConnection) database() IPlanetScaleDatabase {
+//	return PlanetScaleMySQLDatabase{}
+//}
 
 func (psc PlanetScaleConnection) Check() error {
-	_, err := psc.database().CanConnect(context.Background(), psc)
+	_, err := psc.database.CanConnect(context.Background(), psc)
 	if err != nil {
 		return err
 	}
@@ -36,9 +37,9 @@ func (psc PlanetScaleConnection) Check() error {
 }
 
 func (psc PlanetScaleConnection) DiscoverSchema() (c Catalog, err error) {
-	return psc.database().DiscoverSchema(context.Background(), psc)
+	return psc.database.DiscoverSchema(context.Background(), psc)
 }
 
 func (psc PlanetScaleConnection) Read(table Stream, state string) error {
-	return psc.database().Read(context.Background(), psc, table, state)
+	return psc.database.Read(context.Background(), psc, table, state)
 }

@@ -4,32 +4,38 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/spf13/cobra"
-	"io/ioutil"
-	"os"
+	"io"
 )
 
 var configFilePath string
 
 func init() {
+	rootCmd.AddCommand(CheckCommand(DefaultHelper()))
+}
+
+func CheckCommand(ch *Helper) *cobra.Command {
+	checkCmd := &cobra.Command{
+		Use:   "check",
+		Short: "Validates the credentials to connect to a PlanetScale database",
+		Run: func(cmd *cobra.Command, args []string) {
+			if configFilePath == "" {
+				fmt.Fprintf(cmd.OutOrStdout(), "Please pass path to a valid source config file via the [%v] argument", "config")
+				return
+			}
+
+			cs, _, err := checkConfig(ch.Database, ch.FileReader, configFilePath)
+			if err != nil {
+				printConnectionStatus(cmd.OutOrStdout(), cs, "Connection test failed", LOGLEVEL_ERROR)
+			} else {
+				printConnectionStatus(cmd.OutOrStdout(), cs, "Connection test succeeded", LOGLEVEL_INFO)
+			}
+		},
+	}
 	checkCmd.Flags().StringVar(&configFilePath, "config", "", "Path to the PlanetScale source configuration")
-	rootCmd.AddCommand(checkCmd)
+	return checkCmd
 }
 
-var checkCmd = &cobra.Command{
-	Use:   "check",
-	Short: "Validates the credentials to connect to a PlanetScale database",
-	Run: func(cmd *cobra.Command, args []string) {
-		cs, _, err := checkConfig(configFilePath)
-		if err != nil {
-			printConnectionStatus(cs, "Connection test failed", LOGLEVEL_ERROR)
-			os.Exit(1)
-		} else {
-			printConnectionStatus(cs, "Connection test succeeded", LOGLEVEL_INFO)
-		}
-	},
-}
-
-func printConnectionStatus(status ConnectionStatus, message, level string) {
+func printConnectionStatus(writer io.Writer, status ConnectionStatus, message, level string) {
 	amsg := AirbyteMessage{
 		Type:             CONNECTION_STATUS,
 		ConnectionStatus: &status,
@@ -39,28 +45,27 @@ func printConnectionStatus(status ConnectionStatus, message, level string) {
 		},
 	}
 	msg, _ := json.Marshal(amsg)
-	fmt.Println(string(msg))
+	fmt.Fprintf(writer, "%s\n", string(msg))
 }
 
-func checkConfig(configFilePath string) (ConnectionStatus, PlanetScaleConnection, error) {
+func checkConfig(database IPlanetScaleDatabase, reader IFileReader, configFilePath string) (ConnectionStatus, PlanetScaleConnection, error) {
 	var psc PlanetScaleConnection
-	b, err := ioutil.ReadFile(configFilePath)
+	contents, err := reader.ReadFile(configFilePath)
 	if err != nil {
 		return ConnectionStatus{
 			Status:  "FAILED",
 			Message: fmt.Sprintf("Configuration for PlanetScale database is invalid, unable to read source configuration : %v", err),
 		}, psc, err
-
 	}
 
-	if err = json.Unmarshal(b, &psc); err != nil {
+	if err = json.Unmarshal(contents, &psc); err != nil {
 		return ConnectionStatus{
 			Status:  "FAILED",
 			Message: fmt.Sprintf("Configuration for PlanetScale database is invalid, unable to parse source JSON: %v", err),
 		}, psc, err
-
 	}
 
+	psc.database = database
 	if err = psc.Check(); err != nil {
 		return ConnectionStatus{
 			Status:  "FAILED",
@@ -70,7 +75,6 @@ func checkConfig(configFilePath string) (ConnectionStatus, PlanetScaleConnection
 
 	return ConnectionStatus{
 		Status:  "SUCCEEDED",
-		Message: fmt.Sprintf("Successfully connected to database keyspace %v at host %v with username %v", psc.Database, psc.Host, psc.Username),
+		Message: fmt.Sprintf("Successfully connected to database %v at host %v with username %v", psc.Database, psc.Host, psc.Username),
 	}, psc, nil
-
 }

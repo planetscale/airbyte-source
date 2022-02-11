@@ -14,17 +14,27 @@ var (
 )
 
 func init() {
-	rootCmd.AddCommand(ReadCommand())
+	rootCmd.AddCommand(ReadCommand(DefaultHelper()))
 }
 
-func ReadCommand() *cobra.Command {
+func ReadCommand(ch *Helper) *cobra.Command {
 	readCmd := &cobra.Command{
 		Use:   "read",
 		Short: "Converts rows from a PlanetScale database into AirbyteRecordMessages",
 		Run: func(cmd *cobra.Command, args []string) {
-			cs, psc, err := checkConfig(readSourceConfigFilePath)
+			if readSourceConfigFilePath == "" {
+				fmt.Fprintf(cmd.OutOrStdout(), "Please pass path to a valid source config file via the [%v] argument", "config")
+				return
+			}
+			
+			if readSourceCatalogPath == "" {
+				fmt.Fprintf(cmd.OutOrStdout(), "Please pass path to a valid source catalog file via the [%v] argument", "config")
+				return
+			}
+
+			cs, psc, err := checkConfig(ch.Database, ch.FileReader, readSourceConfigFilePath)
 			if err != nil {
-				printConnectionStatus(cs, "Connection test failed", LOGLEVEL_ERROR)
+				printConnectionStatus(cmd.OutOrStdout(), cs, "Connection test failed", LOGLEVEL_ERROR)
 			}
 
 			catalog, err := readCatalog(readSourceCatalogPath)
