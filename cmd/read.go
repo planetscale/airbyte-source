@@ -32,7 +32,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				return
 			}
 
-			cs, psc, err := checkConfig(ch.Database, ch.FileReader, readSourceConfigFilePath)
+			cs, psc, err := checkConnectionStatus(ch.Database, ch.FileReader, readSourceConfigFilePath)
 			if err != nil {
 				printConnectionStatus(cmd.OutOrStdout(), cs, "Connection test failed", LOGLEVEL_ERROR)
 			}

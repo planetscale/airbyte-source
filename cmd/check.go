@@ -18,13 +18,8 @@ func CheckCommand(ch *Helper) *cobra.Command {
 		Use:   "check",
 		Short: "Validates the credentials to connect to a PlanetScale database",
 		Run: func(cmd *cobra.Command, args []string) {
-
-			cs, _, err := checkConfig(ch.Database, ch.FileReader, configFilePath)
-			if err != nil {
-				printConnectionStatus(cmd.OutOrStdout(), cs, "Connection test failed", LOGLEVEL_ERROR)
-			} else {
-				printConnectionStatus(cmd.OutOrStdout(), cs, "Connection test succeeded", LOGLEVEL_INFO)
-			}
+			cs, _, _ := checkConnectionStatus(ch.Database, ch.FileReader, configFilePath)
+			ch.Logger.ConnectionStatus(cmd.OutOrStdout(), cs)
 		},
 	}
 	checkCmd.Flags().StringVar(&configFilePath, "config", "", "Path to the PlanetScale source configuration")
@@ -44,7 +39,7 @@ func printConnectionStatus(writer io.Writer, status ConnectionStatus, message, l
 	fmt.Fprintf(writer, "%s\n", string(msg))
 }
 
-func checkConfig(database IPlanetScaleDatabase, reader IFileReader, configFilePath string) (ConnectionStatus, PlanetScaleConnection, error) {
+func checkConnectionStatus(database PlanetScaleDatabase, reader FileReader, configFilePath string) (ConnectionStatus, PlanetScaleConnection, error) {
 	var psc PlanetScaleConnection
 	contents, err := reader.ReadFile(configFilePath)
 	if err != nil {

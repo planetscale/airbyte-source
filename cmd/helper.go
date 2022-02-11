@@ -3,23 +3,25 @@ package cmd
 import "io/ioutil"
 
 type Helper struct {
-	Database   IPlanetScaleDatabase
-	FileReader IFileReader
+	Database   PlanetScaleDatabase
+	FileReader FileReader
+	Logger     AirbyteLogger
 }
 
-type IFileReader interface {
+type FileReader interface {
 	ReadFile(path string) ([]byte, error)
 }
 
-type FileReader struct{}
+type fileReader struct{}
 
-func (f FileReader) ReadFile(path string) ([]byte, error) {
+func (f fileReader) ReadFile(path string) ([]byte, error) {
 	return ioutil.ReadFile(path)
 }
 
 func DefaultHelper() *Helper {
 	return &Helper{
 		Database:   PlanetScaleMySQLDatabase{},
-		FileReader: FileReader{},
+		FileReader: fileReader{},
+		Logger:     NewLogger(),
 	}
 }

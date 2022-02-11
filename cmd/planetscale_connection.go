@@ -10,8 +10,8 @@ type PlanetScaleConnection struct {
 	Host     string `json:"host"`
 	Database string `json:"database"`
 	Username string `json:"username"`
-	Password string `json:"password""`
-	database IPlanetScaleDatabase
+	Password string `json:"password"`
+	database PlanetScaleDatabase
 }
 
 func (psc PlanetScaleConnection) DSN() string {
@@ -24,10 +24,6 @@ func (psc PlanetScaleConnection) DSN() string {
 	config.TLSConfig = "true"
 	return config.FormatDSN()
 }
-
-//func (psc PlanetScaleConnection) database() IPlanetScaleDatabase {
-//	return PlanetScaleMySQLDatabase{}
-//}
 
 func (psc PlanetScaleConnection) Check() error {
 	_, err := psc.database.CanConnect(context.Background(), psc)

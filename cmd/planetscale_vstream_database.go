@@ -35,7 +35,7 @@ func (p PlanetScaleVstreamDatabase) DiscoverSchema(ctx context.Context, psc Plan
 	return PlanetScaleMySQLDatabase{}.DiscoverSchema(ctx, psc)
 }
 
-func (p PlanetScaleVstreamDatabase) Read(ctx context.Context, ps PlanetScaleConnection, s Stream, state string) error {
+func (p PlanetScaleVstreamDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s Stream, state string) error {
 	//amsgChannel := make(chan AirbyteMessage)
 	go p.readVGtidStream(ctx, state, s)
 	select {

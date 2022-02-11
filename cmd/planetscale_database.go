@@ -5,13 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/pkg/errors"
 	"io"
 	"log"
 	"strings"
 	"time"
 )
 
-type IPlanetScaleDatabase interface {
+type PlanetScaleDatabase interface {
 	CanConnect(ctx context.Context, ps PlanetScaleConnection) (bool, error)
 	DiscoverSchema(ctx context.Context, ps PlanetScaleConnection) (Catalog, error)
 	Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s Stream, state string) error
@@ -41,12 +42,12 @@ func (p PlanetScaleMySQLDatabase) DiscoverSchema(ctx context.Context, psc Planet
 
 	db, err = sql.Open("mysql", psc.DSN())
 	if err != nil {
-		return c, err
+		return c, errors.Wrap(err, "Unable to open SQL connection")
 	}
 	defer db.Close()
 	tableNamesQR, err := db.Query(fmt.Sprintf("SHOW TABLES FROM `%s`", psc.Database))
 	if err != nil {
-		return c, err
+		return c, errors.Wrap(err, "Unable to query database for schema")
 	}
 
 	var tables []string
@@ -54,7 +55,7 @@ func (p PlanetScaleMySQLDatabase) DiscoverSchema(ctx context.Context, psc Planet
 	for tableNamesQR.Next() {
 		var name string
 		if err = tableNamesQR.Scan(&name); err != nil {
-			return c, err
+			return c, errors.Wrap(err, "unable to get table names")
 		}
 
 		tables = append(tables, name)
@@ -63,7 +64,7 @@ func (p PlanetScaleMySQLDatabase) DiscoverSchema(ctx context.Context, psc Planet
 	for _, tableName := range tables {
 		stream, err := getStreamForTable(tableName, psc.Database, db)
 		if err != nil {
-			// print something here and move on.
+			return c, errors.Wrapf(err, "unable to get stream for table %v", tableName)
 		}
 		c.Streams = append(c.Streams, stream)
 	}
@@ -86,7 +87,7 @@ func getStreamForTable(tableName string, keyspace string, db *sql.DB) (Stream, e
 	query := fmt.Sprintf("select COLUMN_NAME, COLUMN_TYPE from information_schema.columns where table_name=\"%v\" AND TABLE_SCHEMA=\"%v\"", tableName, keyspace)
 	columnNamesQR, err := db.Query(query)
 	if err != nil {
-		return stream, err
+		return stream, errors.Wrapf(err, "Unable to get column names & types for table %v", tableName)
 	}
 
 	for columnNamesQR.Next() {
@@ -95,7 +96,7 @@ func getStreamForTable(tableName string, keyspace string, db *sql.DB) (Stream, e
 			columnType string
 		)
 		if err = columnNamesQR.Scan(&name, &columnType); err != nil {
-			return stream, err
+			return stream, errors.Wrapf(err, "Unable to scan row for column names & types of table %v", tableName)
 		}
 
 		stream.Schema.Properties[name] = PropertyType{getJsonSchemaType(columnType)}
