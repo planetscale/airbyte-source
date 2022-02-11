@@ -26,7 +26,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				fmt.Fprintf(cmd.OutOrStdout(), "Please pass path to a valid source config file via the [%v] argument", "config")
 				return
 			}
-			
+
 			if readSourceCatalogPath == "" {
 				fmt.Fprintf(cmd.OutOrStdout(), "Please pass path to a valid source catalog file via the [%v] argument", "config")
 				return
@@ -53,7 +53,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 			}
 
 			for _, table := range catalog.Streams {
-				psc.Read(table.Stream, state)
+				psc.Read(cmd.OutOrStdout(), table.Stream, state)
 			}
 		},
 	}

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"github.com/go-sql-driver/mysql"
+	"io"
 )
 
 type PlanetScaleConnection struct {
@@ -40,6 +41,6 @@ func (psc PlanetScaleConnection) DiscoverSchema() (c Catalog, err error) {
 	return psc.database.DiscoverSchema(context.Background(), psc)
 }
 
-func (psc PlanetScaleConnection) Read(table Stream, state string) error {
-	return psc.database.Read(context.Background(), psc, table, state)
+func (psc PlanetScaleConnection) Read(w io.Writer, table Stream, state string) error {
+	return psc.database.Read(context.Background(), w, psc, table, state)
 }

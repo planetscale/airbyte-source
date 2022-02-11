@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"io"
 	"io/ioutil"
 	"testing"
 )
@@ -36,7 +38,7 @@ func (td testDatabase) DiscoverSchema(ctx context.Context, ps PlanetScaleConnect
 	panic("implement me")
 }
 
-func (td testDatabase) Read(ctx context.Context, ps PlanetScaleConnection, s Stream, state string) error {
+func (td testDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s Stream, state string) error {
 	//TODO implement me
 	panic("implement me")
 }
@@ -50,6 +52,8 @@ func Test_Check_Invalid_Catalog_JSON(t *testing.T) {
 		FileReader: tfr,
 	})
 	b := bytes.NewBufferString("")
+
+	checkCommand.SetArgs([]string{"config source.json"})
 	checkCommand.SetOut(b)
 	checkCommand.Execute()
 	out, err := ioutil.ReadAll(b)
@@ -58,7 +62,7 @@ func Test_Check_Invalid_Catalog_JSON(t *testing.T) {
 	err = json.Unmarshal(out, &amsg)
 	assert.NoError(t, err)
 	assert.Equal(t, CONNECTION_STATUS, amsg.Type)
-	assert.NotNil(t, amsg.ConnectionStatus)
+	require.NotNil(t, amsg.ConnectionStatus)
 	assert.Equal(t, "FAILED", amsg.ConnectionStatus.Status)
 }
 

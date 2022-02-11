@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"strings"
 	"time"
@@ -13,7 +14,7 @@ import (
 type IPlanetScaleDatabase interface {
 	CanConnect(ctx context.Context, ps PlanetScaleConnection) (bool, error)
 	DiscoverSchema(ctx context.Context, ps PlanetScaleConnection) (Catalog, error)
-	Read(ctx context.Context, ps PlanetScaleConnection, s Stream, state string) error
+	Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s Stream, state string) error
 }
 
 type PlanetScaleMySQLDatabase struct {
@@ -117,7 +118,7 @@ func getJsonSchemaType(mysqlType string) string {
 	return "string"
 }
 
-func (p PlanetScaleMySQLDatabase) Read(ctx context.Context, psc PlanetScaleConnection, table Stream, state string) error {
+func (p PlanetScaleMySQLDatabase) Read(ctx context.Context, w io.Writer, psc PlanetScaleConnection, table Stream, state string) error {
 	db, err := sql.Open("mysql", psc.DSN())
 	if err != nil {
 		log.Printf("Unable to open connection to read stream : %v", err)
@@ -149,12 +150,12 @@ func (p PlanetScaleMySQLDatabase) Read(ctx context.Context, psc PlanetScaleConne
 			m[colName] = *val
 		}
 
-		printRecord(table.Name, m)
+		printRecord(w, table.Name, m)
 	}
 	return nil
 }
 
-func printRecord(tableName string, record map[string]interface{}) error {
+func printRecord(w io.Writer, tableName string, record map[string]interface{}) error {
 	now := time.Now()
 	amsg := AirbyteMessage{
 		Type: RECORD,
@@ -166,11 +167,11 @@ func printRecord(tableName string, record map[string]interface{}) error {
 	}
 
 	msg, _ := json.Marshal(amsg)
-	fmt.Println(string(msg))
+	fmt.Fprintf(w, "%s\n", msg)
 	return nil
 }
 
-func printState(state map[string]string) {
+func printState(w io.Writer, state map[string]string) {
 	amsg := AirbyteMessage{
 		Type:  STATE,
 		State: &AirbyteState{state},
