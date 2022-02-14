@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func Test_Spec_Execute(t *testing.T) {
+func TestSpecExecute(t *testing.T) {
 	specCommand := SpecCommand()
 	b := bytes.NewBufferString("")
 	specCommand.SetOut(b)

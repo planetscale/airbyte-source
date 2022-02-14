@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func Test_Discover_Invalid_Source(t *testing.T) {
+func TestDiscoverInvalidSource(t *testing.T) {
 	tfr := testFileReader{
 		content: []byte("{\"host\": \"something.us-east-3.psdb.cloud\",\"database\":\"database\",\"username\":\"username\",\"password\":\"password\"}"),
 	}
@@ -41,7 +41,7 @@ func Test_Discover_Invalid_Source(t *testing.T) {
 	assert.Contains(t, amsg.ConnectionStatus.Message, "[username] is invalid")
 }
 
-func Test_Discover_Failed(t *testing.T) {
+func TestDiscoverFailed(t *testing.T) {
 	tfr := testFileReader{
 		content: []byte("{\"host\": \"something.us-east-3.psdb.cloud\",\"database\":\"database\",\"username\":\"username\",\"password\":\"password\"}"),
 	}

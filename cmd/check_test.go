@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func Test_Check_Fails_Without_Config(t *testing.T) {
+func TestCheckFailsWithoutConfig(t *testing.T) {
 	checkCommand := CheckCommand(&Helper{
 		Logger: NewLogger(),
 	})
@@ -22,7 +22,7 @@ func Test_Check_Fails_Without_Config(t *testing.T) {
 	assert.Equal(t, "Please provide path to a valid configuration file\n", string(out))
 }
 
-func Test_Check_Invalid_Catalog_JSON(t *testing.T) {
+func TestCheckInvalidCatalogJSON(t *testing.T) {
 	tfr := testFileReader{
 		content: []byte("i am not json"),
 	}
@@ -47,7 +47,7 @@ func Test_Check_Invalid_Catalog_JSON(t *testing.T) {
 	assert.Equal(t, "FAILED", amsg.ConnectionStatus.Status)
 }
 
-func Test_Check_Credentials_Invalid(t *testing.T) {
+func TestCheckCredentialsInvalid(t *testing.T) {
 	tfr := testFileReader{
 		content: []byte("{\"host\": \"something.us-east-3.psdb.cloud\",\"database\":\"database\",\"username\":\"username\",\"password\":\"password\"}"),
 	}
@@ -79,7 +79,7 @@ func Test_Check_Credentials_Invalid(t *testing.T) {
 	assert.Contains(t, amsg.ConnectionStatus.Message, "[username] is invalid")
 }
 
-func Test_Check_Execute_Successful(t *testing.T) {
+func TestCheckExecuteSuccessful(t *testing.T) {
 	tfr := testFileReader{
 		content: []byte("{\"host\": \"something.us-east-3.psdb.cloud\",\"database\":\"database\",\"username\":\"username\",\"password\":\"password\"}"),
 	}
