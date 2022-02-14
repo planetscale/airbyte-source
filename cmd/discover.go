@@ -19,6 +19,12 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 		Use:   "discover",
 		Short: "Discovers the schema for a PlanetScale database",
 		Run: func(cmd *cobra.Command, args []string) {
+
+			if sourceConfigFilePath == "" {
+				fmt.Fprintln(cmd.OutOrStdout(), "Please provide path to a valid configuration file")
+				return
+			}
+
 			cs, psc, err := checkConnectionStatus(ch.Database, ch.FileReader, sourceConfigFilePath)
 			if err != nil {
 				ch.Logger.ConnectionStatus(cmd.OutOrStdout(), cs)

@@ -1,9 +1,49 @@
 agents:
   queue: "private"
 
+env:
+  IMAGE_NAME: "airbyte-source"
+  REGISTRY: "997601596833.dkr.ecr.us-east-1.amazonaws.com"
+  MAIN_BRANCH: "main"
+
 steps:
   - name: "Go build and test %n"
     command: make
     plugins:
       - docker-compose#v3.7.0:
           run: app
+
+  - name: "Branch build and push"
+    label: ":docker: Build and push"
+    branches: "!${MAIN_BRANCH}"
+    env:
+      BUILDKIT_INLINE_CACHE: 1
+      BUILDKIT_PROGRESS: plain
+      COMPOSE_DOCKER_CLI_BUILD: 1
+      DOCKER_BUILDKIT: 1
+    plugins:
+      - ecr#v2.3.0:
+          login: true
+      - docker-compose#v3.7.0:
+          config: .buildkite/docker-compose.yml
+          cache-from:
+            - "ci:${REGISTRY}/branch/${IMAGE_NAME}:${DOCKER_BRANCH_TAG}"
+            - "ci:${REGISTRY}/main/${IMAGE_NAME}:latest"
+          push:
+            - "ci:${REGISTRY}/branch/${IMAGE_NAME}:${DOCKER_BRANCH_TAG}"
+
+  - name: "Main build and push"
+    label: ":docker: Build and push"
+    branches: "${MAIN_BRANCH}"
+    env:
+      BUILDKIT_PROGRESS: plain
+      COMPOSE_DOCKER_CLI_BUILD: 1
+      DOCKER_BUILDKIT: 1
+    plugins:
+      - ecr#v2.3.0:
+          login: true
+      - docker-compose#v3.7.0:
+          config: .buildkite/docker-compose.yml
+          push:
+            - "ci:${REGISTRY}/main/${IMAGE_NAME}:${BUILDKITE_COMMIT}"
+            - "ci:${REGISTRY}/main/${IMAGE_NAME}:latest"

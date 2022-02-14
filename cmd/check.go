@@ -18,6 +18,11 @@ func CheckCommand(ch *Helper) *cobra.Command {
 		Use:   "check",
 		Short: "Validates the credentials to connect to a PlanetScale database",
 		Run: func(cmd *cobra.Command, args []string) {
+			if configFilePath == "" {
+				fmt.Fprintln(cmd.OutOrStdout(), "Please provide path to a valid configuration file")
+				return
+			}
+
 			cs, _, _ := checkConnectionStatus(ch.Database, ch.FileReader, configFilePath)
 			ch.Logger.ConnectionStatus(cmd.OutOrStdout(), cs)
 		},

@@ -10,6 +10,18 @@ import (
 	"testing"
 )
 
+func Test_Check_Fails_Without_Config(t *testing.T) {
+	checkCommand := CheckCommand(&Helper{
+		Logger: NewLogger(),
+	})
+	b := bytes.NewBufferString("")
+	checkCommand.SetOut(b)
+	checkCommand.Execute()
+	out, err := ioutil.ReadAll(b)
+	assert.NoError(t, err)
+	assert.Equal(t, "Please provide path to a valid configuration file\n", string(out))
+}
+
 func Test_Check_Invalid_Catalog_JSON(t *testing.T) {
 	tfr := testFileReader{
 		content: []byte("i am not json"),
@@ -23,6 +35,7 @@ func Test_Check_Invalid_Catalog_JSON(t *testing.T) {
 
 	checkCommand.SetArgs([]string{"config source.json"})
 	checkCommand.SetOut(b)
+	checkCommand.Flag("config").Value.Set("catalog.json")
 	checkCommand.Execute()
 	out, err := ioutil.ReadAll(b)
 	assert.NoError(t, err)
@@ -53,6 +66,7 @@ func Test_Check_Credentials_Invalid(t *testing.T) {
 	})
 	b := bytes.NewBufferString("")
 	checkCommand.SetOut(b)
+	checkCommand.Flag("config").Value.Set("catalog.json")
 	checkCommand.Execute()
 	out, err := ioutil.ReadAll(b)
 	assert.NoError(t, err)
@@ -83,6 +97,8 @@ func Test_Check_Execute_Successful(t *testing.T) {
 	})
 	b := bytes.NewBufferString("")
 	checkCommand.SetOut(b)
+
+	checkCommand.Flag("config").Value.Set("catalog.json")
 	checkCommand.Execute()
 	out, err := ioutil.ReadAll(b)
 	assert.NoError(t, err)

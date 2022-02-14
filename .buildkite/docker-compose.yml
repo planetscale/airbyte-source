@@ -1,0 +1,8 @@
+version: '3.8'
+
+services:
+  ci:
+    build:
+      context: ../
+      args:
+        - GH_TOKEN=${ACTIONS_BOT_TOKEN:?}
