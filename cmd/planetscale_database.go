@@ -83,7 +83,6 @@ func getStreamForTable(tableName string, keyspace string, db *sql.DB) (Stream, e
 		Namespace:          keyspace,
 	}
 
-	var columns []string
 	query := fmt.Sprintf("select COLUMN_NAME, COLUMN_TYPE from information_schema.columns where table_name=\"%v\" AND TABLE_SCHEMA=\"%v\"", tableName, keyspace)
 	columnNamesQR, err := db.Query(query)
 	if err != nil {
@@ -100,7 +99,6 @@ func getStreamForTable(tableName string, keyspace string, db *sql.DB) (Stream, e
 		}
 
 		stream.Schema.Properties[name] = PropertyType{getJsonSchemaType(columnType)}
-		columns = append(columns, name)
 	}
 
 	return stream, nil
@@ -134,7 +132,7 @@ func (p PlanetScaleMySQLDatabase) Read(ctx context.Context, w io.Writer, psc Pla
 	cols, _ := cursor.Columns()
 	columns := make([]string, len(table.Schema.Properties))
 	columnPointers := make([]interface{}, len(table.Schema.Properties))
-	for i, _ := range columns {
+	for i := range columns {
 		columnPointers[i] = &columns[i]
 	}
 	for cursor.Next() {
@@ -170,14 +168,4 @@ func printRecord(w io.Writer, tableName string, record map[string]interface{}) e
 	msg, _ := json.Marshal(amsg)
 	fmt.Fprintf(w, "%s\n", msg)
 	return nil
-}
-
-func printState(w io.Writer, state map[string]string) {
-	amsg := AirbyteMessage{
-		Type:  STATE,
-		State: &AirbyteState{state},
-	}
-
-	msg, _ := json.Marshal(amsg)
-	fmt.Println(string(msg))
 }

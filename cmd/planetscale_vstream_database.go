@@ -18,8 +18,6 @@ import (
 	"vitess.io/vitess/go/vt/vtgate/vtgateconn"
 )
 
-const READTIMEOUT = 15 * time.Second
-
 type PlanetScaleVstreamDatabase struct {
 }
 
@@ -36,14 +34,7 @@ func (p PlanetScaleVstreamDatabase) DiscoverSchema(ctx context.Context, psc Plan
 }
 
 func (p PlanetScaleVstreamDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s Stream, state string) error {
-	//amsgChannel := make(chan AirbyteMessage)
-	go p.readVGtidStream(ctx, state, s)
-	select {
-
-	case <-time.After(READTIMEOUT):
-		return nil
-	}
-	return nil
+	return p.readVGtidStream(ctx, state, s)
 }
 
 func (p PlanetScaleVstreamDatabase) readVGtidStream(ctx context.Context, state string, s Stream) error {
@@ -87,6 +78,11 @@ func (p PlanetScaleVstreamDatabase) readVGtidStream(ctx context.Context, state s
 	defer conn.Close()
 	flags := &vtgatepb.VStreamFlags{}
 	reader, err := conn.VStream(ctx, topodatapb.TabletType_PRIMARY, vgtid, filter, flags)
+	if err != nil {
+		log.Println("Failed calling VStream on grpc connection")
+		log.Fatal(err)
+	}
+
 	var fields []*querypb.Field
 	var rowEvents []*binlogdatapb.RowEvent
 outer:

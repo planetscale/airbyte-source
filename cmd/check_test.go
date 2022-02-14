@@ -58,6 +58,7 @@ func Test_Check_Credentials_Invalid(t *testing.T) {
 	assert.NoError(t, err)
 	var amsg AirbyteMessage
 	err = json.Unmarshal(out, &amsg)
+	require.NoError(t, err)
 	assert.Equal(t, CONNECTION_STATUS, amsg.Type)
 	assert.NotNil(t, amsg.ConnectionStatus)
 	assert.Equal(t, "FAILED", amsg.ConnectionStatus.Status)
@@ -87,6 +88,7 @@ func Test_Check_Execute_Successful(t *testing.T) {
 	assert.NoError(t, err)
 	var amsg AirbyteMessage
 	err = json.Unmarshal(out, &amsg)
+	require.NoError(t, err)
 	assert.Equal(t, CONNECTION_STATUS, amsg.Type)
 	assert.NotNil(t, amsg.ConnectionStatus)
 	assert.Equal(t, "SUCCEEDED", amsg.ConnectionStatus.Status)
