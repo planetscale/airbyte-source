@@ -14,7 +14,7 @@ type Stream struct {
 
 func (s *Stream) GetSelectQuery() string {
 	var columns []string
-	for name, _ := range s.Schema.Properties {
+	for name := range s.Schema.Properties {
 		columns = append(columns, name)
 	}
 	return fmt.Sprintf("Select %v from %v LIMIT 100000", strings.Join(columns, ","), s.Name)
