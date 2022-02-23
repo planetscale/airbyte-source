@@ -5,7 +5,7 @@ It is intended to act as a [Source](https://docs.airbyte.com/understanding-airby
 
 ## Airbyte Usage
 
-Click [here]() for docs to use this source in your Airbyte installation.
+Click [here](docs/airbyte.md) for docs to use this source in your Airbyte installation.
 
 ### How the container will be called:
 The first argument passed to the image must be the command (e.g. spec, check, discover, read). 
