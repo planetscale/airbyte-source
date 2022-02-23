@@ -3,6 +3,9 @@
 Airbyte source is a binary that is distributed as a Docker Image. 
 It is intended to act as a [Source](https://docs.airbyte.com/understanding-airbyte/airbyte-specification#source) when connecting to PlanetScale, from Airbyte.
 
+## Airbyte Usage
+
+Click [here]() for docs to use this source in your Airbyte installation.
 
 ### How the container will be called:
 The first argument passed to the image must be the command (e.g. spec, check, discover, read). 
@@ -61,7 +64,7 @@ Now, you can run `go run main.go check --config source.json` and should see an o
   "type": "CONNECTION_STATUS",
   "connectionStatus": {
     "status": "SUCCEEDED",
-    "message": "Successfully connected to database auroraimporttest7 at host 7hnhokoiid3c.us-east-3.psdb.cloud with username tzmqspqq1wrz"
+    "message": "Successfully connected to database planetscaledatabase at host 7hnhokoiid3c.us-east-3.psdb.cloud with username tzmqspqq1wrz"
   }
 }
 ```
@@ -95,133 +98,7 @@ go run main.go discover --config source.json | jq .
         "supported_sync_modes": [
           "full_refresh"
         ],
-        "namespace": "auroraimporttest7"
-      },
-      {
-        "name": "dept_emp",
-        "json_schema": {
-          "type": "object",
-          "properties": {
-            "dept_no": {
-              "type": "string"
-            },
-            "emp_no": {
-              "type": "integer"
-            },
-            "from_date": {
-              "type": "string"
-            },
-            "to_date": {
-              "type": "string"
-            }
-          }
-        },
-        "supported_sync_modes": [
-          "full_refresh"
-        ],
-        "namespace": "auroraimporttest7"
-      },
-      {
-        "name": "dept_manager",
-        "json_schema": {
-          "type": "object",
-          "properties": {
-            "dept_no": {
-              "type": "string"
-            },
-            "emp_no": {
-              "type": "integer"
-            },
-            "from_date": {
-              "type": "string"
-            },
-            "to_date": {
-              "type": "string"
-            }
-          }
-        },
-        "supported_sync_modes": [
-          "full_refresh"
-        ],
-        "namespace": "auroraimporttest7"
-      },
-      {
-        "name": "employees",
-        "json_schema": {
-          "type": "object",
-          "properties": {
-            "birth_date": {
-              "type": "string"
-            },
-            "emp_no": {
-              "type": "integer"
-            },
-            "first_name": {
-              "type": "string"
-            },
-            "gender": {
-              "type": "string"
-            },
-            "hire_date": {
-              "type": "string"
-            },
-            "last_name": {
-              "type": "string"
-            }
-          }
-        },
-        "supported_sync_modes": [
-          "full_refresh"
-        ],
-        "namespace": "auroraimporttest7"
-      },
-      {
-        "name": "salaries",
-        "json_schema": {
-          "type": "object",
-          "properties": {
-            "emp_no": {
-              "type": "integer"
-            },
-            "from_date": {
-              "type": "string"
-            },
-            "salary": {
-              "type": "integer"
-            },
-            "to_date": {
-              "type": "string"
-            }
-          }
-        },
-        "supported_sync_modes": [
-          "full_refresh"
-        ],
-        "namespace": "auroraimporttest7"
-      },
-      {
-        "name": "titles",
-        "json_schema": {
-          "type": "object",
-          "properties": {
-            "emp_no": {
-              "type": "integer"
-            },
-            "from_date": {
-              "type": "string"
-            },
-            "title": {
-              "type": "string"
-            },
-            "to_date": {
-              "type": "string"
-            }
-          }
-        },
-        "supported_sync_modes": [
-          "full_refresh"
-        ],
-        "namespace": "auroraimporttest7"
+        "namespace": "planetscaledatabase"
       }
     ]
   }
