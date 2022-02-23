@@ -1,4 +1,4 @@
-## Table of Contents
+## PlanetScale Airbyte Source Connector
 
 1. [Hosting the docker image](#hosting-image)
 2. [Add PlanetScale as a source in Airbyte](#planetscale-source)
