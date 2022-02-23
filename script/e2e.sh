@@ -26,5 +26,5 @@ startMysql
 importData
 generateSource
 
-END_TO_END_TEST_RUN=1 go test -count=1 -test.v ./e2e/
+PS_END_TO_END_TEST_RUN=1 go test -count=1 -test.v ./e2e/
 rm "$SOURCE_FILE_NAME"

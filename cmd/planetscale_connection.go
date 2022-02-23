@@ -5,10 +5,7 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"io"
 	"os"
-	"time"
 )
-
-const READTIMEOUT = 15 * time.Second
 
 type PlanetScaleConnection struct {
 	Host     string `json:"host"`
@@ -44,14 +41,11 @@ func (psc PlanetScaleConnection) DiscoverSchema() (c Catalog, err error) {
 }
 
 func (psc PlanetScaleConnection) Read(w io.Writer, table Stream, state string) error {
-	clientDeadline := time.Now().Add(READTIMEOUT)
-	ctx, cancel := context.WithDeadline(context.Background(), clientDeadline)
-	defer cancel()
-	return psc.database.Read(ctx, w, psc, table, state)
+	return psc.database.Read(context.Background(), w, psc, table, state)
 }
 
 func useSecureConnection() bool {
-	e2eTestRun, found := os.LookupEnv("END_TO_END_TEST_RUN")
+	e2eTestRun, found := os.LookupEnv("PS_END_TO_END_TEST_RUN")
 	if found && (e2eTestRun == "yes" ||
 		e2eTestRun == "y" ||
 		e2eTestRun == "true" ||
