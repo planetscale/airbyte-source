@@ -19,7 +19,13 @@ func SpecCommand() *cobra.Command {
 				Type: "SPEC",
 				Spec: Spec{
 					DocumentationURL: "https://docs.airbyte.io/integrations/sources/mysql",
+					SupportedDestinationSyncModes: []string{
+						"overwrite",
+					},
 					ConnectionSpecification: ConnectionSpecification{
+
+						Schema:   "http://json-schema.org/draft-07/schema#",
+						Type:     "object",
 						Title:    "PlanetScale Source Spec",
 						Required: []string{"host", "database", "username", "password"},
 						Properties: ConnectionProperties{
@@ -93,5 +99,5 @@ type Spec struct {
 	ConnectionSpecification       ConnectionSpecification `json:"connectionSpecification"`
 	SupportsNormalization         bool                    `json:"supportsNormalization"`
 	SupportsDBT                   bool                    `json:"supportsDBT"`
-	SupportedDestinationSyncModes []interface{}           `json:"supported_destination_sync_modes"`
+	SupportedDestinationSyncModes []string                `json:"supported_destination_sync_modes"`
 }
