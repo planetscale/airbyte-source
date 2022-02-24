@@ -1,9 +1,10 @@
-package cmd
+package airbyte_source
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/planetscale/connect/source/cmd/internal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io/ioutil"
@@ -23,7 +24,7 @@ func TestDiscoverInvalidSource(t *testing.T) {
 	discover := DiscoverCommand(&Helper{
 		Database:   td,
 		FileReader: tfr,
-		Logger:     NewLogger(),
+		Logger:     internal.NewLogger(),
 	})
 	discover.SetArgs([]string{"config source.json"})
 	b := bytes.NewBufferString("")
@@ -32,10 +33,10 @@ func TestDiscoverInvalidSource(t *testing.T) {
 	discover.Execute()
 	out, err := ioutil.ReadAll(b)
 	assert.NoError(t, err)
-	var amsg AirbyteMessage
+	var amsg internal.AirbyteMessage
 	err = json.Unmarshal(out, &amsg)
 	require.NoError(t, err)
-	assert.Equal(t, CONNECTION_STATUS, amsg.Type)
+	assert.Equal(t, internal.CONNECTION_STATUS, amsg.Type)
 	assert.NotNil(t, amsg.ConnectionStatus)
 	assert.Equal(t, "FAILED", amsg.ConnectionStatus.Status)
 	assert.Contains(t, amsg.ConnectionStatus.Message, "[username] is invalid")
@@ -56,7 +57,7 @@ func TestDiscoverFailed(t *testing.T) {
 	discover := DiscoverCommand(&Helper{
 		Database:   td,
 		FileReader: tfr,
-		Logger:     NewLogger(),
+		Logger:     internal.NewLogger(),
 	})
 	discover.SetArgs([]string{"config source.json"})
 	b := bytes.NewBufferString("")
@@ -65,11 +66,11 @@ func TestDiscoverFailed(t *testing.T) {
 	discover.Execute()
 	out, err := ioutil.ReadAll(b)
 	assert.NoError(t, err)
-	var amsg AirbyteMessage
+	var amsg internal.AirbyteMessage
 	err = json.Unmarshal(out, &amsg)
 	require.NoError(t, err)
-	assert.Equal(t, LOG, amsg.Type)
+	assert.Equal(t, internal.LOG, amsg.Type)
 	require.NotNil(t, amsg.Log)
-	assert.Equal(t, LOGLEVEL_ERROR, amsg.Log.Level)
+	assert.Equal(t, internal.LOGLEVEL_ERROR, amsg.Log.Level)
 	assert.Equal(t, "Unable to discover database, failed with [unable to get catalog for keyspace]", amsg.Log.Message)
 }

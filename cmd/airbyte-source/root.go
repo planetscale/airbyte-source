@@ -1,4 +1,4 @@
-package cmd
+package airbyte_source
 
 import (
 	"fmt"

@@ -1,4 +1,4 @@
-package cmd
+package internal
 
 import (
 	"context"
@@ -8,11 +8,11 @@ import (
 )
 
 type PlanetScaleConnection struct {
-	Host     string `json:"host"`
-	Database string `json:"database"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	database PlanetScaleDatabase
+	Host             string `json:"host"`
+	Database         string `json:"database"`
+	Username         string `json:"username"`
+	Password         string `json:"password"`
+	DatabaseAccessor PlanetScaleDatabase
 }
 
 func (psc PlanetScaleConnection) DSN() string {
@@ -29,7 +29,7 @@ func (psc PlanetScaleConnection) DSN() string {
 }
 
 func (psc PlanetScaleConnection) Check() error {
-	_, err := psc.database.CanConnect(context.Background(), psc)
+	_, err := psc.DatabaseAccessor.CanConnect(context.Background(), psc)
 	if err != nil {
 		return err
 	}
@@ -37,11 +37,11 @@ func (psc PlanetScaleConnection) Check() error {
 }
 
 func (psc PlanetScaleConnection) DiscoverSchema() (c Catalog, err error) {
-	return psc.database.DiscoverSchema(context.Background(), psc)
+	return psc.DatabaseAccessor.DiscoverSchema(context.Background(), psc)
 }
 
 func (psc PlanetScaleConnection) Read(w io.Writer, table Stream, state string) error {
-	return psc.database.Read(context.Background(), w, psc, table, state)
+	return psc.DatabaseAccessor.Read(context.Background(), w, psc, table, state)
 }
 
 func useSecureConnection() bool {

@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/planetscale/connect/source/cmd"
+	"github.com/planetscale/connect/source/cmd/airbyte-source"
 )
 
 func main() {
-	cmd.Execute()
+	airbyte_source.Execute()
 }

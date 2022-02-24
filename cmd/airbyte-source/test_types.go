@@ -1,7 +1,8 @@
-package cmd
+package airbyte_source
 
 import (
 	"context"
+	"github.com/planetscale/connect/source/cmd/internal"
 	"io"
 )
 
@@ -20,7 +21,7 @@ type canConnectResponse struct {
 }
 
 type discoverSchemaResponse struct {
-	catalog Catalog
+	catalog internal.Catalog
 	err     error
 }
 
@@ -29,15 +30,15 @@ type testDatabase struct {
 	discoverSchemaResponse discoverSchemaResponse
 }
 
-func (td testDatabase) CanConnect(ctx context.Context, ps PlanetScaleConnection) (bool, error) {
+func (td testDatabase) CanConnect(ctx context.Context, ps internal.PlanetScaleConnection) (bool, error) {
 	return td.connectResponse.canConnect, td.connectResponse.err
 }
 
-func (td testDatabase) DiscoverSchema(ctx context.Context, ps PlanetScaleConnection) (Catalog, error) {
+func (td testDatabase) DiscoverSchema(ctx context.Context, ps internal.PlanetScaleConnection) (internal.Catalog, error) {
 	return td.discoverSchemaResponse.catalog, td.discoverSchemaResponse.err
 }
 
-func (td testDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s Stream, state string) error {
+func (td testDatabase) Read(ctx context.Context, w io.Writer, ps internal.PlanetScaleConnection, s internal.Stream, state string) error {
 	//TODO implement me
 	panic("implement me")
 }

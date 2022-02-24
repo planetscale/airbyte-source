@@ -1,8 +1,9 @@
-package cmd
+package airbyte_source
 
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/planetscale/connect/source/cmd/internal"
 	"github.com/spf13/cobra"
 	"io/ioutil"
 )
@@ -34,7 +35,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 
 			cs, psc, err := checkConnectionStatus(ch.Database, ch.FileReader, readSourceConfigFilePath)
 			if err != nil {
-				printConnectionStatus(cmd.OutOrStdout(), cs, "Connection test failed", LOGLEVEL_ERROR)
+				printConnectionStatus(cmd.OutOrStdout(), cs, "Connection test failed", internal.LOGLEVEL_ERROR)
 			}
 
 			catalog, err := readCatalog(readSourceCatalogPath)
@@ -63,7 +64,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 	return readCmd
 }
 
-func readCatalog(path string) (c ConfiguredCatalog, err error) {
+func readCatalog(path string) (c internal.ConfiguredCatalog, err error) {
 	b, err := ioutil.ReadFile(path)
 	if err != nil {
 		return c, err

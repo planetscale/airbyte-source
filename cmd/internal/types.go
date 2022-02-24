@@ -1,4 +1,4 @@
-package cmd
+package internal
 
 type ConnectionStatus struct {
 	Status  string `json:"status"`
@@ -73,4 +73,41 @@ type AirbyteMessage struct {
 	Catalog          *Catalog           `json:"catalog,omitempty"`
 	Record           *AirbyteRecord     `json:"record,omitempty"`
 	State            *AirbyteState      `json:"state,omitempty"`
+}
+
+type SpecMessage struct {
+	Type string `json:"type"`
+	Spec Spec   `json:"spec"`
+}
+
+type ConnectionProperties struct {
+	Host     ConnectionProperty `json:"host"`
+	Database ConnectionProperty `json:"database"`
+	Username ConnectionProperty `json:"username"`
+	Password ConnectionProperty `json:"password"`
+}
+
+type ConnectionProperty struct {
+	Description string `json:"description"`
+	Title       string `json:"title"`
+	Type        string `json:"type"`
+	Order       int    `json:"order"`
+	IsSecret    bool   `json:"airbyte_secret"`
+}
+
+type ConnectionSpecification struct {
+	Schema               string               `json:"$schema"`
+	Title                string               `json:"title"`
+	Type                 string               `json:"type"`
+	Required             []string             `json:"required"`
+	AdditionalProperties bool                 `json:"additionalProperties"`
+	Properties           ConnectionProperties `json:"properties"`
+}
+
+type Spec struct {
+	DocumentationURL              string                  `json:"documentationUrl"`
+	ConnectionSpecification       ConnectionSpecification `json:"connectionSpecification"`
+	SupportsNormalization         bool                    `json:"supportsNormalization"`
+	SupportsDBT                   bool                    `json:"supportsDBT"`
+	SupportedDestinationSyncModes []string                `json:"supported_destination_sync_modes"`
 }

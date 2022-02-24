@@ -1,11 +1,14 @@
-package cmd
+package airbyte_source
 
-import "io/ioutil"
+import (
+	"github.com/planetscale/connect/source/cmd/internal"
+	"io/ioutil"
+)
 
 type Helper struct {
-	Database   PlanetScaleDatabase
+	Database   internal.PlanetScaleDatabase
 	FileReader FileReader
-	Logger     AirbyteLogger
+	Logger     internal.AirbyteLogger
 }
 
 type FileReader interface {
@@ -20,8 +23,8 @@ func (f fileReader) ReadFile(path string) ([]byte, error) {
 
 func DefaultHelper() *Helper {
 	return &Helper{
-		Database:   PlanetScaleMySQLDatabase{},
+		Database:   internal.PlanetScaleMySQLDatabase{},
 		FileReader: fileReader{},
-		Logger:     NewLogger(),
+		Logger:     internal.NewLogger(),
 	}
 }

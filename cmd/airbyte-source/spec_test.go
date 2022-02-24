@@ -1,8 +1,9 @@
-package cmd
+package airbyte_source
 
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/planetscale/connect/source/cmd/internal"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"testing"
@@ -15,7 +16,7 @@ func TestSpecExecute(t *testing.T) {
 	specCommand.Execute()
 	out, err := ioutil.ReadAll(b)
 	assert.NoError(t, err)
-	var specMessage SpecMessage
+	var specMessage internal.SpecMessage
 	err = json.Unmarshal(out, &specMessage)
 	assert.Nil(t, err, "should unmarshal spec JSON")
 	assert.Equal(t, "SPEC", specMessage.Type)

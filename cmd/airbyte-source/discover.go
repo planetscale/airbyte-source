@@ -1,7 +1,8 @@
-package cmd
+package airbyte_source
 
 import (
 	"fmt"
+	"github.com/planetscale/connect/source/cmd/internal"
 	"github.com/spf13/cobra"
 )
 
@@ -33,7 +34,7 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 
 			c, err := psc.DiscoverSchema()
 			if err != nil {
-				ch.Logger.Log(cmd.OutOrStdout(), LOGLEVEL_ERROR, fmt.Sprintf("Unable to discover database, failed with [%v]", err))
+				ch.Logger.Log(cmd.OutOrStdout(), internal.LOGLEVEL_ERROR, fmt.Sprintf("Unable to discover database, failed with [%v]", err))
 				return
 			}
 

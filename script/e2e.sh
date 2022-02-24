@@ -19,12 +19,12 @@ cat << EOF > "$SOURCE_FILE_NAME"
    "username":"root",
    "password":"example"}
 EOF
-export SOURCE_CONFIG_FILE="../$SOURCE_FILE_NAME"
+export SOURCE_CONFIG_FILE="../../$SOURCE_FILE_NAME"
 }
 
 startMysql
 importData
 generateSource
 
-PS_END_TO_END_TEST_RUN=1 go test -count=1 -test.v ./e2e/
+PS_END_TO_END_TEST_RUN=1 go test -count=1 -test.v ./cmd/e2e/
 rm "$SOURCE_FILE_NAME"
