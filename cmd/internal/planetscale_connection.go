@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"fmt"
 	"github.com/go-sql-driver/mysql"
 	"io"
 	"os"
@@ -20,7 +21,7 @@ func (psc PlanetScaleConnection) DSN() string {
 	config.Net = "tcp"
 	config.Addr = psc.Host
 	config.User = psc.Username
-	config.DBName = psc.Database
+	config.DBName = fmt.Sprintf("%v@replica", psc.Database)
 	config.Passwd = psc.Password
 	if useSecureConnection() {
 		config.TLSConfig = "true"
