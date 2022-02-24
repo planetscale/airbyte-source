@@ -1,0 +1,47 @@
+---
+- - :permit
+  - bsd-2-clause
+  - :who: 
+    :why: 
+    :versions: []
+    :when: 2022-02-23 19:12:45.769120000 Z
+- - :permit
+  - bsd-3-clause
+  - :who: 
+    :why: 
+    :versions: []
+    :when: 2022-02-23 19:12:46.086065000 Z
+- - :permit
+  - apache-2.0
+  - :who: 
+    :why: 
+    :versions: []
+    :when: 2022-02-23 19:12:46.349451000 Z
+- - :permit
+  - MIT
+  - :who: 
+    :why: 
+    :versions: []
+    :when: 2022-02-23 19:12:46.612078000 Z
+- - :permit
+  - ISC
+  - :who: 
+    :why: 
+    :versions: []
+    :when: 2022-02-23 19:12:46.870618000 Z
+- - :permit
+  - mpl-2.0
+  - :who: 
+    :why: 
+    :versions: []
+    :when: 2022-02-23 19:12:47.136160000 Z
+- - :approve
+  - github.com/opentracing-contrib/go-grpc
+  - &1
+    :who: 
+    :why: 
+    :versions: []
+    :when: 2022-02-23 19:13:28.422698000 Z
+- - :approve
+  - apache-2.0
+  - *1

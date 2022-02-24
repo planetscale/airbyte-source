@@ -13,6 +13,12 @@ steps:
       - docker-compose#v3.7.0:
           run: app
 
+  - name: "Verify dependency licenses %n"
+    command: "go get -v ./... && license_finder"
+    plugins:
+      - docker-compose#v3.9.0:
+          run: licensing
+
   - name: "Branch build and push"
     label: ":docker: Build and push"
     branches: "!${MAIN_BRANCH}"
