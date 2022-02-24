@@ -64,7 +64,7 @@ f64c71a2c1b6: Layer already exists
 ```
 
 <a name="planetscale-source"></a>
-### 3. Add PlanetScale as a source in Airbyte
+### 2. Add PlanetScale as a source in Airbyte
 
 1. In the Airbyte UI, navigate to `settings > sources`
 
@@ -87,7 +87,7 @@ Connector Documentation URL : https://docs.planetscale.com
 4. Now you're ready to connect Airbyte to your PlanetScale database! :tada:
 
 <a name="connecting-to-planetscale"></a>
-### 4. Connecting to your PlanetScale database
+### 3. Connecting to your PlanetScale database
 1. To start, create a connection string to your PlanetScale database, following [these instructions](https://docs.planetscale.com/concepts/connection-strings#creating-a-password)
 
  ![PSDB connection string](img/psdb-connection-string.png)
