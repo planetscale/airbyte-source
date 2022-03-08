@@ -8,7 +8,7 @@ docker-compose up -d
 }
 
 importData() {
-  mysql -h 127.0.0.1 --port 3306 -uroot -pexample < ./fixture/sakila-db/sakila-schema.sql
+  mysql -h 0.0.0.0 --port 3306 -uroot -pexample < ./fixture/sakila-db/sakila-schema.sql
 }
 
 generateSource() {

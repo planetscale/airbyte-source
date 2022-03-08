@@ -21,10 +21,11 @@ func (psc PlanetScaleConnection) DSN() string {
 	config.Net = "tcp"
 	config.Addr = psc.Host
 	config.User = psc.Username
-	config.DBName = fmt.Sprintf("%v@replica", psc.Database)
+	config.DBName = psc.Database
 	config.Passwd = psc.Password
 	if useSecureConnection() {
 		config.TLSConfig = "true"
+		config.DBName = fmt.Sprintf("%v@replica", psc.Database)
 	}
 	return config.FormatDSN()
 }

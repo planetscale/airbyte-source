@@ -11,7 +11,7 @@ type AirbyteLogger interface {
 	Log(w io.Writer, level, message string)
 	Catalog(w io.Writer, catalog Catalog)
 	ConnectionStatus(w io.Writer, status ConnectionStatus)
-	Record(w io.Writer, tableName string, data map[string]interface{})
+	Record(w io.Writer, tableNamespace, tableName string, data map[string]interface{})
 }
 
 func NewLogger() AirbyteLogger {
@@ -45,11 +45,12 @@ func (a airbyteLogger) Catalog(w io.Writer, catalog Catalog) {
 	fmt.Fprintf(w, "%s\n", msg)
 }
 
-func (a airbyteLogger) Record(w io.Writer, tableName string, data map[string]interface{}) {
+func (a airbyteLogger) Record(w io.Writer, tableNamespace, tableName string, data map[string]interface{}) {
 	now := time.Now()
 	amsg := AirbyteMessage{
 		Type: RECORD,
 		Record: &AirbyteRecord{
+			Namespace: tableNamespace,
 			Stream:    tableName,
 			Data:      data,
 			EmittedAt: now.UnixMilli(),
