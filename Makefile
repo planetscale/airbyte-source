@@ -2,6 +2,7 @@ COMMIT := $(shell git rev-parse --short=7 HEAD 2>/dev/null)
 VERSION := "0.1.2"
 DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 NAME := "airbyte-source"
+DOCKER_BUILD_PLATFORM := "linux/amd64"
 ifeq ($(strip $(shell git status --porcelain 2>/dev/null)),)
   GIT_TREE_STATE=clean
 else
@@ -32,7 +33,7 @@ licensed:
 .PHONY: build-image
 build-image:
 	@echo "==> Building docker image ${REPO}/${NAME}:$(VERSION)"
-	@docker build --build-arg VERSION=$(VERSION:v%=%) --build-arg COMMIT=$(COMMIT) --build-arg DATE=$(DATE) -t ${REPO}/${NAME}:$(VERSION) .
+	@docker build --platform ${DOCKER_BUILD_PLATFORM} --build-arg VERSION=$(VERSION:v%=%) --build-arg COMMIT=$(COMMIT) --build-arg DATE=$(DATE) -t ${REPO}/${NAME}:$(VERSION) .
 	@docker tag ${REPO}/${NAME}:$(VERSION) ${REPO}/${NAME}:latest
 
 .PHONY: push
