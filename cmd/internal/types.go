@@ -58,6 +58,7 @@ type ConfiguredCatalog struct {
 
 type AirbyteRecord struct {
 	Stream    string                 `json:"stream"`
+	Namespace string                 `json:"namespace"`
 	EmittedAt int64                  `json:"emitted_at"`
 	Data      map[string]interface{} `json:"data"`
 }

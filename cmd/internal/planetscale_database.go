@@ -3,13 +3,11 @@ package internal
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"github.com/pkg/errors"
 	"io"
 	"log"
 	"strings"
-	"time"
 )
 
 type PlanetScaleDatabase interface {
@@ -19,6 +17,7 @@ type PlanetScaleDatabase interface {
 }
 
 type PlanetScaleMySQLDatabase struct {
+	Logger AirbyteLogger
 }
 
 func (p PlanetScaleMySQLDatabase) CanConnect(ctx context.Context, psc PlanetScaleConnection) (bool, error) {
@@ -149,23 +148,7 @@ func (p PlanetScaleMySQLDatabase) Read(ctx context.Context, w io.Writer, psc Pla
 			m[colName] = *val
 		}
 
-		printRecord(w, table.Name, m)
+		p.Logger.Record(w, psc.Database, table.Name, m)
 	}
-	return nil
-}
-
-func printRecord(w io.Writer, tableName string, record map[string]interface{}) error {
-	now := time.Now()
-	amsg := AirbyteMessage{
-		Type: RECORD,
-		Record: &AirbyteRecord{
-			Stream:    tableName,
-			Data:      record,
-			EmittedAt: now.UnixMilli(),
-		},
-	}
-
-	msg, _ := json.Marshal(amsg)
-	fmt.Fprintf(w, "%s\n", msg)
 	return nil
 }

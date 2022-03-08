@@ -22,9 +22,12 @@ func (f fileReader) ReadFile(path string) ([]byte, error) {
 }
 
 func DefaultHelper() *Helper {
+	logger := internal.NewLogger()
 	return &Helper{
-		Database:   internal.PlanetScaleMySQLDatabase{},
+		Database: internal.PlanetScaleMySQLDatabase{
+			Logger: logger,
+		},
 		FileReader: fileReader{},
-		Logger:     internal.NewLogger(),
+		Logger:     logger,
 	}
 }
