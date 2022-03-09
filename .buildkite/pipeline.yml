@@ -17,6 +17,9 @@ steps:
   - name: "Tests"
     label: "Tests"
     command: "go test -v ./..."
+    plugins:
+      - docker-compose#v3.9.0:
+          run: ci
 
   - name: "Verify dependency licenses %n"
     command: "go get -v ./... && license_finder"

@@ -11,6 +11,14 @@ services:
       - .:/work
     working_dir: /work
     command: spec
+  ci:
+    build:
+      args:
+        - GITHUB_TOKEN=${ACTIONS_BOT_TOKEN:?}
+      context: containers/ci
+    volumes:
+      - .:/work
+    working_dir: /work
 
   db:
     image: mysql:5.7
