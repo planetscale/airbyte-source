@@ -13,7 +13,6 @@ import (
 	"io"
 	"os"
 	"vitess.io/vitess/go/sqltypes"
-	binlogdatapb "vitess.io/vitess/go/vt/proto/binlogdata"
 	_ "vitess.io/vitess/go/vt/vtctl/grpcvtctlclient"
 	_ "vitess.io/vitess/go/vt/vtgate/grpcvtgateconn"
 )
@@ -21,10 +20,6 @@ import (
 type PlanetScaleVstreamDatabase struct {
 	grpcAddr string
 	Logger   AirbyteLogger
-}
-
-type VGtidState struct {
-	SerializedVGtids string `json:"vgtids"`
 }
 
 type TableCursorState struct {
@@ -129,17 +124,6 @@ func (p PlanetScaleVstreamDatabase) printSyncState(writer io.Writer, cursor *psd
 	b, _ := json.Marshal(cursor)
 	data := map[string]string{"cursor": string(b)}
 	p.Logger.State(writer, data)
-}
-
-func parseVGtidState(state string) ([]*binlogdatapb.ShardGtid, error) {
-	var vgs VGtidState
-	err := json.Unmarshal([]byte(state), &vgs)
-	if err != nil {
-		return nil, err
-	}
-	var shardGtids []*binlogdatapb.ShardGtid
-	err = json.Unmarshal([]byte(vgs.SerializedVGtids), &shardGtids)
-	return shardGtids, err
 }
 
 // printQueryResult will pretty-print an AirbyteRecordMessage to the logger.
