@@ -3,13 +3,15 @@
 ARG GO_VERSION=1.17
 FROM golang:${GO_VERSION}-bullseye AS build
 
-WORKDIR /airbyte-source
-COPY . .
 ARG GITHUB_TOKEN=unset
 RUN --mount=type=secret,id=github_token \
     bash -c 'git config --global --add url."https://$(cat /run/secrets/github_token || echo ${GITHUB_TOKEN})@github.com/".insteadOf "https://github.com"'
 
 ENV GOPRIVATE=github.com/planetscale/edge-gateway,github.com/planetscale/log
+
+WORKDIR /airbyte-source
+COPY . .
+
 RUN go mod download
 RUN go build -o /connect
 
