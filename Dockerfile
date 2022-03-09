@@ -9,7 +9,7 @@ RUN --mount=type=secret,id=github_token \
 
 RUN go env -w GOPRIVATE=github.com/planetscale/*
 RUN git config --global credential.helper store
-RUN bash -c 'echo "https://planetscale-actions-bot:$GH_TOKEN@github.com" >> ~/.git-credentials'
+RUN bash -c 'echo "https://planetscale-actions-bot:$GITHUB_TOKEN@github.com" >> ~/.git-credentials'
 
 WORKDIR /airbyte-source
 COPY . .
