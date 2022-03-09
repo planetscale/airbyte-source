@@ -4,25 +4,31 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/pkg/errors"
+	"github.com/planetscale/edge-gateway/common/authorization"
+	"github.com/planetscale/edge-gateway/gateway/router"
+	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
+	"github.com/planetscale/edge-gateway/psdbpool"
+	"github.com/planetscale/edge-gateway/psdbpool/options"
 	"io"
-	"log"
 	"os"
-	"time"
 	"vitess.io/vitess/go/sqltypes"
 	binlogdatapb "vitess.io/vitess/go/vt/proto/binlogdata"
-	querypb "vitess.io/vitess/go/vt/proto/query"
-	topodatapb "vitess.io/vitess/go/vt/proto/topodata"
-	vtgatepb "vitess.io/vitess/go/vt/proto/vtgate"
 	_ "vitess.io/vitess/go/vt/vtctl/grpcvtctlclient"
 	_ "vitess.io/vitess/go/vt/vtgate/grpcvtgateconn"
-	"vitess.io/vitess/go/vt/vtgate/vtgateconn"
 )
 
 type PlanetScaleVstreamDatabase struct {
+	grpcAddr string
+	Logger   AirbyteLogger
 }
 
 type VGtidState struct {
 	SerializedVGtids string `json:"vgtids"`
+}
+
+type TableCursorState struct {
+	SerializedCursor string `json:"cursor"`
 }
 
 func (p PlanetScaleVstreamDatabase) CanConnect(ctx context.Context, psc PlanetScaleConnection) (bool, error) {
@@ -34,81 +40,97 @@ func (p PlanetScaleVstreamDatabase) DiscoverSchema(ctx context.Context, psc Plan
 }
 
 func (p PlanetScaleVstreamDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s Stream, state string) error {
-	return p.readVGtidStream(ctx, state, s)
+	return p.sync(ctx, state, s, ps)
 }
 
-func (p PlanetScaleVstreamDatabase) readVGtidStream(ctx context.Context, state string, s Stream) error {
-	var (
-		shardGtids []*binlogdatapb.ShardGtid
+func (p PlanetScaleVstreamDatabase) sync(ctx context.Context, state string, s Stream, ps PlanetScaleConnection) error {
+	tlsConfig := options.DefaultTLSConfig()
+	pool := psdbpool.New(
+		router.NewSingleRoute(p.grpcAddr),
+		options.WithConnectionPool(4),
+		options.WithTLSConfig(tlsConfig),
 	)
-	if state != "" {
-		shardGtids, err := parseVGtidState(state)
+	auth, err := authorization.NewBasicAuth(ps.Username, ps.Password)
+	if err != nil {
+		return err
+	}
+
+	conn, err := pool.GetWithAuth(ctx, auth)
+	if err != nil {
+		return err
+	}
+	defer conn.Release()
+
+	var (
+		tc *psdbdatav1.TableCursor
+	)
+
+	if state == "" {
+		tc = &psdbdatav1.TableCursor{
+			Shard:    "-",
+			Keyspace: s.Namespace,
+			Position: "",
+		}
+	} else {
+		tc, err = parseSyncState(state)
 		if err != nil {
 			fmt.Printf("\nUnable to read state, failed with error : [%v]\n", err)
 			return err
 		}
-		fmt.Printf("Found existing state, continuing where we left off, state len(%v) is [%v]", len(shardGtids), shardGtids)
+		fmt.Printf("Found existing state, continuing where we left off, state is [%v]", tc)
 	}
 
-	if len(shardGtids) == 0 {
-		shardGtids = []*binlogdatapb.ShardGtid{
-			{
-				Keyspace: s.Namespace,
-				Shard:    "-",
-				Gtid:     "",
-			},
-		}
+	sReq := &psdbdatav1.SyncRequest{
+		TableName: s.Name,
+		Cursor:    tc,
 	}
 
-	vgtid := &binlogdatapb.VGtid{
-		ShardGtids: shardGtids,
-	}
-	filter := &binlogdatapb.Filter{
-		Rules: []*binlogdatapb.Rule{{
-			Match: s.Name,
-		}},
-	}
-
-	conn, err := vtgateconn.Dial(ctx, "localhost:15999")
+	c, err := conn.Sync(ctx, sReq)
 	if err != nil {
-		log.Println("Failed dialing grpc connection")
-		log.Fatal(err)
+		return nil
 	}
 
-	defer conn.Close()
-	flags := &vtgatepb.VStreamFlags{}
-	reader, err := conn.VStream(ctx, topodatapb.TabletType_PRIMARY, vgtid, filter, flags)
-	if err != nil {
-		log.Println("Failed calling VStream on grpc connection")
-		log.Fatal(err)
-	}
-
-	var fields []*querypb.Field
-	var rowEvents []*binlogdatapb.RowEvent
-outer:
 	for {
-		e, err := reader.Recv()
-
-		if err != nil {
-			fmt.Printf("remote error: %v at %v, retrying in 1s\n", err, vgtid)
-			time.Sleep(1 * time.Second)
-			continue outer
+		res, err := c.Recv()
+		if errors.Is(err, io.EOF) {
+			// we're done receiving rows from the server
+			return nil
 		}
-		for _, event := range e {
-			switch event.Type {
-			case binlogdatapb.VEventType_FIELD:
-				fields = event.FieldEvent.Fields
-			case binlogdatapb.VEventType_ROW:
-				rowEvents = append(rowEvents, event.RowEvent)
-			case binlogdatapb.VEventType_VGTID:
-				vgtid = event.Vgtid
-			case binlogdatapb.VEventType_COMMIT:
-				printRowEvents(vgtid, rowEvents, fields, s.Name)
-				rowEvents = nil
+		if res.Cursor != nil {
+			// print the cursor to stdout here.
+			p.printSyncState(os.Stdout, res.Cursor)
+		}
+		if len(res.Result) > 0 {
+			for _, result := range res.Result {
+				qr := sqltypes.Proto3ToResult(result)
+				sqlResult := &sqltypes.Result{
+					Fields: result.Fields,
+				}
+				sqlResult.Rows = append(sqlResult.Rows, qr.Rows[0])
+				// print AirbyteRecord messages to stdout here.
+				p.printQueryResult(os.Stdout, sqlResult, s.Namespace, s.Name)
 			}
 		}
 	}
 }
+
+func parseSyncState(state string) (*psdbdatav1.TableCursor, error) {
+	var tcs TableCursorState
+	err := json.Unmarshal([]byte(state), &tcs)
+	if err != nil {
+		return nil, err
+	}
+	var tc psdbdatav1.TableCursor
+	err = json.Unmarshal([]byte(tcs.SerializedCursor), &tc)
+	return &tc, err
+}
+
+func (p PlanetScaleVstreamDatabase) printSyncState(writer io.Writer, cursor *psdbdatav1.TableCursor) {
+	b, _ := json.Marshal(cursor)
+	data := map[string]string{"cursor": string(b)}
+	p.Logger.State(writer, data)
+}
+
 func parseVGtidState(state string) ([]*binlogdatapb.ShardGtid, error) {
 	var vgs VGtidState
 	err := json.Unmarshal([]byte(state), &vgs)
@@ -120,74 +142,21 @@ func parseVGtidState(state string) ([]*binlogdatapb.ShardGtid, error) {
 	return shardGtids, err
 }
 
-func printRowEvents(vgtid *binlogdatapb.VGtid, rowEvents []*binlogdatapb.RowEvent, fields []*querypb.Field, tableName string) {
-
-	for _, re := range rowEvents {
-		result := &sqltypes.Result{
-			Fields: fields,
-		}
-
-		for _, change := range re.RowChanges {
-			typ := "U"
-			if change.Before == nil {
-				typ = "I"
-			} else if change.After == nil {
-				typ = "D"
-			}
-
-			switch typ {
-			case "U", "I":
-				p3qr := &querypb.QueryResult{
-					Fields: fields,
-					Rows:   []*querypb.Row{change.After},
-				}
-				qr := sqltypes.Proto3ToResult(p3qr)
-				result.Rows = append(result.Rows, qr.Rows[0])
-			case "D":
-				// row was deleted, do nothing.
-			}
-		}
-		printQueryResult(os.Stdout, result, tableName)
-	}
-
-	printVgtidState(os.Stdout, vgtid)
-}
-
-func printVgtidState(writer io.Writer, vgtid *binlogdatapb.VGtid) {
-	b, _ := json.Marshal(vgtid)
-	state := AirbyteMessage{
-		Type:  STATE,
-		State: &AirbyteState{map[string]string{"vgtids": string(b)}},
-	}
-	msg, _ := json.Marshal(state)
-	fmt.Fprintf(writer, "%s\n", string(msg))
-}
-
 // printQueryResult will pretty-print an AirbyteRecordMessage to the logger.
 // Copied from vtctl/query.go
-func printQueryResult(writer io.Writer, qr *sqltypes.Result, tableName string) {
+func (p PlanetScaleVstreamDatabase) printQueryResult(writer io.Writer, qr *sqltypes.Result, tableNamespace, tableName string) {
 	var data = make(map[string]interface{})
 
 	columns := make([]string, 0, len(qr.Fields))
 	for _, field := range qr.Fields {
 		columns = append(columns, field.Name)
 	}
-	now := time.Now()
 	for _, row := range qr.Rows {
 		for idx, val := range row {
 			if idx < len(columns) {
 				data[columns[idx]] = val
 			}
 		}
-		rec := AirbyteMessage{
-			Type: RECORD,
-			Record: &AirbyteRecord{
-				Stream:    tableName,
-				Data:      data,
-				EmittedAt: now.UnixMilli(),
-			},
-		}
-		msg, _ := json.Marshal(rec)
-		fmt.Fprintf(writer, "%s\n", string(msg))
+		p.Logger.Record(writer, tableNamespace, tableName, data)
 	}
 }
