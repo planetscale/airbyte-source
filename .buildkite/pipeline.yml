@@ -9,6 +9,8 @@ env:
 steps:
   - name: "Go build and test"
     command: make
+    env:
+      DOCKER_BUILDKIT: 1
     plugins:
       - docker-compose#v3.7.0:
           run: app
