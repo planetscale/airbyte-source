@@ -11,8 +11,6 @@ services:
       - .:/work
     working_dir: /work
     command: spec
-    environment:
-      - GITHUB_TOKEN=${ACTIONS_BOT_TOKEN:?}
 
   db:
     image: mysql:5.7
@@ -31,5 +29,3 @@ services:
     volumes:
       - .:/work
     working_dir: /work
-    environment:
-      - GITHUB_TOKEN=${ACTIONS_BOT_TOKEN:?}
