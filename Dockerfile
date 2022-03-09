@@ -1,13 +1,15 @@
 # syntax=docker/dockerfile:1
 
-ARG GO_VERSION=1.17
+ARG GO_VERSION=1.18rc1
 FROM golang:${GO_VERSION}-bullseye AS build
 
 ARG GITHUB_TOKEN=unset
 RUN --mount=type=secret,id=github_token \
     bash -c 'git config --global --add url."https://$(cat /run/secrets/github_token || echo ${GITHUB_TOKEN})@github.com/".insteadOf "https://github.com"'
 
-ENV GOPRIVATE=github.com/planetscale/edge-gateway,github.com/planetscale/log
+RUN go env -w GOPRIVATE=github.com/planetscale/*
+RUN git config --global credential.helper store
+RUN bash -c 'echo "https://planetscale-actions-bot:$GH_TOKEN@github.com" >> ~/.git-credentials'
 
 WORKDIR /airbyte-source
 COPY . .
