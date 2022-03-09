@@ -3,7 +3,10 @@ version: '3.1'
 
 services:
   app:
-    image: golang:1.18rc1
+    build:
+      args:
+        - GITHUB_TOKEN=${ACTIONS_BOT_TOKEN:?}
+      context: .
     volumes:
       - .:/work
     working_dir: /work
