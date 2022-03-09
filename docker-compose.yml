@@ -10,6 +10,7 @@ services:
     volumes:
       - .:/work
     working_dir: /work
+    command: spec
     environment:
       - GITHUB_TOKEN=${ACTIONS_BOT_TOKEN:?}
 
@@ -25,6 +26,8 @@ services:
   licensing:
     build:
       context: containers/licensing
+      args:
+        - GITHUB_TOKEN=${ACTIONS_BOT_TOKEN:?}
     volumes:
       - .:/work
     working_dir: /work
