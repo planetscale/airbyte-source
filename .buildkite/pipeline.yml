@@ -7,7 +7,7 @@ env:
   MAIN_BRANCH: "main"
 
 steps:
-  - name: "Go build and test %n"
+  - name: "Go build and test"
     command: make
     plugins:
       - docker-compose#v3.7.0:
