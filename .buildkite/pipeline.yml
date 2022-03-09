@@ -16,7 +16,7 @@ steps:
 
   - name: "Tests"
     label: "Tests"
-      command: "go test -v ./..."
+    command: "go test -v ./..."
 
   - name: "Verify dependency licenses %n"
     command: "go get -v ./... && license_finder"
