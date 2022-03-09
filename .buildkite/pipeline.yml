@@ -16,7 +16,6 @@ steps:
 
   - name: "Tests"
     label: "Tests"
-    command: "go test -v ./..."
     plugins:
       - docker-compose#v3.9.0:
           run: ci

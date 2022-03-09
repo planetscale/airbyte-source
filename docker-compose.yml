@@ -15,10 +15,11 @@ services:
     build:
       args:
         - GITHUB_TOKEN=${ACTIONS_BOT_TOKEN:?}
-      context: containers/ci
+      context: Dockerfile.ci
+    command: "go test -v ./..."
     volumes:
-      - .:/work
-    working_dir: /work
+      - .:/airbyte-source
+    working_dir: /airbyte-source
 
   db:
     image: mysql:5.7
