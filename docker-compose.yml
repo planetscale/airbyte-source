@@ -3,10 +3,12 @@ version: '3.1'
 
 services:
   app:
-    image: golang:1.17
+    image: golang:1.18rc1
     volumes:
       - .:/work
     working_dir: /work
+    environment:
+      - GITHUB_TOKEN=${ACTIONS_BOT_TOKEN:?}
 
   db:
     image: mysql:5.7
