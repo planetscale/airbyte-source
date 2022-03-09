@@ -25,3 +25,5 @@ services:
     volumes:
       - .:/work
     working_dir: /work
+    environment:
+      - GITHUB_TOKEN=${ACTIONS_BOT_TOKEN:?}
