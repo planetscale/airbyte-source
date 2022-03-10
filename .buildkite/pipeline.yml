@@ -16,6 +16,8 @@ steps:
 
   - name: "Tests"
     label: "Tests"
+    env:
+      DOCKER_BUILDKIT: 1
     plugins:
       - docker-compose#v3.9.0:
           run: ci
