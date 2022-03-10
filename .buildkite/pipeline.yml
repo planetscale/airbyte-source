@@ -16,6 +16,7 @@ steps:
 
   - name: "Tests"
     label: "Tests"
+    command: "go test -v ./..."
     env:
       DOCKER_BUILDKIT: 1
     plugins:
@@ -26,7 +27,7 @@ steps:
     command: "go get -v ./... && license_finder"
     plugins:
       - docker-compose#v3.9.0:
-          run: licensing
+          run: ci
 
   - name: "Branch build and push"
     label: ":docker: Build and push"

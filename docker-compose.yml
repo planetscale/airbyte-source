@@ -17,7 +17,6 @@ services:
         - GITHUB_TOKEN=${ACTIONS_BOT_TOKEN:?}
       context: .
       dockerfile: Dockerfile.ci
-    command: "go test -v ./..."
     volumes:
       - .:/airbyte-source
     working_dir: /airbyte-source
