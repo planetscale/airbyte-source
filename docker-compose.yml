@@ -3,10 +3,23 @@ version: '3.1'
 
 services:
   app:
-    image: golang:1.17
+    build:
+      args:
+        - GITHUB_TOKEN=${ACTIONS_BOT_TOKEN:?}
+      context: .
     volumes:
       - .:/work
     working_dir: /work
+    command: spec
+  ci:
+    build:
+      args:
+        - GITHUB_TOKEN=${ACTIONS_BOT_TOKEN:?}
+      context: .
+      dockerfile: Dockerfile.ci
+    volumes:
+      - .:/airbyte-source
+    working_dir: /airbyte-source
 
   db:
     image: mysql:5.7
@@ -20,6 +33,8 @@ services:
   licensing:
     build:
       context: containers/licensing
+      args:
+        - GITHUB_TOKEN=${ACTIONS_BOT_TOKEN:?}
     volumes:
       - .:/work
     working_dir: /work

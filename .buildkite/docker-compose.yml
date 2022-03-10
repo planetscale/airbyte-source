@@ -5,4 +5,4 @@ services:
     build:
       context: ../
       args:
-        - GH_TOKEN=${ACTIONS_BOT_TOKEN:?}
+        - GITHUB_TOKEN=${ACTIONS_BOT_TOKEN:?}

@@ -7,17 +7,29 @@ env:
   MAIN_BRANCH: "main"
 
 steps:
-  - name: "Go build and test %n"
-    command: make
+  - name: "go build"
+    env:
+      DOCKER_BUILDKIT: 1
     plugins:
       - docker-compose#v3.7.0:
           run: app
 
-  - name: "Verify dependency licenses %n"
-    command: "go get -v ./... && license_finder"
+  - name: "Tests"
+    label: "Tests"
+    command: "go test -v ./..."
+    env:
+      DOCKER_BUILDKIT: 1
     plugins:
       - docker-compose#v3.9.0:
-          run: licensing
+          run: ci
+
+  - name: "Verify dependency licenses %n"
+    command: "go get -v ./... && license_finder"
+    env:
+      DOCKER_BUILDKIT: 1
+    plugins:
+      - docker-compose#v3.9.0:
+          run: ci
 
   - name: "Branch build and push"
     label: ":docker: Build and push"
