@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"io"
 	"os"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/planetscale/edge-gateway/common/authorization"
@@ -36,13 +39,24 @@ func (p PlanetScaleVstreamDatabase) DiscoverSchema(ctx context.Context, psc Plan
 }
 
 func (p PlanetScaleVstreamDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s Stream, state string) error {
-	return p.sync(ctx, state, s, ps)
+	syncTimeoutDuration := 5 * time.Second
+	ctx, cancel := context.WithTimeout(ctx, syncTimeoutDuration)
+	defer cancel()
+	err := p.sync(ctx, state, s, ps)
+	if err != nil {
+		if s, ok := status.FromError(err); ok {
+			if s.Code() == codes.DeadlineExceeded {
+				return nil
+			}
+		}
+	}
+	return err
 }
 
 func (p PlanetScaleVstreamDatabase) sync(ctx context.Context, state string, s Stream, ps PlanetScaleConnection) error {
 	tlsConfig := options.DefaultTLSConfig()
 	pool := psdbpool.New(
-		router.NewSingleRoute(p.grpcAddr),
+		router.NewSingleRoute(ps.Host),
 		options.WithConnectionPool(4),
 		options.WithTLSConfig(tlsConfig),
 	)
@@ -61,10 +75,15 @@ func (p PlanetScaleVstreamDatabase) sync(ctx context.Context, state string, s St
 		tc *psdbdatav1.TableCursor
 	)
 
+	keyspaceOrDatabase := s.Namespace
+	if keyspaceOrDatabase == "" {
+		keyspaceOrDatabase = ps.Database
+	}
+
 	if state == "" {
 		tc = &psdbdatav1.TableCursor{
 			Shard:    "-",
-			Keyspace: s.Namespace,
+			Keyspace: keyspaceOrDatabase,
 			Position: "",
 		}
 	} else {
@@ -91,6 +110,9 @@ func (p PlanetScaleVstreamDatabase) sync(ctx context.Context, state string, s St
 		if errors.Is(err, io.EOF) {
 			// we're done receiving rows from the server
 			return nil
+		}
+		if err != nil {
+			return err
 		}
 		if res.Cursor != nil {
 			// print the cursor to stdout here.

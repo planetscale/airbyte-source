@@ -6,6 +6,7 @@ import (
 	"github.com/planetscale/connect/source/cmd/internal"
 	"github.com/spf13/cobra"
 	"io/ioutil"
+	"os"
 )
 
 var (
@@ -40,21 +41,27 @@ func ReadCommand(ch *Helper) *cobra.Command {
 
 			catalog, err := readCatalog(readSourceCatalogPath)
 			if err != nil {
-				fmt.Println("Unable to read catalog")
-				//return err
+				ch.Logger.Error(cmd.OutOrStdout(), "Unable to read catalog")
+				os.Exit(1)
 			}
 
 			state := ""
 			if stateFilePath != "" {
 				b, err := ioutil.ReadFile(stateFilePath)
 				if err != nil {
-					fmt.Println("Unable to read state")
+					ch.Logger.Error(cmd.OutOrStdout(), "Unable to read state")
+					os.Exit(1)
 				}
 				state = string(b)
 			}
 
 			for _, table := range catalog.Streams {
-				psc.Read(cmd.OutOrStdout(), table.Stream, state)
+				err := psc.Read(cmd.OutOrStdout(), table.Stream, state)
+				if err != nil {
+					ch.Logger.Error(cmd.OutOrStdout(), err.Error())
+					os.Exit(1)
+				}
+
 			}
 		},
 	}

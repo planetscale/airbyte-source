@@ -13,6 +13,7 @@ type AirbyteLogger interface {
 	ConnectionStatus(w io.Writer, status ConnectionStatus)
 	Record(w io.Writer, tableNamespace, tableName string, data map[string]interface{})
 	State(w io.Writer, data map[string]string)
+	Error(w io.Writer, error string)
 }
 
 func NewLogger() AirbyteLogger {
@@ -63,12 +64,23 @@ func (a airbyteLogger) Record(w io.Writer, tableNamespace, tableName string, dat
 }
 
 func (a airbyteLogger) State(w io.Writer, data map[string]string) {
-	b, _ := json.Marshal(data)
 	state := AirbyteMessage{
 		Type:  STATE,
-		State: &AirbyteState{map[string]string{"cursor": string(b)}},
+		State: &AirbyteState{data},
 	}
 	msg, _ := json.Marshal(state)
+	fmt.Fprintf(w, "%s\n", string(msg))
+}
+
+func (a airbyteLogger) Error(w io.Writer, error string) {
+	logline := AirbyteMessage{
+		Type: LOG,
+		Log: &AirbyteLogMessage{
+			Level:   LOGLEVEL_ERROR,
+			Message: error,
+		},
+	}
+	msg, _ := json.Marshal(logline)
 	fmt.Fprintf(w, "%s\n", string(msg))
 }
 

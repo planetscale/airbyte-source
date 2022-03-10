@@ -24,7 +24,7 @@ func (f fileReader) ReadFile(path string) ([]byte, error) {
 func DefaultHelper() *Helper {
 	logger := internal.NewLogger()
 	return &Helper{
-		Database: internal.PlanetScaleMySQLDatabase{
+		Database: internal.PlanetScaleVstreamDatabase{
 			Logger: logger,
 		},
 		FileReader: fileReader{},
