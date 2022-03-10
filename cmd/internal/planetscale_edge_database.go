@@ -3,7 +3,6 @@ package internal
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"io"
@@ -21,7 +20,7 @@ import (
 	_ "vitess.io/vitess/go/vt/vtgate/grpcvtgateconn"
 )
 
-type PlanetScaleVstreamDatabase struct {
+type PlanetScaleEdgeDatabase struct {
 	grpcAddr string
 	Logger   AirbyteLogger
 }
@@ -30,16 +29,16 @@ type TableCursorState struct {
 	SerializedCursor string `json:"cursor"`
 }
 
-func (p PlanetScaleVstreamDatabase) CanConnect(ctx context.Context, psc PlanetScaleConnection) (bool, error) {
+func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleConnection) (bool, error) {
 	return PlanetScaleMySQLDatabase{}.CanConnect(ctx, psc)
 }
 
-func (p PlanetScaleVstreamDatabase) DiscoverSchema(ctx context.Context, psc PlanetScaleConnection) (Catalog, error) {
+func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetScaleConnection) (Catalog, error) {
 	return PlanetScaleMySQLDatabase{}.DiscoverSchema(ctx, psc)
 }
 
-func (p PlanetScaleVstreamDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s Stream, state string) error {
-	syncTimeoutDuration := 5 * time.Second
+func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s Stream, state string) error {
+	syncTimeoutDuration := 15 * time.Second
 	ctx, cancel := context.WithTimeout(ctx, syncTimeoutDuration)
 	defer cancel()
 	err := p.sync(ctx, state, s, ps)
@@ -53,7 +52,7 @@ func (p PlanetScaleVstreamDatabase) Read(ctx context.Context, w io.Writer, ps Pl
 	return err
 }
 
-func (p PlanetScaleVstreamDatabase) sync(ctx context.Context, state string, s Stream, ps PlanetScaleConnection) error {
+func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, state string, s Stream, ps PlanetScaleConnection) error {
 	tlsConfig := options.DefaultTLSConfig()
 	pool := psdbpool.New(
 		router.NewSingleRoute(ps.Host),
@@ -89,10 +88,8 @@ func (p PlanetScaleVstreamDatabase) sync(ctx context.Context, state string, s St
 	} else {
 		tc, err = parseSyncState(state)
 		if err != nil {
-			fmt.Printf("\nUnable to read state, failed with error : [%v]\n", err)
-			return err
+			return errors.Wrap(err, "unable to read state")
 		}
-		fmt.Printf("Found existing state, continuing where we left off, state is [%v]", tc)
 	}
 
 	sReq := &psdbdatav1.SyncRequest{
@@ -143,7 +140,7 @@ func parseSyncState(state string) (*psdbdatav1.TableCursor, error) {
 	return &tc, err
 }
 
-func (p PlanetScaleVstreamDatabase) printSyncState(writer io.Writer, cursor *psdbdatav1.TableCursor) {
+func (p PlanetScaleEdgeDatabase) printSyncState(writer io.Writer, cursor *psdbdatav1.TableCursor) {
 	b, _ := json.Marshal(cursor)
 	data := map[string]string{"cursor": string(b)}
 	p.Logger.State(writer, data)
@@ -151,7 +148,7 @@ func (p PlanetScaleVstreamDatabase) printSyncState(writer io.Writer, cursor *psd
 
 // printQueryResult will pretty-print an AirbyteRecordMessage to the logger.
 // Copied from vtctl/query.go
-func (p PlanetScaleVstreamDatabase) printQueryResult(writer io.Writer, qr *sqltypes.Result, tableNamespace, tableName string) {
+func (p PlanetScaleEdgeDatabase) printQueryResult(writer io.Writer, qr *sqltypes.Result, tableNamespace, tableName string) {
 	var data = make(map[string]interface{})
 
 	columns := make([]string, 0, len(qr.Fields))
