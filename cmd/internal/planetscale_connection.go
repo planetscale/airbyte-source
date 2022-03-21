@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-sql-driver/mysql"
+	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
 	"io"
 	"os"
 )
@@ -42,8 +43,8 @@ func (psc PlanetScaleConnection) DiscoverSchema() (c Catalog, err error) {
 	return psc.DatabaseAccessor.DiscoverSchema(context.Background(), psc)
 }
 
-func (psc PlanetScaleConnection) Read(w io.Writer, table Stream, state string) error {
-	return psc.DatabaseAccessor.Read(context.Background(), w, psc, table, state)
+func (psc PlanetScaleConnection) Read(w io.Writer, table Stream, tc *psdbdatav1.TableCursor) (*SerializedCursor, error) {
+	return psc.DatabaseAccessor.Read(context.Background(), w, psc, table, tc)
 }
 
 func useSecureConnection() bool {

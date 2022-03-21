@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/pkg/errors"
+	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
 	"io"
 	"log"
 	"strings"
@@ -13,7 +14,7 @@ import (
 type PlanetScaleDatabase interface {
 	CanConnect(ctx context.Context, ps PlanetScaleConnection) (bool, error)
 	DiscoverSchema(ctx context.Context, ps PlanetScaleConnection) (Catalog, error)
-	Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s Stream, state string) error
+	Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s Stream, tc *psdbdatav1.TableCursor) (*SerializedCursor, error)
 }
 
 type PlanetScaleMySQLDatabase struct {
@@ -116,16 +117,18 @@ func getJsonSchemaType(mysqlType string) string {
 	return "string"
 }
 
-func (p PlanetScaleMySQLDatabase) Read(ctx context.Context, w io.Writer, psc PlanetScaleConnection, table Stream, state string) error {
+func (p PlanetScaleMySQLDatabase) Read(ctx context.Context, w io.Writer, psc PlanetScaleConnection, table Stream, tc *psdbdatav1.TableCursor) (*SerializedCursor, error) {
+	var sc *SerializedCursor
 	db, err := sql.Open("mysql", psc.DSN())
+
 	if err != nil {
 		log.Printf("Unable to open connection to read stream : %v", err)
-		return err
+		return sc, err
 	}
 	cursor, err := db.Query(table.GetSelectQuery())
 	if err != nil {
 		log.Printf("Unable to query rows from table  : %v, query %v failed with %v : ", table.Name, table.GetSelectQuery(), err)
-		return err
+		return sc, err
 	}
 
 	cols, _ := cursor.Columns()
@@ -150,5 +153,5 @@ func (p PlanetScaleMySQLDatabase) Read(ctx context.Context, w io.Writer, psc Pla
 
 		p.Logger.Record(w, psc.Database, table.Name, m)
 	}
-	return nil
+	return sc, nil
 }

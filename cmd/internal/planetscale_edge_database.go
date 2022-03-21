@@ -21,12 +21,17 @@ import (
 )
 
 type PlanetScaleEdgeDatabase struct {
-	grpcAddr string
-	Logger   AirbyteLogger
+	grpcAddr   string
+	lastCursor *SerializedCursor
+	Logger     AirbyteLogger
 }
 
-type TableCursorState struct {
-	SerializedCursor string `json:"cursor"`
+type SerializedCursor struct {
+	Cursor string `json:"cursor"`
+}
+
+type SyncState struct {
+	Cursors map[string]SerializedCursor
 }
 
 func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleConnection) (bool, error) {
@@ -37,23 +42,34 @@ func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetS
 	return PlanetScaleMySQLDatabase{}.DiscoverSchema(ctx, psc)
 }
 
-func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s Stream, state string) error {
-	syncTimeoutDuration := 15 * time.Second
+func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s Stream, tc *psdbdatav1.TableCursor) (*SerializedCursor, error) {
+	var (
+		sc  *SerializedCursor
+		err error
+	)
+	syncTimeoutDuration := 2 * time.Second
 	ctx, cancel := context.WithTimeout(ctx, syncTimeoutDuration)
 	defer cancel()
-	err := p.sync(ctx, state, s, ps)
+	sc, err = p.sync(ctx, tc, s, ps)
 	if err != nil {
 		if s, ok := status.FromError(err); ok {
 			if s.Code() == codes.DeadlineExceeded {
-				return nil
+				return sc, nil
 			}
 		}
 	}
-	return err
+
+	return sc, err
 }
 
-func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, state string, s Stream, ps PlanetScaleConnection) error {
+func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableCursor, s Stream, ps PlanetScaleConnection) (*SerializedCursor, error) {
 	tlsConfig := options.DefaultTLSConfig()
+	var sc *SerializedCursor
+	var err error
+	tlsConfig, err = options.TLSConfigWithRoot("testcerts/ca-cert.pem")
+	if err != nil {
+		panic(err)
+	}
 	pool := psdbpool.New(
 		router.NewSingleRoute(ps.Host),
 		options.WithConnectionPool(4),
@@ -61,36 +77,14 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, state string, s Strea
 	)
 	auth, err := authorization.NewBasicAuth(ps.Username, ps.Password)
 	if err != nil {
-		return err
+		return sc, err
 	}
 
 	conn, err := pool.GetWithAuth(ctx, auth)
 	if err != nil {
-		return err
+		return sc, err
 	}
 	defer conn.Release()
-
-	var (
-		tc *psdbdatav1.TableCursor
-	)
-
-	keyspaceOrDatabase := s.Namespace
-	if keyspaceOrDatabase == "" {
-		keyspaceOrDatabase = ps.Database
-	}
-
-	if state == "" {
-		tc = &psdbdatav1.TableCursor{
-			Shard:    "-",
-			Keyspace: keyspaceOrDatabase,
-			Position: "",
-		}
-	} else {
-		tc, err = parseSyncState(state)
-		if err != nil {
-			return errors.Wrap(err, "unable to read state")
-		}
-	}
 
 	sReq := &psdbdatav1.SyncRequest{
 		TableName: s.Name,
@@ -99,21 +93,28 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, state string, s Strea
 
 	c, err := conn.Sync(ctx, sReq)
 	if err != nil {
-		return nil
+		return sc, nil
 	}
-
+	keyspaceOrDatabase := s.Namespace
+	if keyspaceOrDatabase == "" {
+		keyspaceOrDatabase = ps.Database
+	}
 	for {
 		res, err := c.Recv()
 		if errors.Is(err, io.EOF) {
 			// we're done receiving rows from the server
-			return nil
+			return sc, nil
 		}
 		if err != nil {
-			return err
+			return sc, err
 		}
 		if res.Cursor != nil {
 			// print the cursor to stdout here.
-			p.printSyncState(os.Stdout, res.Cursor)
+			b, _ := json.Marshal(res.Cursor)
+
+			sc = &SerializedCursor{
+				Cursor: string(b),
+			}
 		}
 		if len(res.Result) > 0 {
 			for _, result := range res.Result {
@@ -123,26 +124,22 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, state string, s Strea
 				}
 				sqlResult.Rows = append(sqlResult.Rows, qr.Rows[0])
 				// print AirbyteRecord messages to stdout here.
-				p.printQueryResult(os.Stdout, sqlResult, s.Namespace, s.Name)
+				p.printQueryResult(os.Stdout, sqlResult, keyspaceOrDatabase, s.Name)
 			}
 		}
 	}
+
+	return sc, nil
 }
 
-func parseSyncState(state string) (*psdbdatav1.TableCursor, error) {
-	var tcs TableCursorState
-	err := json.Unmarshal([]byte(state), &tcs)
-	if err != nil {
-		return nil, err
-	}
-	var tc psdbdatav1.TableCursor
-	err = json.Unmarshal([]byte(tcs.SerializedCursor), &tc)
-	return &tc, err
+func (p PlanetScaleEdgeDatabase) GetLastCursor() *SerializedCursor {
+	return p.lastCursor
 }
 
-func (p PlanetScaleEdgeDatabase) printSyncState(writer io.Writer, cursor *psdbdatav1.TableCursor) {
+func (p PlanetScaleEdgeDatabase) saveSyncState(writer io.Writer, tableName string, cursor *psdbdatav1.TableCursor) {
+	//p.lastSyncState
 	b, _ := json.Marshal(cursor)
-	data := map[string]string{"cursor": string(b)}
+	data := map[string]interface{}{tableName: map[string]string{"cursor": string(b)}}
 	p.Logger.State(writer, data)
 }
 

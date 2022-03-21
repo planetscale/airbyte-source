@@ -64,7 +64,7 @@ type AirbyteRecord struct {
 }
 
 type AirbyteState struct {
-	Data map[string]string `json:"data"`
+	Data map[string]interface{} `json:"data"`
 }
 
 type AirbyteMessage struct {
