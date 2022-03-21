@@ -22,14 +22,16 @@ import (
 )
 
 type PlanetScaleEdgeDatabase struct {
-	grpcAddr string
-	Logger   AirbyteLogger
+	grpcAddr   string
+	lastCursor *SerializedCursor
+	Logger     AirbyteLogger
 }
 
 type SerializedCursor struct {
 	Cursor string `json:"cursor"`
 }
-type TableCursorState struct {
+
+type SyncState struct {
 	Cursors map[string]SerializedCursor
 }
 
@@ -41,23 +43,29 @@ func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetS
 	return PlanetScaleMySQLDatabase{}.DiscoverSchema(ctx, psc)
 }
 
-func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s Stream, tc *psdbdatav1.TableCursor) error {
-	syncTimeoutDuration := 15 * time.Second
+func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s Stream, tc *psdbdatav1.TableCursor) (*SerializedCursor, error) {
+	var (
+		sc  *SerializedCursor
+		err error
+	)
+	syncTimeoutDuration := 2 * time.Second
 	ctx, cancel := context.WithTimeout(ctx, syncTimeoutDuration)
 	defer cancel()
-	err := p.sync(ctx, tc, s, ps)
+	sc, err = p.sync(ctx, tc, s, ps)
 	if err != nil {
 		if s, ok := status.FromError(err); ok {
 			if s.Code() == codes.DeadlineExceeded {
-				return nil
+				return sc, nil
 			}
 		}
 	}
-	return err
+
+	return sc, err
 }
 
-func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableCursor, s Stream, ps PlanetScaleConnection) error {
+func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableCursor, s Stream, ps PlanetScaleConnection) (*SerializedCursor, error) {
 	tlsConfig := options.DefaultTLSConfig()
+	var sc *SerializedCursor
 	fmt.Printf("\nSyncing rows with cursor : [%v]\n", tc)
 	var err error
 	tlsConfig, err = options.TLSConfigWithRoot("testcerts/ca-cert.pem")
@@ -71,12 +79,12 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableC
 	)
 	auth, err := authorization.NewBasicAuth(ps.Username, ps.Password)
 	if err != nil {
-		return err
+		return sc, err
 	}
 
 	conn, err := pool.GetWithAuth(ctx, auth)
 	if err != nil {
-		return err
+		return sc, err
 	}
 	defer conn.Release()
 
@@ -87,7 +95,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableC
 
 	c, err := conn.Sync(ctx, sReq)
 	if err != nil {
-		return nil
+		return sc, nil
 	}
 	keyspaceOrDatabase := s.Namespace
 	if keyspaceOrDatabase == "" {
@@ -97,14 +105,20 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableC
 		res, err := c.Recv()
 		if errors.Is(err, io.EOF) {
 			// we're done receiving rows from the server
-			return nil
+			return sc, nil
 		}
 		if err != nil {
-			return err
+			return sc, err
 		}
 		if res.Cursor != nil {
 			// print the cursor to stdout here.
-			p.printSyncState(os.Stdout, keyspaceOrDatabase+":"+s.Name, res.Cursor)
+			fmt.Printf("\n\t found cursor in response : %v\n", res.Cursor)
+			b, _ := json.Marshal(res.Cursor)
+
+			sc = &SerializedCursor{
+				Cursor: string(b),
+			}
+			fmt.Printf("\n\tlast cursor is now %v\n", sc)
 		}
 		if len(res.Result) > 0 {
 			for _, result := range res.Result {
@@ -118,21 +132,17 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableC
 			}
 		}
 	}
+
+	return sc, nil
 }
 
-//
-//func parseSyncState(state string) (*psdbdatav1.TableCursor, error) {
-//	var tcs TableCursorState
-//	err := json.Unmarshal([]byte(state), &tcs)
-//	if err != nil {
-//		return nil, err
-//	}
-//	var tc psdbdatav1.TableCursor
-//	err = json.Unmarshal([]byte(tcs.SerializedCursor), &tc)
-//	return &tc, err
-//}
+func (p PlanetScaleEdgeDatabase) GetLastCursor() *SerializedCursor {
+	fmt.Printf("\n returning last cursor : [%v]\n", p.lastCursor)
+	return p.lastCursor
+}
 
-func (p PlanetScaleEdgeDatabase) printSyncState(writer io.Writer, tableName string, cursor *psdbdatav1.TableCursor) {
+func (p PlanetScaleEdgeDatabase) saveSyncState(writer io.Writer, tableName string, cursor *psdbdatav1.TableCursor) {
+	//p.lastSyncState
 	b, _ := json.Marshal(cursor)
 	data := map[string]interface{}{tableName: map[string]string{"cursor": string(b)}}
 	p.Logger.State(writer, data)

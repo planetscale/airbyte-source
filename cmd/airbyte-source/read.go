@@ -63,6 +63,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				os.Exit(1)
 			}
 
+			cursorMap := make(map[string]interface{}, len(catalog.Streams))
 			for _, table := range catalog.Streams {
 				keyspaceOrDatabase := table.Stream.Namespace
 				if keyspaceOrDatabase == "" {
@@ -75,13 +76,20 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					os.Exit(1)
 				}
 
-				err := psc.Read(cmd.OutOrStdout(), table.Stream, state)
+				sc, err := psc.Read(cmd.OutOrStdout(), table.Stream, state)
 				if err != nil {
 					ch.Logger.Error(cmd.OutOrStdout(), err.Error())
 					os.Exit(1)
 				}
 
+				if sc != nil {
+					fmt.Printf("\n\t saving cursor state : %v\n", sc)
+					cursorMap[stateKey] = sc
+				}
 			}
+
+			fmt.Printf("last known cursors are : [%v]\n", cursorMap)
+			ch.Logger.State(cmd.OutOrStdout(), cursorMap)
 		},
 	}
 	readCmd.Flags().StringVar(&readSourceCatalogPath, "catalog", "", "Path to the PlanetScale catalog configuration")
