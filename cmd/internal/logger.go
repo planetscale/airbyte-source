@@ -12,7 +12,7 @@ type AirbyteLogger interface {
 	Catalog(w io.Writer, catalog Catalog)
 	ConnectionStatus(w io.Writer, status ConnectionStatus)
 	Record(w io.Writer, tableNamespace, tableName string, data map[string]interface{})
-	State(w io.Writer, data map[string]string)
+	State(w io.Writer, data map[string]interface{})
 	Error(w io.Writer, error string)
 }
 
@@ -63,7 +63,7 @@ func (a airbyteLogger) Record(w io.Writer, tableNamespace, tableName string, dat
 	fmt.Fprintf(w, "%s\n", msg)
 }
 
-func (a airbyteLogger) State(w io.Writer, data map[string]string) {
+func (a airbyteLogger) State(w io.Writer, data map[string]interface{}) {
 	state := AirbyteMessage{
 		Type:  STATE,
 		State: &AirbyteState{data},

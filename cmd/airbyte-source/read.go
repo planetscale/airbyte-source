@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/planetscale/connect/source/cmd/internal"
+	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
 	"github.com/spf13/cobra"
 	"io/ioutil"
 	"os"
@@ -53,9 +54,27 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					os.Exit(1)
 				}
 				state = string(b)
+				fmt.Printf("\nstate is %v\n", state)
+			}
+
+			states, err := readState(state, psc, catalog.Streams)
+			if err != nil {
+				ch.Logger.Error(cmd.OutOrStdout(), "Unable to read state")
+				os.Exit(1)
 			}
 
 			for _, table := range catalog.Streams {
+				keyspaceOrDatabase := table.Stream.Namespace
+				if keyspaceOrDatabase == "" {
+					keyspaceOrDatabase = psc.Database
+				}
+				stateKey := keyspaceOrDatabase + ":" + table.Stream.Name
+				state, ok := states[stateKey]
+				if !ok {
+					ch.Logger.Error(cmd.OutOrStdout(), fmt.Sprintf("Unable to read state for stream %v", stateKey))
+					os.Exit(1)
+				}
+
 				err := psc.Read(cmd.OutOrStdout(), table.Stream, state)
 				if err != nil {
 					ch.Logger.Error(cmd.OutOrStdout(), err.Error())
@@ -69,6 +88,50 @@ func ReadCommand(ch *Helper) *cobra.Command {
 	readCmd.Flags().StringVar(&readSourceConfigFilePath, "config", "", "Path to the PlanetScale catalog configuration")
 	readCmd.Flags().StringVar(&stateFilePath, "state", "", "Path to the PlanetScale state information")
 	return readCmd
+}
+
+func readState(state string, psc internal.PlanetScaleConnection, streams []internal.ConfiguredStream) (map[string]*psdbdatav1.TableCursor, error) {
+	states := map[string]*psdbdatav1.TableCursor{}
+	var tc map[string]internal.SerializedCursor
+	if state != "" {
+		err := json.Unmarshal([]byte(state), &tc)
+		if err != nil {
+			fmt.Printf("\n failed reading state : [%v]", err)
+			return nil, err
+		}
+
+		fmt.Printf("\nserialized cursor states is : [%v]", tc)
+	}
+	for _, s := range streams {
+
+		keyspaceOrDatabase := s.Stream.Namespace
+		if keyspaceOrDatabase == "" {
+			keyspaceOrDatabase = psc.Database
+		}
+		stateKey := keyspaceOrDatabase + ":" + s.Stream.Name
+
+		cursor, ok := tc[stateKey]
+		if !ok {
+			// if no known cursor for this stream, make an empty one.
+			states[stateKey] = &psdbdatav1.TableCursor{
+				Shard:    "-",
+				Keyspace: keyspaceOrDatabase,
+				Position: "",
+			}
+		} else {
+			var tc psdbdatav1.TableCursor
+			err := json.Unmarshal([]byte(cursor.Cursor), &tc)
+			if err != nil {
+				fmt.Println("failed reading line")
+				fmt.Println(err.Error())
+				return nil, err
+			}
+			fmt.Printf("\n read state : [%v, %v, %v]\n", tc.Position, tc.Keyspace, tc.Shard)
+			states[stateKey] = &tc
+		}
+	}
+
+	return states, nil
 }
 
 func readCatalog(path string) (c internal.ConfiguredCatalog, err error) {

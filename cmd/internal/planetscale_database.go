@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/pkg/errors"
+	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
 	"io"
 	"log"
 	"strings"
@@ -13,7 +14,7 @@ import (
 type PlanetScaleDatabase interface {
 	CanConnect(ctx context.Context, ps PlanetScaleConnection) (bool, error)
 	DiscoverSchema(ctx context.Context, ps PlanetScaleConnection) (Catalog, error)
-	Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s Stream, state string) error
+	Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s Stream, tc *psdbdatav1.TableCursor) error
 }
 
 type PlanetScaleMySQLDatabase struct {
@@ -116,7 +117,7 @@ func getJsonSchemaType(mysqlType string) string {
 	return "string"
 }
 
-func (p PlanetScaleMySQLDatabase) Read(ctx context.Context, w io.Writer, psc PlanetScaleConnection, table Stream, state string) error {
+func (p PlanetScaleMySQLDatabase) Read(ctx context.Context, w io.Writer, psc PlanetScaleConnection, table Stream, tc *psdbdatav1.TableCursor) error {
 	db, err := sql.Open("mysql", psc.DSN())
 	if err != nil {
 		log.Printf("Unable to open connection to read stream : %v", err)
