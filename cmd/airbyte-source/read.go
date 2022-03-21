@@ -54,7 +54,6 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					os.Exit(1)
 				}
 				state = string(b)
-				fmt.Printf("\nstate is %v\n", state)
 			}
 
 			states, err := readState(state, psc, catalog.Streams)
@@ -83,13 +82,12 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				}
 
 				if sc != nil {
-					fmt.Printf("\n\t saving cursor state : %v\n", sc)
 					cursorMap[stateKey] = sc
 				}
+
+				ch.Logger.State(cmd.OutOrStdout(), cursorMap)
 			}
 
-			fmt.Printf("last known cursors are : [%v]\n", cursorMap)
-			ch.Logger.State(cmd.OutOrStdout(), cursorMap)
 		},
 	}
 	readCmd.Flags().StringVar(&readSourceCatalogPath, "catalog", "", "Path to the PlanetScale catalog configuration")
@@ -104,11 +102,9 @@ func readState(state string, psc internal.PlanetScaleConnection, streams []inter
 	if state != "" {
 		err := json.Unmarshal([]byte(state), &tc)
 		if err != nil {
-			fmt.Printf("\n failed reading state : [%v]", err)
 			return nil, err
 		}
 
-		fmt.Printf("\nserialized cursor states is : [%v]", tc)
 	}
 	for _, s := range streams {
 
@@ -130,11 +126,8 @@ func readState(state string, psc internal.PlanetScaleConnection, streams []inter
 			var tc psdbdatav1.TableCursor
 			err := json.Unmarshal([]byte(cursor.Cursor), &tc)
 			if err != nil {
-				fmt.Println("failed reading line")
-				fmt.Println(err.Error())
 				return nil, err
 			}
-			fmt.Printf("\n read state : [%v, %v, %v]\n", tc.Position, tc.Keyspace, tc.Shard)
 			states[stateKey] = &tc
 		}
 	}

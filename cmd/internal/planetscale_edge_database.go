@@ -3,7 +3,6 @@ package internal
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"io"
@@ -66,7 +65,6 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableCursor, s Stream, ps PlanetScaleConnection) (*SerializedCursor, error) {
 	tlsConfig := options.DefaultTLSConfig()
 	var sc *SerializedCursor
-	fmt.Printf("\nSyncing rows with cursor : [%v]\n", tc)
 	var err error
 	tlsConfig, err = options.TLSConfigWithRoot("testcerts/ca-cert.pem")
 	if err != nil {
@@ -112,13 +110,11 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableC
 		}
 		if res.Cursor != nil {
 			// print the cursor to stdout here.
-			fmt.Printf("\n\t found cursor in response : %v\n", res.Cursor)
 			b, _ := json.Marshal(res.Cursor)
 
 			sc = &SerializedCursor{
 				Cursor: string(b),
 			}
-			fmt.Printf("\n\tlast cursor is now %v\n", sc)
 		}
 		if len(res.Result) > 0 {
 			for _, result := range res.Result {
@@ -137,7 +133,6 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableC
 }
 
 func (p PlanetScaleEdgeDatabase) GetLastCursor() *SerializedCursor {
-	fmt.Printf("\n returning last cursor : [%v]\n", p.lastCursor)
 	return p.lastCursor
 }
 
