@@ -46,7 +46,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		err error
 	)
 
-	syncTimeoutDuration := 2 * time.Second
+	syncTimeoutDuration := 45 * time.Second
 	ctx, cancel := context.WithTimeout(ctx, syncTimeoutDuration)
 	defer cancel()
 	sc, err = p.sync(ctx, tc, s, ps)
@@ -56,12 +56,6 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 				return sc, nil
 			}
 		}
-	}
-
-	if sc == nil {
-		// if we didn't get a cursor in this sync operation, then there's no new records since the last cursor
-		// resend the old cursor back.
-		sc = p.serializeCursor(tc)
 	}
 
 	return sc, err

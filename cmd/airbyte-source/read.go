@@ -82,7 +82,11 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					os.Exit(1)
 				}
 
-				if sc != nil {
+				if sc == nil {
+					// if we didn't get a cursor back, there might be no new rows yet
+					// output the last known state again so that the next sync can pickup where this left off.
+					cursorMap[stateKey] = serializeCursor(state)
+				} else {
 					cursorMap[stateKey] = sc
 				}
 
@@ -95,6 +99,15 @@ func ReadCommand(ch *Helper) *cobra.Command {
 	readCmd.Flags().StringVar(&readSourceConfigFilePath, "config", "", "Path to the PlanetScale catalog configuration")
 	readCmd.Flags().StringVar(&stateFilePath, "state", "", "Path to the PlanetScale state information")
 	return readCmd
+}
+
+func serializeCursor(cursor *psdbdatav1.TableCursor) *internal.SerializedCursor {
+	b, _ := json.Marshal(cursor)
+
+	sc := &internal.SerializedCursor{
+		Cursor: string(b),
+	}
+	return sc
 }
 
 func readState(state string, psc internal.PlanetScaleConnection, streams []internal.ConfiguredStream) (map[string]*psdbdatav1.TableCursor, error) {
