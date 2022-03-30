@@ -33,12 +33,13 @@ licensed:
 .PHONY: build-image
 build-image:
 	@echo "==> Building docker image ${REPO}/${NAME}:$(VERSION)"
-	@docker build --platform ${DOCKER_BUILD_PLATFORM} --build-arg VERSION=$(VERSION:v%=%) --build-arg COMMIT=$(COMMIT) --build-arg DATE=$(DATE) -t ${REPO}/${NAME}:$(VERSION) .
+	@docker build --platform ${DOCKER_BUILD_PLATFORM} --build-arg VERSION=$(VERSION:v%=%) --build-arg COMMIT=$(COMMIT) --build-arg DATE=$(DATE) --build-arg GITHUB_TOKEN=$(GITHUB_TOKEN) -t ${REPO}/${NAME}:$(VERSION) .
 	@docker tag ${REPO}/${NAME}:$(VERSION) ${REPO}/${NAME}:latest
 
 .PHONY: push
 push: build-image
 	export REPO=$(REPO)
+	export GITHUB_TOKEN=$(GITHUB_TOKEN)
 	@echo "==> Pushing docker image ${REPO}/${NAME}:$(VERSION)"
 	@docker push ${REPO}/${NAME}:latest
 	@docker push ${REPO}/${NAME}:$(VERSION)

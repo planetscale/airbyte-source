@@ -27,17 +27,18 @@ func ReadCommand(ch *Helper) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			if readSourceConfigFilePath == "" {
 				fmt.Fprintf(cmd.OutOrStdout(), "Please pass path to a valid source config file via the [%v] argument", "config")
-				return
+				os.Exit(1)
 			}
 
 			if readSourceCatalogPath == "" {
 				fmt.Fprintf(cmd.OutOrStdout(), "Please pass path to a valid source catalog file via the [%v] argument", "config")
-				return
+				os.Exit(1)
 			}
 
 			cs, psc, err := checkConnectionStatus(ch.Database, ch.FileReader, readSourceConfigFilePath)
 			if err != nil {
 				printConnectionStatus(cmd.OutOrStdout(), cs, "Connection test failed", internal.LOGLEVEL_ERROR)
+				os.Exit(1)
 			}
 
 			catalog, err := readCatalog(readSourceCatalogPath)
@@ -104,8 +105,8 @@ func readState(state string, psc internal.PlanetScaleConnection, streams []inter
 		if err != nil {
 			return nil, err
 		}
-
 	}
+
 	for _, s := range streams {
 
 		keyspaceOrDatabase := s.Stream.Namespace

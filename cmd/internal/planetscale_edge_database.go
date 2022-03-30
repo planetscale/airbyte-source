@@ -66,10 +66,6 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableC
 	tlsConfig := options.DefaultTLSConfig()
 	var sc *SerializedCursor
 	var err error
-	tlsConfig, err = options.TLSConfigWithRoot("testcerts/ca-cert.pem")
-	if err != nil {
-		panic(err)
-	}
 	pool := psdbpool.New(
 		router.NewSingleRoute(ps.Host),
 		options.WithConnectionPool(4),
