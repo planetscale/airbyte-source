@@ -21,9 +21,7 @@ import (
 )
 
 type PlanetScaleEdgeDatabase struct {
-	grpcAddr   string
-	lastCursor *SerializedCursor
-	Logger     AirbyteLogger
+	Logger AirbyteLogger
 }
 
 type SerializedCursor struct {
@@ -47,6 +45,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		sc  *SerializedCursor
 		err error
 	)
+
 	syncTimeoutDuration := 2 * time.Second
 	ctx, cancel := context.WithTimeout(ctx, syncTimeoutDuration)
 	defer cancel()
@@ -57,6 +56,12 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 				return sc, nil
 			}
 		}
+	}
+
+	if sc == nil {
+		// if we didn't get a cursor in this sync operation, then there's no new records since the last cursor
+		// resend the old cursor back.
+		sc = p.serializeCursor(tc)
 	}
 
 	return sc, err
@@ -106,11 +111,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableC
 		}
 		if res.Cursor != nil {
 			// print the cursor to stdout here.
-			b, _ := json.Marshal(res.Cursor)
-
-			sc = &SerializedCursor{
-				Cursor: string(b),
-			}
+			sc = p.serializeCursor(res.Cursor)
 		}
 		if len(res.Result) > 0 {
 			for _, result := range res.Result {
@@ -128,15 +129,13 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableC
 	return sc, nil
 }
 
-func (p PlanetScaleEdgeDatabase) GetLastCursor() *SerializedCursor {
-	return p.lastCursor
-}
-
-func (p PlanetScaleEdgeDatabase) saveSyncState(writer io.Writer, tableName string, cursor *psdbdatav1.TableCursor) {
-	//p.lastSyncState
+func (p PlanetScaleEdgeDatabase) serializeCursor(cursor *psdbdatav1.TableCursor) *SerializedCursor {
 	b, _ := json.Marshal(cursor)
-	data := map[string]interface{}{tableName: map[string]string{"cursor": string(b)}}
-	p.Logger.State(writer, data)
+
+	sc := &SerializedCursor{
+		Cursor: string(b),
+	}
+	return sc
 }
 
 // printQueryResult will pretty-print an AirbyteRecordMessage to the logger.
