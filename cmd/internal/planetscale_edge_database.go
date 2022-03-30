@@ -59,9 +59,12 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	}
 
 	if sc == nil {
+		p.Logger.Log(w, LOGLEVEL_INFO, "No new records returned, returning last known cursor")
 		// if we didn't get a cursor in this sync operation, then there's no new records since the last cursor
 		// resend the old cursor back.
 		sc = p.serializeCursor(tc)
+	} else {
+		p.Logger.Log(w, LOGLEVEL_INFO, "new records returned, returning new cursor")
 	}
 
 	return sc, err
