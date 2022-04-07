@@ -46,7 +46,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		err error
 	)
 
-	syncTimeoutDuration := 45 * time.Second
+	syncTimeoutDuration := 2 * time.Minute
 	ctx, cancel := context.WithTimeout(ctx, syncTimeoutDuration)
 	defer cancel()
 	sc, err = p.sync(ctx, tc, s, ps)

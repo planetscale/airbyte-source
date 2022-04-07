@@ -79,7 +79,7 @@ func getStreamForTable(tableName string, keyspace string, db *sql.DB) (Stream, e
 	stream := Stream{
 		Name:               tableName,
 		Schema:             schema,
-		SupportedSyncModes: []string{"full_refresh"},
+		SupportedSyncModes: []string{"full_refresh", "incremental"},
 		Namespace:          keyspace,
 	}
 
