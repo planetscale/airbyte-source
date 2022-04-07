@@ -132,8 +132,6 @@ func (p PlanetScaleEdgeDatabase) serializeCursor(cursor *psdbdatav1.TableCursor)
 	return sc
 }
 
-var index int64 = 0
-
 // printQueryResult will pretty-print an AirbyteRecordMessage to the logger.
 // Copied from vtctl/query.go
 func (p PlanetScaleEdgeDatabase) printQueryResult(writer io.Writer, qr *sqltypes.Result, tableNamespace, tableName string) {
@@ -145,8 +143,6 @@ func (p PlanetScaleEdgeDatabase) printQueryResult(writer io.Writer, qr *sqltypes
 	}
 	for _, row := range qr.Rows {
 		for idx, val := range row {
-			index += 1
-			data["index"] = index
 			if idx < len(columns) {
 				data[columns[idx]] = val
 			}
