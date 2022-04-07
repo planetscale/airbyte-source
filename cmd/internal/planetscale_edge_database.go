@@ -46,7 +46,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		err error
 	)
 
-	syncTimeoutDuration := 45 * time.Second
+	syncTimeoutDuration := 2 * time.Minute
 	ctx, cancel := context.WithTimeout(ctx, syncTimeoutDuration)
 	defer cancel()
 	sc, err = p.sync(ctx, tc, s, ps)
@@ -132,6 +132,8 @@ func (p PlanetScaleEdgeDatabase) serializeCursor(cursor *psdbdatav1.TableCursor)
 	return sc
 }
 
+var index int64 = 0
+
 // printQueryResult will pretty-print an AirbyteRecordMessage to the logger.
 // Copied from vtctl/query.go
 func (p PlanetScaleEdgeDatabase) printQueryResult(writer io.Writer, qr *sqltypes.Result, tableNamespace, tableName string) {
@@ -143,6 +145,8 @@ func (p PlanetScaleEdgeDatabase) printQueryResult(writer io.Writer, qr *sqltypes
 	}
 	for _, row := range qr.Rows {
 		for idx, val := range row {
+			index += 1
+			data["index"] = index
 			if idx < len(columns) {
 				data[columns[idx]] = val
 			}

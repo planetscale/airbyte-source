@@ -49,7 +49,16 @@ type Catalog struct {
 }
 
 type ConfiguredStream struct {
-	Stream Stream `json:"stream"`
+	Stream   Stream `json:"stream"`
+	SyncMode string `json:"sync_mode"`
+}
+
+func (cs ConfiguredStream) IncrementalSyncRequested() bool {
+	return cs.SyncMode == "incremental"
+}
+
+func (cs ConfiguredStream) ResetRequested() bool {
+	return cs.SyncMode == "append"
 }
 
 type ConfiguredCatalog struct {
@@ -108,6 +117,7 @@ type ConnectionSpecification struct {
 type Spec struct {
 	DocumentationURL              string                  `json:"documentationUrl"`
 	ConnectionSpecification       ConnectionSpecification `json:"connectionSpecification"`
+	SupportsIncremental           bool                    `json:"supportsIncremental"`
 	SupportsNormalization         bool                    `json:"supportsNormalization"`
 	SupportsDBT                   bool                    `json:"supportsDBT"`
 	SupportedDestinationSyncModes []string                `json:"supported_destination_sync_modes"`

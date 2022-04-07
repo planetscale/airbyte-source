@@ -128,21 +128,22 @@ func readState(state string, psc internal.PlanetScaleConnection, streams []inter
 		}
 		stateKey := keyspaceOrDatabase + ":" + s.Stream.Name
 
-		cursor, ok := tc[stateKey]
-		if !ok {
-			// if no known cursor for this stream, make an empty one.
-			states[stateKey] = &psdbdatav1.TableCursor{
-				Shard:    "-",
-				Keyspace: keyspaceOrDatabase,
-				Position: "",
+		emptyState := &psdbdatav1.TableCursor{
+			Shard:    "-",
+			Keyspace: keyspaceOrDatabase,
+			Position: "",
+		}
+		states[stateKey] = emptyState
+
+		if s.IncrementalSyncRequested() {
+			if cursor, ok := tc[stateKey]; ok {
+				var tc psdbdatav1.TableCursor
+				err := json.Unmarshal([]byte(cursor.Cursor), &tc)
+				if err != nil {
+					return nil, err
+				}
+				states[stateKey] = &tc
 			}
-		} else {
-			var tc psdbdatav1.TableCursor
-			err := json.Unmarshal([]byte(cursor.Cursor), &tc)
-			if err != nil {
-				return nil, err
-			}
-			states[stateKey] = &tc
 		}
 	}
 
