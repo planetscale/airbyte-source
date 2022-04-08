@@ -17,7 +17,7 @@ func TestCheck(t *testing.T) {
 		t.Skip("Please run end-to-end tests with the script/e2e.sh script")
 	}
 
-	checkCommand := airbyte_source.CheckCommand(airbyte_source.DefaultHelper())
+	checkCommand := airbyte_source.CheckCommand(airbyte_source.DefaultHelper(os.Stdout))
 	sourceFileEnv, found := os.LookupEnv("SOURCE_CONFIG_FILE")
 	require.True(t, found)
 	checkCommand.Flag("config").Value.Set(sourceFileEnv)
@@ -38,7 +38,7 @@ func TestDiscover(t *testing.T) {
 	if _, ok := os.LookupEnv("PS_END_TO_END_TEST_RUN"); !ok {
 		t.Skip("Please run end-to-end tests with the script/e2e.sh script")
 	}
-	discover := airbyte_source.DiscoverCommand(airbyte_source.DefaultHelper())
+	discover := airbyte_source.DiscoverCommand(airbyte_source.DefaultHelper(os.Stdout))
 	sourceFileEnv, found := os.LookupEnv("SOURCE_CONFIG_FILE")
 	require.True(t, found)
 	discover.Flag("config").Value.Set(sourceFileEnv)

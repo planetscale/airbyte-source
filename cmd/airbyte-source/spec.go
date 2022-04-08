@@ -16,7 +16,6 @@ func SpecCommand() *cobra.Command {
 		Use:   "spec",
 		Short: "Describes inputs needed for connecting to PlanetScale databases",
 		Run: func(cmd *cobra.Command, args []string) {
-
 			specMessage := internal.SpecMessage{
 				Type: "SPEC",
 				Spec: internal.Spec{
@@ -24,6 +23,7 @@ func SpecCommand() *cobra.Command {
 					SupportedDestinationSyncModes: []string{
 						"overwrite",
 					},
+					SupportsIncremental: true,
 					ConnectionSpecification: internal.ConnectionSpecification{
 						Schema:   "http://json-schema.org/draft-07/schema#",
 						Type:     "object",
@@ -54,6 +54,14 @@ func SpecCommand() *cobra.Command {
 								Type:        "string",
 								Order:       3,
 								IsSecret:    true,
+							},
+							SyncDuration: internal.ConnectionProperty{
+								Description: "Duration of each sync session in minutes",
+								Title:       "Sync Duration",
+								Type:        "integer",
+								Maximum:     20,
+								Minimum:     0,
+								Order:       4,
 							},
 						},
 					},

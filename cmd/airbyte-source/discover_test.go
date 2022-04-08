@@ -21,13 +21,15 @@ func TestDiscoverInvalidSource(t *testing.T) {
 			err:        fmt.Errorf("[%v] is invalid", "username"),
 		},
 	}
+
+	b := bytes.NewBufferString("")
 	discover := DiscoverCommand(&Helper{
 		Database:   td,
 		FileReader: tfr,
-		Logger:     internal.NewLogger(),
+		Logger:     internal.NewLogger(b),
 	})
 	discover.SetArgs([]string{"config source.json"})
-	b := bytes.NewBufferString("")
+
 	discover.SetOut(b)
 	discover.Flag("config").Value.Set("catalog.json")
 	discover.Execute()
@@ -54,13 +56,14 @@ func TestDiscoverFailed(t *testing.T) {
 			err: fmt.Errorf("unable to get catalog for %v", "keyspace"),
 		},
 	}
+	b := bytes.NewBufferString("")
 	discover := DiscoverCommand(&Helper{
 		Database:   td,
 		FileReader: tfr,
-		Logger:     internal.NewLogger(),
+		Logger:     internal.NewLogger(b),
 	})
 	discover.SetArgs([]string{"config source.json"})
-	b := bytes.NewBufferString("")
+
 	discover.SetOut(b)
 	discover.Flag("config").Value.Set("catalog.json")
 	discover.Execute()

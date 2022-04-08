@@ -7,14 +7,16 @@ import (
 	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
 	"io"
 	"os"
+	"time"
 )
 
 type PlanetScaleConnection struct {
-	Host             string `json:"host"`
-	Database         string `json:"database"`
-	Username         string `json:"username"`
-	Password         string `json:"password"`
-	DatabaseAccessor PlanetScaleDatabase
+	Host                  string `json:"host"`
+	Database              string `json:"database"`
+	Username              string `json:"username"`
+	Password              string `json:"password"`
+	SyncDurationInMinutes int    `json:"sync_duration"`
+	DatabaseAccessor      PlanetScaleDatabase
 }
 
 func (psc PlanetScaleConnection) DSN() string {
@@ -44,7 +46,15 @@ func (psc PlanetScaleConnection) DiscoverSchema() (c Catalog, err error) {
 }
 
 func (psc PlanetScaleConnection) Read(w io.Writer, table Stream, tc *psdbdatav1.TableCursor) (*SerializedCursor, error) {
-	return psc.DatabaseAccessor.Read(context.Background(), w, psc, table, tc)
+	return psc.DatabaseAccessor.Read(context.Background(), w, psc, table, psc.getMaxReadDurationInMinutes(), tc)
+}
+
+func (ps PlanetScaleConnection) getMaxReadDurationInMinutes() time.Duration {
+	if ps.SyncDurationInMinutes == 0 {
+		return 2 * time.Minute
+	}
+
+	return time.Duration(ps.SyncDurationInMinutes) * time.Minute
 }
 
 func useSecureConnection() bool {

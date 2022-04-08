@@ -8,12 +8,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io/ioutil"
+	"os"
 	"testing"
 )
 
 func TestCheckFailsWithoutConfig(t *testing.T) {
 	checkCommand := CheckCommand(&Helper{
-		Logger: internal.NewLogger(),
+		Logger: internal.NewLogger(os.Stdout),
 	})
 	b := bytes.NewBufferString("")
 	checkCommand.SetOut(b)
@@ -30,7 +31,7 @@ func TestCheckInvalidCatalogJSON(t *testing.T) {
 	checkCommand := CheckCommand(&Helper{
 		Database:   internal.PlanetScaleMySQLDatabase{},
 		FileReader: tfr,
-		Logger:     internal.NewLogger(),
+		Logger:     internal.NewLogger(os.Stdout),
 	})
 	b := bytes.NewBufferString("")
 
@@ -63,7 +64,7 @@ func TestCheckCredentialsInvalid(t *testing.T) {
 	checkCommand := CheckCommand(&Helper{
 		Database:   td,
 		FileReader: tfr,
-		Logger:     internal.NewLogger(),
+		Logger:     internal.NewLogger(os.Stdout),
 	})
 	b := bytes.NewBufferString("")
 	checkCommand.SetOut(b)
@@ -94,7 +95,7 @@ func TestCheckExecuteSuccessful(t *testing.T) {
 	checkCommand := CheckCommand(&Helper{
 		Database:   td,
 		FileReader: tfr,
-		Logger:     internal.NewLogger(),
+		Logger:     internal.NewLogger(os.Stdout),
 	})
 	b := bytes.NewBufferString("")
 	checkCommand.SetOut(b)

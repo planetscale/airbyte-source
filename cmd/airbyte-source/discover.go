@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/planetscale/connect/source/cmd/internal"
 	"github.com/spf13/cobra"
+	"os"
 )
 
 var (
@@ -11,7 +12,7 @@ var (
 )
 
 func init() {
-	rootCmd.AddCommand(DiscoverCommand(DefaultHelper()))
+	rootCmd.AddCommand(DiscoverCommand(DefaultHelper(os.Stdout)))
 }
 
 func DiscoverCommand(ch *Helper) *cobra.Command {
@@ -28,17 +29,17 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 
 			cs, psc, err := checkConnectionStatus(ch.Database, ch.FileReader, sourceConfigFilePath)
 			if err != nil {
-				ch.Logger.ConnectionStatus(cmd.OutOrStdout(), cs)
+				ch.Logger.ConnectionStatus(cs)
 				return
 			}
 
 			c, err := psc.DiscoverSchema()
 			if err != nil {
-				ch.Logger.Log(cmd.OutOrStdout(), internal.LOGLEVEL_ERROR, fmt.Sprintf("Unable to discover database, failed with [%v]", err))
+				ch.Logger.Log(internal.LOGLEVEL_ERROR, fmt.Sprintf("Unable to discover database, failed with [%v]", err))
 				return
 			}
 
-			ch.Logger.Catalog(cmd.OutOrStdout(), c)
+			ch.Logger.Catalog(c)
 		},
 	}
 

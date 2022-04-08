@@ -2,52 +2,58 @@ package internal
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"time"
 )
 
 type AirbyteLogger interface {
-	Log(w io.Writer, level, message string)
-	Catalog(w io.Writer, catalog Catalog)
-	ConnectionStatus(w io.Writer, status ConnectionStatus)
-	Record(w io.Writer, tableNamespace, tableName string, data map[string]interface{})
-	State(w io.Writer, data map[string]interface{})
-	Error(w io.Writer, error string)
+	Log(level, message string)
+	Catalog(catalog Catalog)
+	ConnectionStatus(status ConnectionStatus)
+	Record(tableNamespace, tableName string, data map[string]interface{})
+	Flush()
+	State(data map[string]interface{})
+	Error(error string)
 }
 
-func NewLogger() AirbyteLogger {
-	return airbyteLogger{}
+const MaxBatchSize = 10000
+
+func NewLogger(w io.Writer) AirbyteLogger {
+	al := airbyteLogger{}
+	al.writer = w
+	al.recordEncoder = json.NewEncoder(w)
+	al.records = make([]AirbyteMessage, 0, MaxBatchSize)
+	return &al
 }
 
-type airbyteLogger struct{}
+type airbyteLogger struct {
+	recordEncoder *json.Encoder
+	writer        io.Writer
+	records       []AirbyteMessage
+}
 
-func (a airbyteLogger) Log(w io.Writer, level, message string) {
-	msg, _ := json.Marshal(AirbyteMessage{
+func (a *airbyteLogger) Log(level, message string) {
+	a.recordEncoder.Encode(AirbyteMessage{
 		Type: LOG,
 		Log: &AirbyteLogMessage{
 			Level:   level,
 			Message: message,
 		},
 	})
-
-	fmt.Fprintf(w, "%s\n", msg)
 }
 
-func (a airbyteLogger) Spec(w io.Writer, spec Spec) {
+func (a *airbyteLogger) Spec(spec Spec) {
 
 }
 
-func (a airbyteLogger) Catalog(w io.Writer, catalog Catalog) {
-	msg, _ := json.Marshal(AirbyteMessage{
+func (a *airbyteLogger) Catalog(catalog Catalog) {
+	a.recordEncoder.Encode(AirbyteMessage{
 		Type:    CATALOG,
 		Catalog: &catalog,
 	})
-
-	fmt.Fprintf(w, "%s\n", msg)
 }
 
-func (a airbyteLogger) Record(w io.Writer, tableNamespace, tableName string, data map[string]interface{}) {
+func (a *airbyteLogger) Record(tableNamespace, tableName string, data map[string]interface{}) {
 	now := time.Now()
 	amsg := AirbyteMessage{
 		Type: RECORD,
@@ -59,35 +65,39 @@ func (a airbyteLogger) Record(w io.Writer, tableNamespace, tableName string, dat
 		},
 	}
 
-	msg, _ := json.Marshal(amsg)
-	fmt.Fprintf(w, "%s\n", msg)
+	a.records = append(a.records, amsg)
+	if len(a.records) == MaxBatchSize {
+		a.Flush()
+	}
 }
 
-func (a airbyteLogger) State(w io.Writer, data map[string]interface{}) {
-	state := AirbyteMessage{
+func (a *airbyteLogger) Flush() {
+	for _, record := range a.records {
+		a.recordEncoder.Encode(record)
+	}
+	a.records = a.records[:0]
+}
+
+func (a *airbyteLogger) State(data map[string]interface{}) {
+	a.recordEncoder.Encode(AirbyteMessage{
 		Type:  STATE,
 		State: &AirbyteState{data},
-	}
-	msg, _ := json.Marshal(state)
-	fmt.Fprintf(w, "%s\n", string(msg))
+	})
 }
 
-func (a airbyteLogger) Error(w io.Writer, error string) {
-	logline := AirbyteMessage{
+func (a *airbyteLogger) Error(error string) {
+	a.recordEncoder.Encode(AirbyteMessage{
 		Type: LOG,
 		Log: &AirbyteLogMessage{
 			Level:   LOGLEVEL_ERROR,
 			Message: error,
 		},
-	}
-	msg, _ := json.Marshal(logline)
-	fmt.Fprintf(w, "%s\n", string(msg))
+	})
 }
 
-func (a airbyteLogger) ConnectionStatus(w io.Writer, status ConnectionStatus) {
-	msg, _ := json.Marshal(AirbyteMessage{
+func (a *airbyteLogger) ConnectionStatus(status ConnectionStatus) {
+	a.recordEncoder.Encode(AirbyteMessage{
 		Type:             CONNECTION_STATUS,
 		ConnectionStatus: &status,
 	})
-	fmt.Fprintf(w, "%s\n", string(msg))
 }
