@@ -6,12 +6,13 @@ import (
 	"github.com/planetscale/connect/source/cmd/internal"
 	"github.com/spf13/cobra"
 	"io"
+	"os"
 )
 
 var configFilePath string
 
 func init() {
-	rootCmd.AddCommand(CheckCommand(DefaultHelper()))
+	rootCmd.AddCommand(CheckCommand(DefaultHelper(os.Stdout)))
 }
 
 func CheckCommand(ch *Helper) *cobra.Command {
@@ -19,13 +20,14 @@ func CheckCommand(ch *Helper) *cobra.Command {
 		Use:   "check",
 		Short: "Validates the credentials to connect to a PlanetScale database",
 		Run: func(cmd *cobra.Command, args []string) {
+			ch.Logger = internal.NewLogger(cmd.OutOrStdout())
 			if configFilePath == "" {
 				fmt.Fprintln(cmd.OutOrStdout(), "Please provide path to a valid configuration file")
 				return
 			}
 
 			cs, _, _ := checkConnectionStatus(ch.Database, ch.FileReader, configFilePath)
-			ch.Logger.ConnectionStatus(cmd.OutOrStdout(), cs)
+			ch.Logger.ConnectionStatus(cs)
 		},
 	}
 	checkCmd.Flags().StringVar(&configFilePath, "config", "", "Path to the PlanetScale source configuration")

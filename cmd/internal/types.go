@@ -91,18 +91,22 @@ type SpecMessage struct {
 }
 
 type ConnectionProperties struct {
-	Host     ConnectionProperty `json:"host"`
-	Database ConnectionProperty `json:"database"`
-	Username ConnectionProperty `json:"username"`
-	Password ConnectionProperty `json:"password"`
+	Host         ConnectionProperty `json:"host"`
+	Database     ConnectionProperty `json:"database"`
+	Username     ConnectionProperty `json:"username"`
+	Password     ConnectionProperty `json:"password"`
+	SyncDuration ConnectionProperty `json:"sync_duration"`
 }
 
 type ConnectionProperty struct {
-	Description string `json:"description"`
-	Title       string `json:"title"`
-	Type        string `json:"type"`
-	Order       int    `json:"order"`
-	IsSecret    bool   `json:"airbyte_secret"`
+	Description string      `json:"description"`
+	Title       string      `json:"title"`
+	Type        string      `json:"type"`
+	Order       int         `json:"order"`
+	IsSecret    bool        `json:"airbyte_secret"`
+	Minimum     int         `json:"minimum"`
+	Maximum     int         `json:"maximum"`
+	Default     interface{} `json:"default"`
 }
 
 type ConnectionSpecification struct {

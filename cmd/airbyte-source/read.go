@@ -17,7 +17,7 @@ var (
 )
 
 func init() {
-	rootCmd.AddCommand(ReadCommand(DefaultHelper()))
+	rootCmd.AddCommand(ReadCommand(DefaultHelper(os.Stdout)))
 }
 
 func ReadCommand(ch *Helper) *cobra.Command {
@@ -25,6 +25,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 		Use:   "read",
 		Short: "Converts rows from a PlanetScale database into AirbyteRecordMessages",
 		Run: func(cmd *cobra.Command, args []string) {
+			ch.Logger = internal.NewLogger(cmd.OutOrStdout())
 			if readSourceConfigFilePath == "" {
 				fmt.Fprintf(cmd.OutOrStdout(), "Please pass path to a valid source config file via the [%v] argument", "config")
 				os.Exit(1)
@@ -43,7 +44,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 
 			catalog, err := readCatalog(readSourceCatalogPath)
 			if err != nil {
-				ch.Logger.Error(cmd.OutOrStdout(), "Unable to read catalog")
+				ch.Logger.Error("Unable to read catalog")
 				os.Exit(1)
 			}
 
@@ -51,7 +52,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 			if stateFilePath != "" {
 				b, err := ioutil.ReadFile(stateFilePath)
 				if err != nil {
-					ch.Logger.Error(cmd.OutOrStdout(), "Unable to read state")
+					ch.Logger.Error("Unable to read state")
 					os.Exit(1)
 				}
 				state = string(b)
@@ -59,7 +60,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 
 			states, err := readState(state, psc, catalog.Streams)
 			if err != nil {
-				ch.Logger.Error(cmd.OutOrStdout(), "Unable to read state")
+				ch.Logger.Error("Unable to read state")
 				os.Exit(1)
 			}
 
@@ -72,13 +73,13 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				stateKey := keyspaceOrDatabase + ":" + table.Stream.Name
 				state, ok := states[stateKey]
 				if !ok {
-					ch.Logger.Error(cmd.OutOrStdout(), fmt.Sprintf("Unable to read state for stream %v", stateKey))
+					ch.Logger.Error(fmt.Sprintf("Unable to read state for stream %v", stateKey))
 					os.Exit(1)
 				}
 
 				sc, err := psc.Read(cmd.OutOrStdout(), table.Stream, state)
 				if err != nil {
-					ch.Logger.Error(cmd.OutOrStdout(), err.Error())
+					ch.Logger.Error(err.Error())
 					os.Exit(1)
 				}
 
@@ -90,7 +91,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					cursorMap[stateKey] = sc
 				}
 
-				ch.Logger.State(cmd.OutOrStdout(), cursorMap)
+				ch.Logger.State(cursorMap)
 			}
 
 		},

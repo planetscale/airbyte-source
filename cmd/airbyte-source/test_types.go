@@ -5,6 +5,7 @@ import (
 	"github.com/planetscale/connect/source/cmd/internal"
 	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
 	"io"
+	"time"
 )
 
 type testFileReader struct {
@@ -39,7 +40,7 @@ func (td testDatabase) DiscoverSchema(ctx context.Context, ps internal.PlanetSca
 	return td.discoverSchemaResponse.catalog, td.discoverSchemaResponse.err
 }
 
-func (td testDatabase) Read(ctx context.Context, w io.Writer, ps internal.PlanetScaleConnection, s internal.Stream, tc *psdbdatav1.TableCursor) (*internal.SerializedCursor, error) {
+func (td testDatabase) Read(ctx context.Context, w io.Writer, ps internal.PlanetScaleConnection, s internal.Stream, maxReadDuration time.Duration, tc *psdbdatav1.TableCursor) (*internal.SerializedCursor, error) {
 	//TODO implement me
 	panic("implement me")
 }

@@ -2,6 +2,7 @@ package airbyte_source
 
 import (
 	"github.com/planetscale/connect/source/cmd/internal"
+	"io"
 	"io/ioutil"
 )
 
@@ -21,8 +22,8 @@ func (f fileReader) ReadFile(path string) ([]byte, error) {
 	return ioutil.ReadFile(path)
 }
 
-func DefaultHelper() *Helper {
-	logger := internal.NewLogger()
+func DefaultHelper(w io.Writer) *Helper {
+	logger := internal.NewLogger(w)
 	return &Helper{
 		Database: internal.PlanetScaleEdgeDatabase{
 			Logger: logger,

@@ -9,12 +9,13 @@ import (
 	"io"
 	"log"
 	"strings"
+	"time"
 )
 
 type PlanetScaleDatabase interface {
 	CanConnect(ctx context.Context, ps PlanetScaleConnection) (bool, error)
 	DiscoverSchema(ctx context.Context, ps PlanetScaleConnection) (Catalog, error)
-	Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s Stream, tc *psdbdatav1.TableCursor) (*SerializedCursor, error)
+	Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s Stream, maxReadDuration time.Duration, tc *psdbdatav1.TableCursor) (*SerializedCursor, error)
 }
 
 type PlanetScaleMySQLDatabase struct {
@@ -117,7 +118,7 @@ func getJsonSchemaType(mysqlType string) string {
 	return "string"
 }
 
-func (p PlanetScaleMySQLDatabase) Read(ctx context.Context, w io.Writer, psc PlanetScaleConnection, table Stream, tc *psdbdatav1.TableCursor) (*SerializedCursor, error) {
+func (p PlanetScaleMySQLDatabase) Read(ctx context.Context, w io.Writer, psc PlanetScaleConnection, table Stream, maxReadDuration time.Duration, tc *psdbdatav1.TableCursor) (*SerializedCursor, error) {
 	var sc *SerializedCursor
 	db, err := sql.Open("mysql", psc.DSN())
 
@@ -151,7 +152,7 @@ func (p PlanetScaleMySQLDatabase) Read(ctx context.Context, w io.Writer, psc Pla
 			m[colName] = *val
 		}
 
-		p.Logger.Record(w, psc.Database, table.Name, m)
+		p.Logger.Record(psc.Database, table.Name, m)
 	}
 	return sc, nil
 }
