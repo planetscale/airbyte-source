@@ -153,8 +153,6 @@ func (p PlanetScaleEdgeDatabase) serializeCursor(cursor *psdbdatav1.TableCursor)
 	return sc
 }
 
-//var index = 0
-
 // printQueryResult will pretty-print an AirbyteRecordMessage to the logger.
 // Copied from vtctl/query.go
 func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableNamespace, tableName string) {
@@ -165,17 +163,11 @@ func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableName
 		columns = append(columns, field.Name)
 	}
 	for _, row := range qr.Rows {
-		//index++
 		for idx, val := range row {
 			if idx < len(columns) {
 				data[columns[idx]] = val
 			}
-
-			//data["index"] = index
 		}
-		//fmt.Println(index)
-
-		//p.PrintRecord(writer, tableNamespace, tableName, data)
 		p.Logger.Record(tableNamespace, tableName, data)
 	}
 }
