@@ -2,11 +2,13 @@ package internal
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -22,25 +24,142 @@ import (
 
 type PlanetScaleEdgeDatabase struct {
 	Logger AirbyteLogger
-	batch  []*batchedRecord
-}
-
-type batchedRecord struct {
-	TableNamespace string
-	TableName      string
-	Data           map[string]interface{}
 }
 
 func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleConnection) (bool, error) {
-	return PlanetScaleMySQLDatabase{}.CanConnect(ctx, psc)
+	var db *sql.DB
+	db, err := sql.Open("mysql", psc.DSN())
+	if err != nil {
+		return false, err
+	}
+	defer db.Close()
+
+	err = db.Ping()
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetScaleConnection) (Catalog, error) {
-	return PlanetScaleMySQLDatabase{}.DiscoverSchema(ctx, psc)
+	var c Catalog
+	db, err := sql.Open("mysql", psc.DSN())
+	if err != nil {
+		return c, errors.Wrap(err, "Unable to open SQL connection")
+	}
+	defer db.Close()
+	tableNamesQR, err := db.Query(fmt.Sprintf("SHOW TABLES FROM `%s`", psc.Database))
+	if err != nil {
+		return c, errors.Wrap(err, "Unable to query database for schema")
+	}
+
+	var tables []string
+
+	for tableNamesQR.Next() {
+		var name string
+		if err = tableNamesQR.Scan(&name); err != nil {
+			return c, errors.Wrap(err, "unable to get table names")
+		}
+
+		tables = append(tables, name)
+	}
+
+	for _, tableName := range tables {
+		stream, err := getStreamForTable(tableName, psc.Database, db)
+		if err != nil {
+			return c, errors.Wrapf(err, "unable to get stream for table %v", tableName)
+		}
+		c.Streams = append(c.Streams, stream)
+	}
+	return c, nil
 }
 
+func getStreamForTable(tableName string, keyspace string, db *sql.DB) (Stream, error) {
+	schema := StreamSchema{
+		Type:       "object",
+		Properties: map[string]PropertyType{},
+	}
+	stream := Stream{
+		Name:               tableName,
+		Schema:             schema,
+		SupportedSyncModes: []string{"full_refresh", "incremental"},
+		Namespace:          keyspace,
+	}
+
+	query := fmt.Sprintf("select COLUMN_NAME, COLUMN_TYPE from information_schema.columns where table_name=\"%v\" AND TABLE_SCHEMA=\"%v\"", tableName, keyspace)
+	columnNamesQR, err := db.Query(query)
+	if err != nil {
+		return stream, errors.Wrapf(err, "Unable to get column names & types for table %v", tableName)
+	}
+
+	for columnNamesQR.Next() {
+		var (
+			name       string
+			columnType string
+		)
+		if err = columnNamesQR.Scan(&name, &columnType); err != nil {
+			return stream, errors.Wrapf(err, "Unable to scan row for column names & types of table %v", tableName)
+		}
+
+		stream.Schema.Properties[name] = PropertyType{getJsonSchemaType(columnType)}
+	}
+
+	primaryKeysQuery := fmt.Sprintf("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '%v'   AND TABLE_NAME = '%v'   AND COLUMN_KEY = 'PRI';", keyspace, tableName)
+	primaryKeysQR, err := db.Query(primaryKeysQuery)
+	if err != nil {
+		return stream, errors.Wrapf(err, "Unable to get primary key column names for table %v", tableName)
+	}
+
+	for primaryKeysQR.Next() {
+		var (
+			name string
+		)
+		if err = primaryKeysQR.Scan(&name); err != nil {
+			return stream, errors.Wrapf(err, "Unable to scan row for primary keys of table %v", tableName)
+		}
+
+		stream.PrimaryKeys = append(stream.PrimaryKeys, []string{name})
+		stream.DefaultCursorFields = append(stream.DefaultCursorFields, name)
+	}
+	stream.SourceDefinedCursor = true
+	return stream, nil
+}
+
+// Convert columnType to Airbyte type.
+func getJsonSchemaType(mysqlType string) string {
+	if strings.HasPrefix(mysqlType, "int") {
+		return "integer"
+	}
+
+	if mysqlType == "tinyint(1)" {
+		return "boolean"
+	}
+
+	return "string"
+}
 func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScaleConnection) ([]string, error) {
-	return PlanetScaleMySQLDatabase{}.ListShards(ctx, psc)
+	var shards []string
+
+	db, err := sql.Open("mysql", psc.DSN())
+	if err != nil {
+		return shards, errors.Wrap(err, "Unable to open SQL connection")
+	}
+	defer db.Close()
+	shardNamesQR, err := db.Query("show vitess_shards like \"%" + psc.Database + "%\"")
+	if err != nil {
+		return shards, errors.Wrap(err, "Unable to query database for shards")
+	}
+
+	for shardNamesQR.Next() {
+		var name string
+		if err = shardNamesQR.Scan(&name); err != nil {
+			return shards, errors.Wrap(err, "unable to get shard names")
+		}
+
+		shards = append(shards, strings.TrimPrefix(name, psc.Database+"/"))
+	}
+	return shards, nil
 }
 
 func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s ConfiguredStream, maxReadDuration time.Duration, tc *psdbdatav1.TableCursor) (*SerializedCursor, error) {
