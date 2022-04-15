@@ -49,7 +49,9 @@ func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetS
 		return c, errors.Wrap(err, "Unable to open SQL connection")
 	}
 	defer db.Close()
-	tableNamesQR, err := db.Query(fmt.Sprintf("SHOW TABLES FROM `%s`", psc.Database))
+
+	// TODO: switch to information_schema with prepared statement?
+	tableNamesQR, err := db.Query(fmt.Sprintf("show tables from `%s`;", psc.Database))
 	if err != nil {
 		return c, errors.Wrap(err, "Unable to query database for schema")
 	}
@@ -64,9 +66,12 @@ func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetS
 
 		tables = append(tables, name)
 	}
+	if err := tableNamesQR.Err(); err != nil {
+		return c, errors.Wrap(err, "unable to iterate table rows")
+	}
 
 	for _, tableName := range tables {
-		stream, err := getStreamForTable(tableName, psc.Database, db)
+		stream, err := getStreamForTable(ctx, tableName, psc.Database, db)
 		if err != nil {
 			return c, errors.Wrapf(err, "unable to get stream for table %v", tableName)
 		}
@@ -75,7 +80,7 @@ func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetS
 	return c, nil
 }
 
-func getStreamForTable(tableName string, keyspace string, db *sql.DB) (Stream, error) {
+func getStreamForTable(ctx context.Context, tableName, keyspace string, db *sql.DB) (Stream, error) {
 	schema := StreamSchema{
 		Type:       "object",
 		Properties: map[string]PropertyType{},
@@ -87,8 +92,11 @@ func getStreamForTable(tableName string, keyspace string, db *sql.DB) (Stream, e
 		Namespace:          keyspace,
 	}
 
-	query := fmt.Sprintf("select COLUMN_NAME, COLUMN_TYPE from information_schema.columns where table_name=\"%v\" AND TABLE_SCHEMA=\"%v\"", tableName, keyspace)
-	columnNamesQR, err := db.Query(query)
+	columnNamesQR, err := db.QueryContext(
+		ctx,
+		"select column_name, column_type from information_schema.columns where table_name=? AND table_schema=?;",
+		tableName, keyspace,
+	)
 	if err != nil {
 		return stream, errors.Wrapf(err, "Unable to get column names & types for table %v", tableName)
 	}
@@ -104,9 +112,15 @@ func getStreamForTable(tableName string, keyspace string, db *sql.DB) (Stream, e
 
 		stream.Schema.Properties[name] = PropertyType{getJsonSchemaType(columnType)}
 	}
+	if err := columnNamesQR.Err(); err != nil {
+		return stream, errors.Wrapf(err, "unable to iterate column names and tables for table %s", tableName)
+	}
 
-	primaryKeysQuery := fmt.Sprintf("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '%v'   AND TABLE_NAME = '%v'   AND COLUMN_KEY = 'PRI';", keyspace, tableName)
-	primaryKeysQR, err := db.Query(primaryKeysQuery)
+	primaryKeysQR, err := db.QueryContext(
+		ctx,
+		"select column_name from information_schema.columns where table_schema=? AND table_name=? AND column_key='PRI';",
+		keyspace, tableName,
+	)
 	if err != nil {
 		return stream, errors.Wrapf(err, "Unable to get primary key column names for table %v", tableName)
 	}
@@ -120,6 +134,10 @@ func getStreamForTable(tableName string, keyspace string, db *sql.DB) (Stream, e
 		stream.PrimaryKeys = append(stream.PrimaryKeys, []string{name})
 		stream.DefaultCursorFields = append(stream.DefaultCursorFields, name)
 	}
+	if err := primaryKeysQR.Err(); err != nil {
+		return stream, errors.Wrapf(err, "unable to iterate primary keys for table %s", tableName)
+	}
+
 	stream.SourceDefinedCursor = true
 	return stream, nil
 }
@@ -145,7 +163,12 @@ func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScale
 		return shards, errors.Wrap(err, "Unable to open SQL connection")
 	}
 	defer db.Close()
-	shardNamesQR, err := db.Query("show vitess_shards like \"%" + psc.Database + "%\"")
+
+	// TODO: is there a preapred statement equivalent?
+	shardNamesQR, err := db.QueryContext(
+		ctx,
+		`show vitess_shards like %"`+psc.Database+`%;`,
+	)
 	if err != nil {
 		return shards, errors.Wrap(err, "Unable to query database for shards")
 	}
@@ -158,6 +181,10 @@ func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScale
 
 		shards = append(shards, strings.TrimPrefix(name, psc.Database+"/"))
 	}
+	if err := shardNamesQR.Err(); err != nil {
+		return shards, errors.Wrapf(err, "unable to iterate shard names for %s", psc.Database)
+	}
+
 	return shards, nil
 }
 
