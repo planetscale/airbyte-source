@@ -78,6 +78,10 @@ func (psc PlanetScaleConnection) GetInitialState(keyspaceOrDatabase string) (Sha
 }
 
 func (psc PlanetScaleConnection) AssertConfiguredShards() error {
+	if len(psc.Shards) == 0 {
+		return nil
+	}
+
 	shards, err := psc.ListShards(context.Background())
 	if err != nil {
 		return err
