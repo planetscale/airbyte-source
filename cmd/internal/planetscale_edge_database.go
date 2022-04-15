@@ -164,10 +164,10 @@ func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScale
 	}
 	defer db.Close()
 
-	// TODO: is there a preapred statement equivalent?
+	// TODO: is there a prepared statement equivalent?
 	shardNamesQR, err := db.QueryContext(
 		ctx,
-		`show vitess_shards like %"`+psc.Database+`%;`,
+		`show vitess_shards like "%`+psc.Database+`%";`,
 	)
 	if err != nil {
 		return shards, errors.Wrap(err, "Unable to query database for shards")
