@@ -7,6 +7,7 @@ import (
 	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
 	"io"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -15,6 +16,7 @@ type PlanetScaleConnection struct {
 	Database              string `json:"database"`
 	Username              string `json:"username"`
 	Password              string `json:"password"`
+	Shards                string `json:"shards"`
 	SyncDurationInMinutes int    `json:"sync_duration"`
 	DatabaseAccessor      PlanetScaleDatabase
 }
@@ -31,6 +33,48 @@ func (psc PlanetScaleConnection) DSN() string {
 		config.DBName = fmt.Sprintf("%v@replica", psc.Database)
 	}
 	return config.FormatDSN()
+}
+
+func (psc PlanetScaleConnection) GetInitialState(keyspaceOrDatabase string) (ShardStates, error) {
+	shardCursors := ShardStates{
+		Shards: map[string]*SerializedCursor{},
+	}
+	shards, err := psc.ListShards(context.Background())
+	if err != nil {
+		return shardCursors, err
+	}
+
+	if len(psc.Shards) > 0 {
+		configuredShards := strings.Split(psc.Shards, ",")
+		foundShards := map[string]bool{}
+		for _, existingShard := range shards {
+			foundShards[existingShard] = true
+		}
+
+		for _, configuredShard := range configuredShards {
+			if _, ok := foundShards[strings.TrimSpace(configuredShard)]; !ok {
+				return shardCursors, fmt.Errorf("shard %v does not exist on the source database", configuredShard)
+			}
+		}
+
+		// if we got this far, all the shards that the customer asked for exist in the PlanetScale database.
+		filteredShards := make([]string, len(foundShards))
+		for key := range foundShards {
+			filteredShards = append(filteredShards, key)
+		}
+		shards = filteredShards
+	}
+
+	for _, shard := range shards {
+
+		shardCursors.Shards[shard] = SerializeCursor(&psdbdatav1.TableCursor{
+			Shard:    shard,
+			Keyspace: keyspaceOrDatabase,
+			Position: "",
+		})
+	}
+
+	return shardCursors, nil
 }
 
 func (psc PlanetScaleConnection) Check() error {

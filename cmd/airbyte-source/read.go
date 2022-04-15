@@ -1,11 +1,9 @@
 package airbyte_source
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/planetscale/connect/source/cmd/internal"
-	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
 	"github.com/spf13/cobra"
 	"io/ioutil"
 	"os"
@@ -106,15 +104,6 @@ func ReadCommand(ch *Helper) *cobra.Command {
 	return readCmd
 }
 
-func serializeCursor(cursor *psdbdatav1.TableCursor) *internal.SerializedCursor {
-	b, _ := json.Marshal(cursor)
-
-	sc := &internal.SerializedCursor{
-		Cursor: string(b),
-	}
-	return sc
-}
-
 type State struct {
 	Shards map[string]map[string]interface{} `json:"shards"`
 }
@@ -142,35 +131,15 @@ func readState(state string, psc internal.PlanetScaleConnection, streams []inter
 		// if no table cursor was found in the state, or we want to ignore the current cursor,
 		// Send along an empty cursor for each shard.
 		if _, ok := syncState.Streams[stateKey]; !ok || ignoreCurrentCursor {
-			emptyCursors, err := getEmptyShardCursors(psc, keyspaceOrDatabase)
+			initialState, err := psc.GetInitialState(keyspaceOrDatabase)
 			if err != nil {
 				return syncState, err
 			}
-			syncState.Streams[stateKey] = emptyCursors
+			syncState.Streams[stateKey] = initialState
 		}
 	}
 
 	return syncState, nil
-}
-
-func getEmptyShardCursors(psc internal.PlanetScaleConnection, keyspaceOrDatabase string) (internal.ShardStates, error) {
-	shardCursors := internal.ShardStates{
-		Shards: map[string]*internal.SerializedCursor{},
-	}
-	shards, err := psc.ListShards(context.Background())
-	if err != nil {
-		return shardCursors, err
-	}
-
-	for _, shard := range shards {
-		shardCursors.Shards[shard] = serializeCursor(&psdbdatav1.TableCursor{
-			Shard:    shard,
-			Keyspace: keyspaceOrDatabase,
-			Position: "",
-		})
-	}
-
-	return shardCursors, nil
 }
 
 func readCatalog(path string) (c internal.ConfiguredCatalog, err error) {

@@ -95,6 +95,15 @@ func (s SerializedCursor) ToTableCursor() (*psdbdatav1.TableCursor, error) {
 	return &tc, err
 }
 
+func SerializeCursor(cursor *psdbdatav1.TableCursor) *SerializedCursor {
+	b, _ := json.Marshal(cursor)
+
+	sc := &SerializedCursor{
+		Cursor: string(b),
+	}
+	return sc
+}
+
 type AirbyteState struct {
 	Data SyncState `json:"data"`
 }
