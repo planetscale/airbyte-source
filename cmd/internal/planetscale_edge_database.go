@@ -56,23 +56,21 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	)
 
 	table := s.Stream
-
+	peekCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("will stop syncing after %v", maxReadDuration))
 	now := time.Now()
 	for time.Since(now) < maxReadDuration {
 
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("syncing rows for stream [%v] in namespace [%v] with cursor [%v]]", table.Name, table.Namespace, tc))
-		if s.IncrementalSyncRequested() {
-			p.Logger.Log(LOGLEVEL_INFO, "peeking to see if there's any new rows")
-			peekCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			defer cancel()
-			hasRows, _, _ = p.sync(peekCtx, tc, table, ps, true)
-			if !hasRows {
-				p.Logger.Log(LOGLEVEL_INFO, "no new rows found, exiting")
-				return p.serializeCursor(tc), nil
-			}
-			p.Logger.Log(LOGLEVEL_INFO, "new rows found, continuing")
+		p.Logger.Log(LOGLEVEL_INFO, "peeking to see if there's any new rows")
+
+		hasRows, _, _ = p.sync(peekCtx, tc, table, ps, true)
+		if !hasRows {
+			p.Logger.Log(LOGLEVEL_INFO, "no new rows found, exiting")
+			return p.serializeCursor(tc), nil
 		}
+		p.Logger.Log(LOGLEVEL_INFO, "new rows found, continuing")
 
 		ctx, cancel = context.WithTimeout(ctx, maxReadDuration)
 		defer cancel()
