@@ -65,11 +65,6 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				os.Exit(1)
 			}
 
-			quit := false
-			if quit {
-				os.Exit(0)
-			}
-
 			for _, table := range catalog.Streams {
 				keyspaceOrDatabase := table.Stream.Namespace
 				if keyspaceOrDatabase == "" {
