@@ -3,9 +3,10 @@ package internal
 import (
 	"context"
 	"encoding/json"
-	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
 	"io"
 	"time"
+
+	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
 )
 
 const (
@@ -55,7 +56,7 @@ type PropertyType struct {
 }
 
 type StreamSchema struct {
-	Type       string                  `json:"type""`
+	Type       string                  `json:"type"`
 	Properties map[string]PropertyType `json:"properties"`
 }
 

@@ -2,26 +2,23 @@ package airbyte_source
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/planetscale/connect/source/cmd/internal"
 	"github.com/spf13/cobra"
-	"os"
 )
 
-var (
-	sourceConfigFilePath string
-)
+var sourceConfigFilePath string
 
 func init() {
 	rootCmd.AddCommand(DiscoverCommand(DefaultHelper(os.Stdout)))
 }
 
 func DiscoverCommand(ch *Helper) *cobra.Command {
-
 	discoverCmd := &cobra.Command{
 		Use:   "discover",
 		Short: "Discovers the schema for a PlanetScale database",
 		Run: func(cmd *cobra.Command, args []string) {
-
 			if sourceConfigFilePath == "" {
 				fmt.Fprintln(cmd.OutOrStdout(), "Please provide path to a valid configuration file")
 				return

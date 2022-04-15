@@ -3,10 +3,11 @@ package airbyte_source
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/planetscale/connect/source/cmd/internal"
-	"github.com/spf13/cobra"
 	"io"
 	"os"
+
+	"github.com/planetscale/connect/source/cmd/internal"
+	"github.com/spf13/cobra"
 )
 
 var configFilePath string

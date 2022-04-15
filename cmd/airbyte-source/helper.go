@@ -1,9 +1,10 @@
 package airbyte_source
 
 import (
-	"github.com/planetscale/connect/source/cmd/internal"
 	"io"
 	"io/ioutil"
+
+	"github.com/planetscale/connect/source/cmd/internal"
 )
 
 type Helper struct {

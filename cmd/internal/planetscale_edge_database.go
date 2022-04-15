@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"io"
 	"strings"
 	"time"
@@ -17,6 +15,8 @@ import (
 	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
 	"github.com/planetscale/edge-gateway/psdbpool"
 	"github.com/planetscale/edge-gateway/psdbpool/options"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"vitess.io/vitess/go/sqltypes"
 	_ "vitess.io/vitess/go/vt/vtctl/grpcvtctlclient"
 	_ "vitess.io/vitess/go/vt/vtgate/grpcvtgateconn"
@@ -112,9 +112,7 @@ func getStreamForTable(tableName string, keyspace string, db *sql.DB) (Stream, e
 	}
 
 	for primaryKeysQR.Next() {
-		var (
-			name string
-		)
+		var name string
 		if err = primaryKeysQR.Scan(&name); err != nil {
 			return stream, errors.Wrapf(err, "Unable to scan row for primary keys of table %v", tableName)
 		}
@@ -138,6 +136,7 @@ func getJsonSchemaType(mysqlType string) string {
 
 	return "string"
 }
+
 func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScaleConnection) ([]string, error) {
 	var shards []string
 
@@ -279,8 +278,6 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableC
 			}
 		}
 	}
-
-	return false, tc, nil
 }
 
 func (p PlanetScaleEdgeDatabase) serializeCursor(cursor *psdbdatav1.TableCursor) *SerializedCursor {
@@ -295,7 +292,7 @@ func (p PlanetScaleEdgeDatabase) serializeCursor(cursor *psdbdatav1.TableCursor)
 // printQueryResult will pretty-print an AirbyteRecordMessage to the logger.
 // Copied from vtctl/query.go
 func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableNamespace, tableName string) {
-	var data = make(map[string]interface{})
+	data := make(map[string]interface{})
 
 	columns := make([]string, 0, len(qr.Fields))
 	for _, field := range qr.Fields {

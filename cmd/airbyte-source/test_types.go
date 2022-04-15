@@ -2,10 +2,11 @@ package airbyte_source
 
 import (
 	"context"
-	"github.com/planetscale/connect/source/cmd/internal"
-	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
 	"io"
 	"time"
+
+	"github.com/planetscale/connect/source/cmd/internal"
+	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
 )
 
 type testFileReader struct {
@@ -41,7 +42,7 @@ func (td testDatabase) DiscoverSchema(ctx context.Context, ps internal.PlanetSca
 }
 
 func (td testDatabase) Read(ctx context.Context, w io.Writer, ps internal.PlanetScaleConnection, s internal.ConfiguredStream, maxReadDuration time.Duration, tc *psdbdatav1.TableCursor) (*internal.SerializedCursor, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
