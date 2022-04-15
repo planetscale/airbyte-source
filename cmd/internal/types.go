@@ -124,6 +124,7 @@ type SpecMessage struct {
 
 type ConnectionProperties struct {
 	Host         ConnectionProperty `json:"host"`
+	Shards       ConnectionProperty `json:"shards"`
 	Database     ConnectionProperty `json:"database"`
 	Username     ConnectionProperty `json:"username"`
 	Password     ConnectionProperty `json:"password"`

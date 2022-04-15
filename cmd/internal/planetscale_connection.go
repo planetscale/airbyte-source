@@ -77,11 +77,40 @@ func (psc PlanetScaleConnection) GetInitialState(keyspaceOrDatabase string) (Sha
 	return shardCursors, nil
 }
 
+func (psc PlanetScaleConnection) AssertConfiguredShards() error {
+	shards, err := psc.ListShards(context.Background())
+	if err != nil {
+		return err
+	}
+
+	if len(psc.Shards) > 0 {
+		configuredShards := strings.Split(psc.Shards, ",")
+		foundShards := map[string]bool{}
+		for _, existingShard := range shards {
+			foundShards[existingShard] = true
+		}
+
+		for _, configuredShard := range configuredShards {
+			if _, ok := foundShards[strings.TrimSpace(configuredShard)]; !ok {
+				return fmt.Errorf("shard [%v] does not exist on the source database", configuredShard)
+			}
+		}
+	}
+
+	return nil
+}
+
 func (psc PlanetScaleConnection) Check() error {
 	_, err := psc.DatabaseAccessor.CanConnect(context.Background(), psc)
 	if err != nil {
 		return err
 	}
+
+	err = psc.AssertConfiguredShards()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
