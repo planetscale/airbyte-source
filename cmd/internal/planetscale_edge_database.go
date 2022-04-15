@@ -58,68 +58,46 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	table := s.Stream
 
 	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("will stop syncing after %v", maxReadDuration))
-	//now := time.Now()
-	//for time.Since(now) < maxReadDuration {
+	now := time.Now()
+	for time.Since(now) < maxReadDuration {
 
-	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("syncing rows for stream [%v] in namespace [%v] with cursor [%v]]", table.Name, table.Namespace, tc))
-	if s.IncrementalSyncRequested() {
-		p.Logger.Log(LOGLEVEL_INFO, "peeking to see if there's any new rows")
-		peekCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		defer cancel()
-		hasRows, _, _ = p.sync(peekCtx, tc, table, ps, true)
-		if !hasRows {
-			p.Logger.Log(LOGLEVEL_INFO, "no new rows found, exiting")
-			return p.serializeCursor(tc), nil
-		}
-		p.Logger.Log(LOGLEVEL_INFO, "new rows found, continuing")
-	}
-
-	ctx, cancel = context.WithTimeout(ctx, maxReadDuration)
-	defer cancel()
-	_, tc, err = p.sync(ctx, tc, table, ps, false)
-	if tc != nil {
-		sc = p.serializeCursor(tc)
-	}
-	if err != nil {
-		if s, ok := status.FromError(err); ok {
-			// if the error is anything other than server timeout, keep going
-			if s.Code() != codes.DeadlineExceeded {
-				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Got error [%v], Returning with cursor :[%v] after server timeout", s.Code(), tc))
-				return sc, nil
-			} else {
-				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Continuing with cursor :[%v] after server timeout", tc))
+		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("syncing rows for stream [%v] in namespace [%v] with cursor [%v]]", table.Name, table.Namespace, tc))
+		if s.IncrementalSyncRequested() {
+			p.Logger.Log(LOGLEVEL_INFO, "peeking to see if there's any new rows")
+			peekCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+			hasRows, _, _ = p.sync(peekCtx, tc, table, ps, true)
+			if !hasRows {
+				p.Logger.Log(LOGLEVEL_INFO, "no new rows found, exiting")
+				return p.serializeCursor(tc), nil
 			}
-		} else {
-			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("non-grpc error [%v]]", err))
-			return sc, err
+			p.Logger.Log(LOGLEVEL_INFO, "new rows found, continuing")
 		}
-		//}
+
+		ctx, cancel = context.WithTimeout(ctx, maxReadDuration)
+		defer cancel()
+		_, tc, err = p.sync(ctx, tc, table, ps, false)
+		if tc != nil {
+			sc = p.serializeCursor(tc)
+		}
+		if err != nil {
+			if s, ok := status.FromError(err); ok {
+				// if the error is anything other than server timeout, keep going
+				if s.Code() != codes.DeadlineExceeded {
+					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Got error [%v], Returning with cursor :[%v] after server timeout", s.Code(), tc))
+					return sc, nil
+				} else {
+					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Continuing with cursor :[%v] after server timeout", tc))
+				}
+			} else {
+				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("non-grpc error [%v]]", err))
+				return sc, err
+			}
+		}
 	}
 
 	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("done syncing after %v", maxReadDuration))
 	return sc, nil
-}
-
-func (p PlanetScaleEdgeDatabase) hasNewRows(ctx context.Context, tc *psdbdatav1.TableCursor, s Stream, ps PlanetScaleConnection) (bool, error) {
-	tlsConfig := options.DefaultTLSConfig()
-	var err error
-	pool := psdbpool.New(
-		router.NewSingleRoute(ps.Host),
-		options.WithConnectionPool(4),
-		options.WithTLSConfig(tlsConfig),
-	)
-	auth, err := authorization.NewBasicAuth(ps.Username, ps.Password)
-	if err != nil {
-		return false, err
-	}
-
-	conn, err := pool.GetWithAuth(ctx, auth)
-	if err != nil {
-		return false, err
-	}
-	defer conn.Release()
-
-	return true, err
 }
 
 func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableCursor, s Stream, ps PlanetScaleConnection, peek bool) (bool, *psdbdatav1.TableCursor, error) {

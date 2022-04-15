@@ -64,7 +64,6 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				os.Exit(1)
 			}
 
-			fmt.Printf("\n\t found states : [%v]\n", states)
 			cursorMap := make(map[string]interface{}, len(catalog.Streams))
 			for _, table := range catalog.Streams {
 				keyspaceOrDatabase := table.Stream.Namespace
