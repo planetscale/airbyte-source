@@ -45,7 +45,7 @@ func (psc PlanetScaleConnection) DiscoverSchema() (c Catalog, err error) {
 	return psc.DatabaseAccessor.DiscoverSchema(context.Background(), psc)
 }
 
-func (psc PlanetScaleConnection) Read(w io.Writer, table Stream, tc *psdbdatav1.TableCursor) (*SerializedCursor, error) {
+func (psc PlanetScaleConnection) Read(w io.Writer, table ConfiguredStream, tc *psdbdatav1.TableCursor) (*SerializedCursor, error) {
 	return psc.DatabaseAccessor.Read(context.Background(), w, psc, table, psc.getMaxReadDurationInMinutes(), tc)
 }
 

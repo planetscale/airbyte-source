@@ -77,7 +77,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					os.Exit(1)
 				}
 
-				sc, err := psc.Read(cmd.OutOrStdout(), table.Stream, state)
+				sc, err := psc.Read(cmd.OutOrStdout(), table, state)
 				if err != nil {
 					ch.Logger.Error(err.Error())
 					os.Exit(1)

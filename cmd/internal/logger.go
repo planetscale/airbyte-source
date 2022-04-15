@@ -37,7 +37,7 @@ func (a *airbyteLogger) Log(level, message string) {
 		Type: LOG,
 		Log: &AirbyteLogMessage{
 			Level:   level,
-			Message: message,
+			Message: preamble() + message,
 		},
 	})
 }
@@ -100,4 +100,8 @@ func (a *airbyteLogger) ConnectionStatus(status ConnectionStatus) {
 		Type:             CONNECTION_STATUS,
 		ConnectionStatus: &status,
 	})
+}
+
+func preamble() string {
+	return "PlanetScale Source :: "
 }
