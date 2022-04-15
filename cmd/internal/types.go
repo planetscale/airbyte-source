@@ -1,14 +1,12 @@
 package internal
 
 import (
+	"context"
 	"encoding/json"
 	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
+	"io"
+	"time"
 )
-
-type ConnectionStatus struct {
-	Status  string `json:"status"`
-	Message string `json:"message"`
-}
 
 const (
 	RECORD            = "RECORD"
@@ -29,6 +27,18 @@ const (
 	LOGLEVEL_DEBUG    = "DEBUG"
 	LOGLEVEL_TRACE    = "TRACE"
 )
+
+type PlanetScaleDatabase interface {
+	CanConnect(ctx context.Context, ps PlanetScaleConnection) (bool, error)
+	DiscoverSchema(ctx context.Context, ps PlanetScaleConnection) (Catalog, error)
+	ListShards(ctx context.Context, ps PlanetScaleConnection) ([]string, error)
+	Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s ConfiguredStream, maxReadDuration time.Duration, tc *psdbdatav1.TableCursor) (*SerializedCursor, error)
+}
+
+type ConnectionStatus struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
 
 type AirbyteLogMessage struct {
 	Level   string `json:"level,omitempty"`

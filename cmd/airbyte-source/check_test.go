@@ -29,7 +29,7 @@ func TestCheckInvalidCatalogJSON(t *testing.T) {
 		content: []byte("i am not json"),
 	}
 	checkCommand := CheckCommand(&Helper{
-		Database:   internal.PlanetScaleMySQLDatabase{},
+		Database:   internal.PlanetScaleEdgeDatabase{},
 		FileReader: tfr,
 		Logger:     internal.NewLogger(os.Stdout),
 	})
