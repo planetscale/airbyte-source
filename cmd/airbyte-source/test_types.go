@@ -40,7 +40,7 @@ func (td testDatabase) DiscoverSchema(ctx context.Context, ps internal.PlanetSca
 	return td.discoverSchemaResponse.catalog, td.discoverSchemaResponse.err
 }
 
-func (td testDatabase) Read(ctx context.Context, w io.Writer, ps internal.PlanetScaleConnection, s internal.Stream, maxReadDuration time.Duration, tc *psdbdatav1.TableCursor) (*internal.SerializedCursor, error) {
+func (td testDatabase) Read(ctx context.Context, w io.Writer, ps internal.PlanetScaleConnection, s internal.ConfiguredStream, maxReadDuration time.Duration, tc *psdbdatav1.TableCursor) (*internal.SerializedCursor, error) {
 	//TODO implement me
 	panic("implement me")
 }
