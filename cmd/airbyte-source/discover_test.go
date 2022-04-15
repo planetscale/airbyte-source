@@ -75,5 +75,5 @@ func TestDiscoverFailed(t *testing.T) {
 	assert.Equal(t, internal.LOG, amsg.Type)
 	require.NotNil(t, amsg.Log)
 	assert.Equal(t, internal.LOGLEVEL_ERROR, amsg.Log.Level)
-	assert.Equal(t, "Unable to discover database, failed with [unable to get catalog for keyspace]", amsg.Log.Message)
+	assert.Equal(t, "PlanetScale Source :: Unable to discover database, failed with [unable to get catalog for keyspace]", amsg.Log.Message)
 }
