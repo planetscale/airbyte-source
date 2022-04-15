@@ -47,6 +47,10 @@ func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetS
 	return PlanetScaleMySQLDatabase{}.DiscoverSchema(ctx, psc)
 }
 
+func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScaleConnection) ([]string, error) {
+	return PlanetScaleMySQLDatabase{}.ListShards(ctx, psc)
+}
+
 func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s ConfiguredStream, maxReadDuration time.Duration, tc *psdbdatav1.TableCursor) (*SerializedCursor, error) {
 	var (
 		err     error

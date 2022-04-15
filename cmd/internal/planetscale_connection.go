@@ -49,6 +49,10 @@ func (psc PlanetScaleConnection) Read(w io.Writer, table ConfiguredStream, tc *p
 	return psc.DatabaseAccessor.Read(context.Background(), w, psc, table, psc.getMaxReadDurationInMinutes(), tc)
 }
 
+func (psc PlanetScaleConnection) ListShards(ctx context.Context) ([]string, error) {
+	return psc.DatabaseAccessor.ListShards(context.Background(), psc)
+}
+
 func (ps PlanetScaleConnection) getMaxReadDurationInMinutes() time.Duration {
 	if ps.SyncDurationInMinutes == 0 {
 		return 2 * time.Minute

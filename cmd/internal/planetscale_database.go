@@ -15,6 +15,7 @@ import (
 type PlanetScaleDatabase interface {
 	CanConnect(ctx context.Context, ps PlanetScaleConnection) (bool, error)
 	DiscoverSchema(ctx context.Context, ps PlanetScaleConnection) (Catalog, error)
+	ListShards(ctx context.Context, ps PlanetScaleConnection) ([]string, error)
 	Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s ConfiguredStream, maxReadDuration time.Duration, tc *psdbdatav1.TableCursor) (*SerializedCursor, error)
 }
 
@@ -72,6 +73,29 @@ func (p PlanetScaleMySQLDatabase) DiscoverSchema(ctx context.Context, psc Planet
 	return c, nil
 }
 
+func (p PlanetScaleMySQLDatabase) ListShards(ctx context.Context, psc PlanetScaleConnection) ([]string, error) {
+	var shards []string
+
+	db, err := sql.Open("mysql", psc.DSN())
+	if err != nil {
+		return shards, errors.Wrap(err, "Unable to open SQL connection")
+	}
+	defer db.Close()
+	shardNamesQR, err := db.Query("show vitess_shards like \"%" + psc.Database + "%\"")
+	if err != nil {
+		return shards, errors.Wrap(err, "Unable to query database for shards")
+	}
+
+	for shardNamesQR.Next() {
+		var name string
+		if err = shardNamesQR.Scan(&name); err != nil {
+			return shards, errors.Wrap(err, "unable to get shard names")
+		}
+
+		shards = append(shards, strings.TrimPrefix(name, psc.Database+"/"))
+	}
+	return shards, nil
+}
 func getStreamForTable(tableName string, keyspace string, db *sql.DB) (Stream, error) {
 	schema := StreamSchema{
 		Type:       "object",
@@ -102,6 +126,24 @@ func getStreamForTable(tableName string, keyspace string, db *sql.DB) (Stream, e
 		stream.Schema.Properties[name] = PropertyType{getJsonSchemaType(columnType)}
 	}
 
+	primaryKeysQuery := fmt.Sprintf("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '%v'   AND TABLE_NAME = '%v'   AND COLUMN_KEY = 'PRI';", keyspace, tableName)
+	primaryKeysQR, err := db.Query(primaryKeysQuery)
+	if err != nil {
+		return stream, errors.Wrapf(err, "Unable to get primary key column names for table %v", tableName)
+	}
+
+	for primaryKeysQR.Next() {
+		var (
+			name string
+		)
+		if err = primaryKeysQR.Scan(&name); err != nil {
+			return stream, errors.Wrapf(err, "Unable to scan row for primary keys of table %v", tableName)
+		}
+
+		stream.PrimaryKeys = append(stream.PrimaryKeys, []string{name})
+		stream.DefaultCursorFields = append(stream.DefaultCursorFields, name)
+	}
+	stream.SourceDefinedCursor = true
 	return stream, nil
 }
 
