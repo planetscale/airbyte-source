@@ -59,53 +59,47 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				state = string(b)
 			}
 
-			states, err := readState(state, psc, catalog.Streams)
+			syncState, err := readState(state, psc, catalog.Streams)
 			if err != nil {
 				ch.Logger.Error(fmt.Sprintf("Unable to read state : %v", err))
 				os.Exit(1)
 			}
 
-			fmt.Printf("\n \t found states : %v\n", states)
 			quit := false
 			if quit {
 				os.Exit(0)
 			}
 
-			fmt.Printf("\n\t found states : [%v]\n", states)
-			cursorMap := make(map[string]map[string]interface{}, len(catalog.Streams))
 			for _, table := range catalog.Streams {
 				keyspaceOrDatabase := table.Stream.Namespace
 				if keyspaceOrDatabase == "" {
 					keyspaceOrDatabase = psc.Database
 				}
-				stateKey := keyspaceOrDatabase + ":" + table.Stream.Name
-				states, ok := states[stateKey]
+				streamStateKey := keyspaceOrDatabase + ":" + table.Stream.Name
+				streamState, ok := syncState.Streams[streamStateKey]
 				if !ok {
-					ch.Logger.Error(fmt.Sprintf("Unable to read state for stream %v", stateKey))
+					ch.Logger.Error(fmt.Sprintf("Unable to read state for stream %v", streamStateKey))
 					os.Exit(1)
 				}
 
-				for _, state := range states {
-					sc, err := psc.Read(cmd.OutOrStdout(), table, state)
+				for shardName, shardState := range streamState.Shards {
+					tc, err := shardState.ToTableCursor()
+					if err != nil {
+						ch.Logger.Error(fmt.Sprintf("invalid cursor for stream %v", streamStateKey))
+						os.Exit(1)
+					}
+					sc, err := psc.Read(cmd.OutOrStdout(), table, tc)
 					if err != nil {
 						ch.Logger.Error(err.Error())
 						os.Exit(1)
 					}
 
-					if cursorMap[stateKey] == nil {
-						cursorMap[stateKey] = map[string]interface{}{}
+					if sc != nil {
+						// if we get any new state, we assign it here.
+						// otherwise, the older state is round-tripped back to Airbyte.
+						syncState.Streams[streamStateKey].Shards[shardName] = sc
 					}
-
-					if sc == nil {
-						// if we didn't get a cursor back, there might be no new rows yet
-						// output the last known state again so that the next sync can pickup where this left off.
-						cursorMap[stateKey][state.Shard] = serializeCursor(state)
-
-					} else {
-						cursorMap[stateKey][state.Shard] = sc
-					}
-
-					ch.Logger.State(cursorMap)
+					ch.Logger.State(syncState)
 				}
 			}
 
@@ -130,13 +124,14 @@ type State struct {
 	Shards map[string]map[string]interface{} `json:"shards"`
 }
 
-func readState(state string, psc internal.PlanetScaleConnection, streams []internal.ConfiguredStream) (map[string][]*psdbdatav1.TableCursor, error) {
-	states := map[string][]*psdbdatav1.TableCursor{}
-	var tc map[string]internal.SerializedCursor
+func readState(state string, psc internal.PlanetScaleConnection, streams []internal.ConfiguredStream) (internal.SyncState, error) {
+	syncState := internal.SyncState{
+		Streams: map[string]internal.ShardStates{},
+	}
 	if state != "" {
-		err := json.Unmarshal([]byte(state), &tc)
+		err := json.Unmarshal([]byte(state), &syncState)
 		if err != nil {
-			return nil, err
+			return syncState, err
 		}
 	}
 
@@ -147,49 +142,40 @@ func readState(state string, psc internal.PlanetScaleConnection, streams []inter
 			keyspaceOrDatabase = psc.Database
 		}
 		stateKey := keyspaceOrDatabase + ":" + s.Stream.Name
+		ignoreCurrentCursor := !s.IncrementalSyncRequested()
 
-		if s.IncrementalSyncRequested() {
-			if cursor, ok := tc[stateKey]; ok {
-				var tc psdbdatav1.TableCursor
-				err := json.Unmarshal([]byte(cursor.Cursor), &tc)
-				if err != nil {
-					return nil, err
-				}
-				states[stateKey] = append(states[stateKey], &tc)
-			}
-		}
-
-		// if no table cursor was found in the state,
+		// if no table cursor was found in the state, or we want to ignore the current cursor,
 		// Send along an empty cursor for each shard.
-		if len(states[stateKey]) == 0 {
+		if _, ok := syncState.Streams[stateKey]; !ok || ignoreCurrentCursor {
 			emptyCursors, err := getEmptyShardCursors(psc, keyspaceOrDatabase)
 			if err != nil {
-				return states, err
+				return syncState, err
 			}
-
-			states[stateKey] = emptyCursors
+			syncState.Streams[stateKey] = emptyCursors
 		}
 	}
 
-	return states, nil
+	return syncState, nil
 }
 
-func getEmptyShardCursors(psc internal.PlanetScaleConnection, keyspaceOrDatabase string) ([]*psdbdatav1.TableCursor, error) {
-	var cursors []*psdbdatav1.TableCursor
+func getEmptyShardCursors(psc internal.PlanetScaleConnection, keyspaceOrDatabase string) (internal.ShardStates, error) {
+	shardCursors := internal.ShardStates{
+		Shards: map[string]*internal.SerializedCursor{},
+	}
 	shards, err := psc.ListShards(context.Background())
 	if err != nil {
-		return cursors, err
+		return shardCursors, err
 	}
 
 	for _, shard := range shards {
-		cursors = append(cursors, &psdbdatav1.TableCursor{
+		shardCursors.Shards[shard] = serializeCursor(&psdbdatav1.TableCursor{
 			Shard:    shard,
 			Keyspace: keyspaceOrDatabase,
 			Position: "",
 		})
 	}
 
-	return cursors, nil
+	return shardCursors, nil
 }
 
 func readCatalog(path string) (c internal.ConfiguredCatalog, err error) {

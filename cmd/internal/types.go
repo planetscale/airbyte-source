@@ -1,5 +1,10 @@
 package internal
 
+import (
+	"encoding/json"
+	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
+)
+
 type ConnectionStatus struct {
 	Status  string `json:"status"`
 	Message string `json:"message"`
@@ -72,8 +77,26 @@ type AirbyteRecord struct {
 	Data      map[string]interface{} `json:"data"`
 }
 
+type SyncState struct {
+	Streams map[string]ShardStates `json:"streams"`
+}
+
+type ShardStates struct {
+	Shards map[string]*SerializedCursor `json:"shards"`
+}
+
+type SerializedCursor struct {
+	Cursor string `json:"cursor"`
+}
+
+func (s SerializedCursor) ToTableCursor() (*psdbdatav1.TableCursor, error) {
+	var tc psdbdatav1.TableCursor
+	err := json.Unmarshal([]byte(s.Cursor), &tc)
+	return &tc, err
+}
+
 type AirbyteState struct {
-	Data interface{} `json:"data"`
+	Data SyncState `json:"data"`
 }
 
 type AirbyteMessage struct {

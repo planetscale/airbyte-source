@@ -31,14 +31,6 @@ type batchedRecord struct {
 	Data           map[string]interface{}
 }
 
-type SerializedCursor struct {
-	Cursor string `json:"cursor"`
-}
-
-type SyncState struct {
-	Cursors map[string]SerializedCursor
-}
-
 func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleConnection) (bool, error) {
 	return PlanetScaleMySQLDatabase{}.CanConnect(ctx, psc)
 }

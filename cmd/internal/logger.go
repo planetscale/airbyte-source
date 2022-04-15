@@ -12,7 +12,7 @@ type AirbyteLogger interface {
 	ConnectionStatus(status ConnectionStatus)
 	Record(tableNamespace, tableName string, data map[string]interface{})
 	Flush()
-	State(data interface{})
+	State(syncState SyncState)
 	Error(error string)
 }
 
@@ -78,10 +78,10 @@ func (a *airbyteLogger) Flush() {
 	a.records = a.records[:0]
 }
 
-func (a *airbyteLogger) State(data interface{}) {
+func (a *airbyteLogger) State(syncState SyncState) {
 	a.recordEncoder.Encode(AirbyteMessage{
 		Type:  STATE,
-		State: &AirbyteState{data},
+		State: &AirbyteState{syncState},
 	})
 }
 
