@@ -3,10 +3,11 @@ package airbyte_source
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/planetscale/connect/source/cmd/internal"
-	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"testing"
+
+	"github.com/planetscale/connect/source/cmd/internal"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSpecExecute(t *testing.T) {

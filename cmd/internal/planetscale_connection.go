@@ -3,12 +3,13 @@ package internal
 import (
 	"context"
 	"fmt"
-	"github.com/go-sql-driver/mysql"
-	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
 	"io"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/go-sql-driver/mysql"
+	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
 )
 
 type PlanetScaleConnection struct {
@@ -66,7 +67,6 @@ func (psc PlanetScaleConnection) GetInitialState(keyspaceOrDatabase string) (Sha
 	}
 
 	for _, shard := range shards {
-
 		shardCursors.Shards[shard] = SerializeCursor(&psdbdatav1.TableCursor{
 			Shard:    shard,
 			Keyspace: keyspaceOrDatabase,

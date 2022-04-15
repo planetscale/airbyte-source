@@ -3,10 +3,11 @@ package airbyte_source
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/planetscale/connect/source/cmd/internal"
-	"github.com/spf13/cobra"
 	"io/ioutil"
 	"os"
+
+	"github.com/planetscale/connect/source/cmd/internal"
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -95,7 +96,6 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					ch.Logger.State(syncState)
 				}
 			}
-
 		},
 	}
 	readCmd.Flags().StringVar(&readSourceCatalogPath, "catalog", "", "Path to the PlanetScale catalog configuration")

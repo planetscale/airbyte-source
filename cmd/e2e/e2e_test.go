@@ -3,13 +3,14 @@ package e2e
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/planetscale/connect/source/cmd/airbyte-source"
-	"github.com/planetscale/connect/source/cmd/internal"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"os"
 	"testing"
+
+	airbyte_source "github.com/planetscale/connect/source/cmd/airbyte-source"
+	"github.com/planetscale/connect/source/cmd/internal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCheck(t *testing.T) {
