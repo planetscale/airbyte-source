@@ -31,20 +31,16 @@ type batchedRecord struct {
 	Data           map[string]interface{}
 }
 
-type SerializedCursor struct {
-	Cursor string `json:"cursor"`
-}
-
-type SyncState struct {
-	Cursors map[string]SerializedCursor
-}
-
 func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleConnection) (bool, error) {
 	return PlanetScaleMySQLDatabase{}.CanConnect(ctx, psc)
 }
 
 func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetScaleConnection) (Catalog, error) {
 	return PlanetScaleMySQLDatabase{}.DiscoverSchema(ctx, psc)
+}
+
+func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScaleConnection) ([]string, error) {
+	return PlanetScaleMySQLDatabase{}.ListShards(ctx, psc)
 }
 
 func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s ConfiguredStream, maxReadDuration time.Duration, tc *psdbdatav1.TableCursor) (*SerializedCursor, error) {

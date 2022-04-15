@@ -1,5 +1,10 @@
 package internal
 
+import (
+	"encoding/json"
+	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
+)
+
 type ConnectionStatus struct {
 	Status  string `json:"status"`
 	Message string `json:"message"`
@@ -72,8 +77,35 @@ type AirbyteRecord struct {
 	Data      map[string]interface{} `json:"data"`
 }
 
+type SyncState struct {
+	Streams map[string]ShardStates `json:"streams"`
+}
+
+type ShardStates struct {
+	Shards map[string]*SerializedCursor `json:"shards"`
+}
+
+type SerializedCursor struct {
+	Cursor string `json:"cursor"`
+}
+
+func (s SerializedCursor) ToTableCursor() (*psdbdatav1.TableCursor, error) {
+	var tc psdbdatav1.TableCursor
+	err := json.Unmarshal([]byte(s.Cursor), &tc)
+	return &tc, err
+}
+
+func SerializeCursor(cursor *psdbdatav1.TableCursor) *SerializedCursor {
+	b, _ := json.Marshal(cursor)
+
+	sc := &SerializedCursor{
+		Cursor: string(b),
+	}
+	return sc
+}
+
 type AirbyteState struct {
-	Data map[string]interface{} `json:"data"`
+	Data SyncState `json:"data"`
 }
 
 type AirbyteMessage struct {
@@ -92,6 +124,7 @@ type SpecMessage struct {
 
 type ConnectionProperties struct {
 	Host         ConnectionProperty `json:"host"`
+	Shards       ConnectionProperty `json:"shards"`
 	Database     ConnectionProperty `json:"database"`
 	Username     ConnectionProperty `json:"username"`
 	Password     ConnectionProperty `json:"password"`

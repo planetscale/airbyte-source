@@ -44,3 +44,7 @@ func (td testDatabase) Read(ctx context.Context, w io.Writer, ps internal.Planet
 	//TODO implement me
 	panic("implement me")
 }
+
+func (td testDatabase) ListShards(ctx context.Context, ps internal.PlanetScaleConnection) ([]string, error) {
+	panic("implement me")
+}
