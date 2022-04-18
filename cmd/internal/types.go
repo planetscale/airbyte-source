@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"time"
 
@@ -103,6 +104,8 @@ type SerializedCursor struct {
 func (s SerializedCursor) ToTableCursor() (*psdbdatav1.TableCursor, error) {
 	var tc psdbdatav1.TableCursor
 	err := json.Unmarshal([]byte(s.Cursor), &tc)
+
+	fmt.Println("\n\tTable cursor is [%v]", tc)
 	return &tc, err
 }
 

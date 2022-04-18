@@ -32,7 +32,10 @@ func (psc PlanetScaleConnection) DSN() string {
 	if useSecureConnection() {
 		config.TLSConfig = "true"
 		config.DBName = fmt.Sprintf("%v@replica", psc.Database)
+	} else {
+		config.TLSConfig = "skip-verify"
 	}
+	fmt.Printf("\n dsn is %v \n", config.FormatDSN())
 	return config.FormatDSN()
 }
 

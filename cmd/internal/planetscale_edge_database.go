@@ -33,8 +33,9 @@ func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScale
 		return false, err
 	}
 	defer db.Close()
-
-	err = db.Ping()
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	err = db.PingContext(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -157,7 +158,8 @@ func getJsonSchemaType(mysqlType string) string {
 
 func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScaleConnection) ([]string, error) {
 	var shards []string
-
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 	db, err := sql.Open("mysql", psc.DSN())
 	if err != nil {
 		return shards, errors.Wrap(err, "Unable to open SQL connection")
@@ -197,13 +199,19 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	)
 
 	table := s.Stream
-	peekCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	peekCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("will stop syncing after %v", maxReadDuration))
 	now := time.Now()
+
+	if tc.LastKnownPk != "" {
+		tc.Position = ""
+	}
+
+	readDuration := 2 * time.Second
 	for time.Since(now) < maxReadDuration {
 
-		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("syncing rows for stream [%v] in namespace [%v] with cursor [%v]]", table.Name, table.Namespace, tc))
+		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("syncing rows for stream [%v] in namespace [%v] with cursor [%v] for %v", table.Name, table.Namespace, tc, readDuration))
 		p.Logger.Log(LOGLEVEL_INFO, "peeking to see if there's any new rows")
 
 		hasRows, _, _ = p.sync(peekCtx, tc, table, ps, true)
@@ -213,7 +221,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		}
 		p.Logger.Log(LOGLEVEL_INFO, "new rows found, continuing")
 
-		ctx, cancel = context.WithTimeout(ctx, maxReadDuration)
+		ctx, cancel = context.WithTimeout(ctx, readDuration)
 		defer cancel()
 		_, tc, err = p.sync(ctx, tc, table, ps, false)
 		if tc != nil {
@@ -242,9 +250,14 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableCursor, s Stream, ps PlanetScaleConnection, peek bool) (bool, *psdbdatav1.TableCursor, error) {
 	defer p.Logger.Flush()
 	tlsConfig := options.DefaultTLSConfig()
-	var err error
+	fmt.Println("Using test certificates")
+	tlsConfig, err := options.TLSConfigWithRoot("testcerts/ca-cert.pem")
+	if err != nil {
+		panic(err.Error())
+	}
+	//var err error
 	pool := psdbpool.New(
-		router.NewSingleRoute(ps.Host),
+		router.NewSingleRoute("127.0.0.1:8080"),
 		options.WithConnectionPool(4),
 		options.WithTLSConfig(tlsConfig),
 	)

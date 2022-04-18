@@ -36,6 +36,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				os.Exit(1)
 			}
 
+			ch.Logger.Log(internal.LOGLEVEL_INFO, "Checking connection")
 			cs, psc, err := checkConnectionStatus(ch.Database, ch.FileReader, readSourceConfigFilePath)
 			if err != nil {
 				printConnectionStatus(cmd.OutOrStdout(), cs, "Connection test failed", internal.LOGLEVEL_ERROR)
@@ -126,11 +127,15 @@ func readState(state string, psc internal.PlanetScaleConnection, streams []inter
 			keyspaceOrDatabase = psc.Database
 		}
 		stateKey := keyspaceOrDatabase + ":" + s.Stream.Name
+		fmt.Printf("\ngetting state for stream [%v], sync mode is [%v]\n", s.Stream.Name, s.SyncMode)
 		ignoreCurrentCursor := !s.IncrementalSyncRequested()
+
+		//panic("stop")
 
 		// if no table cursor was found in the state, or we want to ignore the current cursor,
 		// Send along an empty cursor for each shard.
 		if _, ok := syncState.Streams[stateKey]; !ok || ignoreCurrentCursor {
+			fmt.Printf("\n\tfound no state, initializing empty state ignoreCurrentCursor is [%v]\n", ignoreCurrentCursor)
 			initialState, err := psc.GetInitialState(keyspaceOrDatabase)
 			if err != nil {
 				return syncState, err
