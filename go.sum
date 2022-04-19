@@ -1227,12 +1227,14 @@ github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINE
 github.com/pkg/profile v1.2.1/go.mod h1:hJw3o1OdXxsrSjjVksARp5W95eeEaEfptyVZyv6JUPA=
 github.com/pkg/profile v1.6.0/go.mod h1:qBsxPvzyUincmltOk6iyRVxHYg4adc0OFOv72ZdLa18=
 github.com/pkg/sftp v1.10.1/go.mod h1:lYOWFsE0bwd1+KfKJaKeuokY15vzFx25BLbzYYoAxZI=
-github.com/planetscale/log v0.0.0-20220407171757-1cec84733495 h1:wLpSU2yAXj/05/H+IHeP1cpIfwYh/kogVGn/nik1iYY=
-github.com/planetscale/log v0.0.0-20220407171757-1cec84733495/go.mod h1:SE8Q9QtLD8tfq8bM7rGLJnnWfmxt6mTXGkfGbft1vJI=
+github.com/planetscale/edge-gateway v0.0.0-20220419213636-dd09f4a40afa h1:hIGRap5ckJGOm6spKytVDoBYEjbD2hnL4m8eJtFzHUI=
+github.com/planetscale/edge-gateway v0.0.0-20220419213636-dd09f4a40afa/go.mod h1:CF89b8NA9mSq6mJCiS6ennRHrp+rBEGQjyH+oU+m1kM=
+github.com/planetscale/log v0.0.0-20220414202751-6301226afd85 h1:ilSxQQQhRFIDofI7v9ibB/CxLvK3MG995zSUajEyja4=
+github.com/planetscale/log v0.0.0-20220414202751-6301226afd85/go.mod h1:SE8Q9QtLD8tfq8bM7rGLJnnWfmxt6mTXGkfGbft1vJI=
 github.com/planetscale/pargzip v0.0.0-20201116224723-90c7fc03ea8a h1:y0OpQ4+5tKxeh9+H+2cVgASl9yMZYV9CILinKOiKafA=
 github.com/planetscale/pargzip v0.0.0-20201116224723-90c7fc03ea8a/go.mod h1:GJFUzQuXIoB2Kjn1ZfDhJr/42D5nWOqRcIQVgCxTuIE=
 github.com/planetscale/planetscale-go v0.56.0/go.mod h1:bBOg5VtQp6IrQ8rw/dfeUuMBImgXz0HQnM4/KAIxmhA=
-github.com/planetscale/ps-turtle v0.0.0-20220404193327-fcaa73888d78/go.mod h1:jPRrDPRpIuJtQXKsW5/sUy5GlK/yql4R2PUJrcG30T0=
+github.com/planetscale/ps-turtle v0.0.0-20220415223250-9cd64315fc46/go.mod h1:jPRrDPRpIuJtQXKsW5/sUy5GlK/yql4R2PUJrcG30T0=
 github.com/planetscale/tengo v0.10.1-ps.v4/go.mod h1:zR3C7CjRqDa7ag5FbIznrvCdAZGgpdd2alIEWkuF0vk=
 github.com/planetscale/tengo v0.10.3-ps.v1-vitess/go.mod h1:XodsLMQeYnfuMNSCgHsM5rZ0cqaXHU/v0FC6H4bzGno=
 github.com/planetscale/vtprotobuf v0.2.0/go.mod h1:r/DtDohldd/geKrA1bxnXNfbJShO/I1LG/OBEBvpRd4=

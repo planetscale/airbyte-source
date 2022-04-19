@@ -11,7 +11,7 @@ require (
 
 require (
 	github.com/pkg/errors v0.9.1
-	github.com/planetscale/edge-gateway v0.0.0-20220308215214-e6e57cee8740
+	github.com/planetscale/edge-gateway v0.0.0-20220419213636-dd09f4a40afa
 	google.golang.org/grpc v1.45.0
 )
 
@@ -53,7 +53,7 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
 	github.com/pires/go-proxyproto v0.6.2 // indirect
-	github.com/planetscale/log v0.0.0-20220407171757-1cec84733495 // indirect
+	github.com/planetscale/log v0.0.0-20220414202751-6301226afd85 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.12.1 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
@@ -88,5 +88,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 	k8s.io/apimachinery v0.23.5 // indirect
 )
-
-replace github.com/planetscale/edge-gateway => /Users/phaniraj/ps/edge-gateway

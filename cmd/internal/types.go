@@ -3,9 +3,11 @@ package internal
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"github.com/pkg/errors"
 	"io"
 	"time"
+	"vitess.io/vitess/go/sqltypes"
+	"vitess.io/vitess/go/vt/proto/query"
 
 	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
 )
@@ -98,15 +100,106 @@ type ShardStates struct {
 }
 
 type SerializedCursor struct {
-	Cursor string `json:"cursor"`
+	Cursor      string `json:"cursor"`
+	LastKnownPK string `json:"last_known_pk_state,omitempty"`
 }
 
-func (s SerializedCursor) ToTableCursor() (*psdbdatav1.TableCursor, error) {
-	var tc psdbdatav1.TableCursor
-	err := json.Unmarshal([]byte(s.Cursor), &tc)
+func (s SerializedCursor) ToTableCursor(table ConfiguredStream) (*psdbdatav1.TableCursor, error) {
+	var (
+		tc        psdbdatav1.TableCursor
+		keyFields map[string]string
+		lastPk    *query.QueryResult
+	)
 
-	fmt.Println("\n\tTable cursor is [%v]", tc)
-	return &tc, err
+	err := json.Unmarshal([]byte(s.Cursor), &tc)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to deserialize table cursor")
+	}
+
+	if len(s.LastKnownPK) == 0 {
+		return &tc, nil
+	}
+
+	err = json.Unmarshal([]byte(s.LastKnownPK), &keyFields)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to deserialize last known pk")
+	}
+
+	lastPk = &query.QueryResult{
+		Fields: []*query.Field{},
+		Rows:   []*query.Row{},
+	}
+
+	valueType := keyFields["type"]
+	delete(keyFields, "type")
+	queryType := query.Type(query.Type_value[valueType])
+	for key, value := range keyFields {
+		lastPk.Fields = append(lastPk.Fields, &query.Field{
+			Name: key,
+			Type: queryType,
+		})
+
+		lastPk.Rows = append(lastPk.Rows, &query.Row{
+			Lengths: []int64{int64(len(value))},
+			Values:  []byte(value),
+		})
+	}
+
+	tc.LastKnownPk = lastPk
+
+	return &tc, nil
+}
+
+func TableCursorToSerializedCursor(cursor *psdbdatav1.TableCursor) *SerializedCursor {
+	var lastKnownPK []byte
+	if cursor.LastKnownPk != nil {
+		r := sqltypes.Proto3ToResult(cursor.LastKnownPk)
+		data := QueryResultToRecords(r, true)
+		if len(data) == 1 {
+			lastKnownPK, _ = json.Marshal(data)
+		}
+	}
+
+	b, _ := json.Marshal(psdbdatav1.TableCursor{
+		Keyspace: cursor.Keyspace,
+		Position: cursor.Position,
+		Shard:    cursor.Shard,
+	})
+
+	sc := &SerializedCursor{
+		Cursor:      string(b),
+		LastKnownPK: string(lastKnownPK),
+	}
+	return sc
+}
+
+func QueryResultToRecords(qr *sqltypes.Result, includeTypes bool) []map[string]interface{} {
+	data := make([]map[string]interface{}, 0, len(qr.Rows))
+
+	columns := make([]string, 0, len(qr.Fields))
+	for _, field := range qr.Fields {
+		columns = append(columns, field.Name)
+	}
+
+	if includeTypes {
+		columns = append(columns, "type")
+	}
+
+	for _, row := range qr.Rows {
+		record := make(map[string]interface{})
+		for idx, val := range row {
+			if idx < len(columns) {
+				record[columns[idx]] = val
+			}
+			if includeTypes {
+				queryType := val.Type()
+				record["type"] = query.Type_name[int32(queryType)]
+			}
+		}
+		data = append(data, record)
+	}
+
+	return data
 }
 
 func SerializeCursor(cursor *psdbdatav1.TableCursor) *SerializedCursor {

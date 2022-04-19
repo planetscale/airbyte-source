@@ -78,9 +78,9 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				}
 
 				for shardName, shardState := range streamState.Shards {
-					tc, err := shardState.ToTableCursor()
+					tc, err := shardState.ToTableCursor(table)
 					if err != nil {
-						ch.Logger.Error(fmt.Sprintf("invalid cursor for stream %v", streamStateKey))
+						ch.Logger.Error(fmt.Sprintf("invalid cursor for stream %v, failed with [%v]", streamStateKey, err))
 						os.Exit(1)
 					}
 					sc, err := psc.Read(cmd.OutOrStdout(), table, tc)
