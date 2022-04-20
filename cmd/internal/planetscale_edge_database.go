@@ -210,7 +210,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		hasRows, _, _ = p.sync(peekCtx, tc, table, ps, true)
 		if !hasRows {
 			p.Logger.Log(LOGLEVEL_INFO, "no new rows found, exiting")
-			return TableCursorToSerializedCursor(tc), nil
+			return TableCursorToSerializedCursor(tc)
 		}
 		p.Logger.Log(LOGLEVEL_INFO, "new rows found, continuing")
 
@@ -218,7 +218,10 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		defer cancel()
 		_, tc, err = p.sync(ctx, tc, table, ps, false)
 		if tc != nil {
-			sc = TableCursorToSerializedCursor(tc)
+			sc, err = TableCursorToSerializedCursor(tc)
+			if err != nil {
+				return sc, err
+			}
 		}
 		if err != nil {
 			if s, ok := status.FromError(err); ok {
@@ -227,7 +230,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Got error [%v], Returning with cursor :[%v] after server timeout", s.Code(), tc))
 					return sc, nil
 				} else {
-					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Continuing with cursor :[%v] after server timeout", TableCursorToSerializedCursor(tc)))
+					p.Logger.Log(LOGLEVEL_INFO, "Continuing with cursor after server timeout")
 				}
 			} else {
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("non-grpc error [%v]]", err))
