@@ -3,23 +3,20 @@ package internal
 import (
 	"context"
 	"fmt"
+	"github.com/go-sql-driver/mysql"
+	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
 	"io"
 	"os"
 	"strings"
-	"time"
-
-	"github.com/go-sql-driver/mysql"
-	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
 )
 
 type PlanetScaleConnection struct {
-	Host                  string `json:"host"`
-	Database              string `json:"database"`
-	Username              string `json:"username"`
-	Password              string `json:"password"`
-	Shards                string `json:"shards"`
-	SyncDurationInMinutes int    `json:"sync_duration"`
-	DatabaseAccessor      PlanetScaleDatabase
+	Host             string `json:"host"`
+	Database         string `json:"database"`
+	Username         string `json:"username"`
+	Password         string `json:"password"`
+	Shards           string `json:"shards"`
+	DatabaseAccessor PlanetScaleDatabase
 }
 
 func (psc PlanetScaleConnection) DSN() string {
@@ -125,19 +122,11 @@ func (psc PlanetScaleConnection) DiscoverSchema() (c Catalog, err error) {
 }
 
 func (psc PlanetScaleConnection) Read(w io.Writer, table ConfiguredStream, tc *psdbdatav1.TableCursor) (*SerializedCursor, error) {
-	return psc.DatabaseAccessor.Read(context.Background(), w, psc, table, psc.getMaxReadDurationInMinutes(), tc)
+	return psc.DatabaseAccessor.Read(context.Background(), w, psc, table, tc)
 }
 
 func (psc PlanetScaleConnection) ListShards(ctx context.Context) ([]string, error) {
 	return psc.DatabaseAccessor.ListShards(context.Background(), psc)
-}
-
-func (ps PlanetScaleConnection) getMaxReadDurationInMinutes() time.Duration {
-	if ps.SyncDurationInMinutes == 0 {
-		return 2 * time.Minute
-	}
-
-	return time.Duration(ps.SyncDurationInMinutes) * time.Minute
 }
 
 func useSecureConnection() bool {

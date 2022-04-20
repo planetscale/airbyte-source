@@ -6,7 +6,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/planetscale/edge-gateway/common/grpccommon/codec"
 	"io"
-	"time"
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/proto/query"
 
@@ -37,7 +36,7 @@ type PlanetScaleDatabase interface {
 	CanConnect(ctx context.Context, ps PlanetScaleConnection) (bool, error)
 	DiscoverSchema(ctx context.Context, ps PlanetScaleConnection) (Catalog, error)
 	ListShards(ctx context.Context, ps PlanetScaleConnection) ([]string, error)
-	Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s ConfiguredStream, maxReadDuration time.Duration, tc *psdbdatav1.TableCursor) (*SerializedCursor, error)
+	Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s ConfiguredStream, tc *psdbdatav1.TableCursor) (*SerializedCursor, error)
 }
 
 type ConnectionStatus struct {
@@ -185,12 +184,11 @@ type SpecMessage struct {
 }
 
 type ConnectionProperties struct {
-	Host         ConnectionProperty `json:"host"`
-	Shards       ConnectionProperty `json:"shards"`
-	Database     ConnectionProperty `json:"database"`
-	Username     ConnectionProperty `json:"username"`
-	Password     ConnectionProperty `json:"password"`
-	SyncDuration ConnectionProperty `json:"sync_duration"`
+	Host     ConnectionProperty `json:"host"`
+	Shards   ConnectionProperty `json:"shards"`
+	Database ConnectionProperty `json:"database"`
+	Username ConnectionProperty `json:"username"`
+	Password ConnectionProperty `json:"password"`
 }
 
 type ConnectionProperty struct {
