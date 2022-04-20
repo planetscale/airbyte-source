@@ -66,7 +66,7 @@ func (psc PlanetScaleConnection) GetInitialState(keyspaceOrDatabase string) (Sha
 	}
 
 	for _, shard := range shards {
-		shardCursors.Shards[shard] = SerializeCursor(&psdbdatav1.TableCursor{
+		shardCursors.Shards[shard], _ = TableCursorToSerializedCursor(&psdbdatav1.TableCursor{
 			Shard:    shard,
 			Keyspace: keyspaceOrDatabase,
 			Position: "",

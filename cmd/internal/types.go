@@ -2,7 +2,6 @@ package internal
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/pkg/errors"
 	"github.com/planetscale/edge-gateway/common/grpccommon/codec"
 	"io"
@@ -154,15 +153,6 @@ func QueryResultToRecords(qr *sqltypes.Result, includeTypes bool) []map[string]i
 	}
 
 	return data
-}
-
-func SerializeCursor(cursor *psdbdatav1.TableCursor) *SerializedCursor {
-	b, _ := json.Marshal(cursor)
-
-	sc := &SerializedCursor{
-		Cursor: string(b),
-	}
-	return sc
 }
 
 type AirbyteState struct {
