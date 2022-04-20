@@ -2,11 +2,9 @@ package internal
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/pkg/errors"
 	"github.com/planetscale/edge-gateway/common/grpccommon/codec"
 	"io"
-	"time"
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/proto/query"
 
@@ -37,7 +35,7 @@ type PlanetScaleDatabase interface {
 	CanConnect(ctx context.Context, ps PlanetScaleConnection) (bool, error)
 	DiscoverSchema(ctx context.Context, ps PlanetScaleConnection) (Catalog, error)
 	ListShards(ctx context.Context, ps PlanetScaleConnection) ([]string, error)
-	Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s ConfiguredStream, maxReadDuration time.Duration, tc *psdbdatav1.TableCursor) (*SerializedCursor, error)
+	Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s ConfiguredStream, tc *psdbdatav1.TableCursor) (*SerializedCursor, error)
 }
 
 type ConnectionStatus struct {
@@ -157,15 +155,6 @@ func QueryResultToRecords(qr *sqltypes.Result, includeTypes bool) []map[string]i
 	return data
 }
 
-func SerializeCursor(cursor *psdbdatav1.TableCursor) *SerializedCursor {
-	b, _ := json.Marshal(cursor)
-
-	sc := &SerializedCursor{
-		Cursor: string(b),
-	}
-	return sc
-}
-
 type AirbyteState struct {
 	Data SyncState `json:"data"`
 }
@@ -185,12 +174,11 @@ type SpecMessage struct {
 }
 
 type ConnectionProperties struct {
-	Host         ConnectionProperty `json:"host"`
-	Shards       ConnectionProperty `json:"shards"`
-	Database     ConnectionProperty `json:"database"`
-	Username     ConnectionProperty `json:"username"`
-	Password     ConnectionProperty `json:"password"`
-	SyncDuration ConnectionProperty `json:"sync_duration"`
+	Host     ConnectionProperty `json:"host"`
+	Shards   ConnectionProperty `json:"shards"`
+	Database ConnectionProperty `json:"database"`
+	Username ConnectionProperty `json:"username"`
+	Password ConnectionProperty `json:"password"`
 }
 
 type ConnectionProperty struct {

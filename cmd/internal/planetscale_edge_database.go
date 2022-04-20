@@ -188,7 +188,7 @@ func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScale
 	return shards, nil
 }
 
-func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s ConfiguredStream, maxReadDuration time.Duration, tc *psdbdatav1.TableCursor) (*SerializedCursor, error) {
+func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s ConfiguredStream, tc *psdbdatav1.TableCursor) (*SerializedCursor, error) {
 	var (
 		err     error
 		sc      *SerializedCursor
@@ -197,13 +197,13 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	)
 
 	table := s.Stream
+	readDuration := 1 * time.Minute
 	peekCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("will stop syncing after %v", maxReadDuration))
-	now := time.Now()
+	readCtx, readCancel := context.WithTimeout(ctx, readDuration)
+	defer readCancel()
 
-	for time.Since(now) < maxReadDuration {
-
+	for {
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("syncing rows for stream [%v] in namespace [%v] with cursor [%v]", table.Name, table.Namespace, tc))
 		p.Logger.Log(LOGLEVEL_INFO, "peeking to see if there's any new rows")
 
@@ -212,11 +212,9 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 			p.Logger.Log(LOGLEVEL_INFO, "no new rows found, exiting")
 			return TableCursorToSerializedCursor(tc)
 		}
-		p.Logger.Log(LOGLEVEL_INFO, "new rows found, continuing")
+		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("new rows found, syncing rows for %v", readDuration))
 
-		ctx, cancel = context.WithTimeout(ctx, maxReadDuration)
-		defer cancel()
-		_, tc, err = p.sync(ctx, tc, table, ps, false)
+		_, tc, err = p.sync(readCtx, tc, table, ps, false)
 		if tc != nil {
 			sc, err = TableCursorToSerializedCursor(tc)
 			if err != nil {
@@ -238,9 +236,6 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 			}
 		}
 	}
-
-	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("done syncing after %v", maxReadDuration))
-	return sc, nil
 }
 
 func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableCursor, s Stream, ps PlanetScaleConnection, peek bool) (bool, *psdbdatav1.TableCursor, error) {
