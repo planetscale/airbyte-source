@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"encoding/base64"
 	"github.com/pkg/errors"
 	"github.com/planetscale/edge-gateway/common/grpccommon/codec"
 	"io"
@@ -106,8 +107,12 @@ func (s SerializedCursor) SerializedCursorToTableCursor(table ConfiguredStream) 
 	var (
 		tc psdbdatav1.TableCursor
 	)
+	decoded, err := base64.StdEncoding.DecodeString(s.Cursor)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to decode table cursor")
+	}
 
-	err := codec.DefaultCodec.Unmarshal([]byte(s.Cursor), &tc)
+	err = codec.DefaultCodec.Unmarshal(decoded, &tc)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to deserialize table cursor")
 	}
@@ -120,8 +125,9 @@ func TableCursorToSerializedCursor(cursor *psdbdatav1.TableCursor) (*SerializedC
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to marshal table cursor to save staate.")
 	}
+
 	sc := &SerializedCursor{
-		Cursor: string(d),
+		Cursor: base64.StdEncoding.EncodeToString(d),
 	}
 	return sc, nil
 }

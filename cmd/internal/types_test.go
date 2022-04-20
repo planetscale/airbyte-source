@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/base64"
 	"github.com/planetscale/edge-gateway/common/grpccommon/codec"
 	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
 	"github.com/stretchr/testify/assert"
@@ -33,8 +34,10 @@ func TestCanSerializeLastKnownState(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	decodedBytes, err := base64.StdEncoding.DecodeString(sc.Cursor)
+	require.NoError(t, err)
 	var tc psdbdatav1.TableCursor
-	err = codec.DefaultCodec.Unmarshal([]byte(sc.Cursor), &tc)
+	err = codec.DefaultCodec.Unmarshal(decodedBytes, &tc)
 	require.NoError(t, err)
 	assert.NotNil(t, tc.LastKnownPk)
 	assert.Equal(t, 1, len(tc.LastKnownPk.Fields))
