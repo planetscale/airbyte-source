@@ -36,7 +36,6 @@ func TestCanSerializeLastKnownState(t *testing.T) {
 	var tc psdbdatav1.TableCursor
 	err = codec.DefaultCodec.Unmarshal([]byte(sc.Cursor), &tc)
 	require.NoError(t, err)
-	assert.NotNil(t, tc)
 	assert.NotNil(t, tc.LastKnownPk)
 	assert.Equal(t, 1, len(tc.LastKnownPk.Fields))
 	assert.Equal(t, 1, len(tc.LastKnownPk.Rows))
