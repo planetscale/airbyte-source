@@ -2,9 +2,10 @@ package airbyte_source
 
 import (
 	"context"
+	"io"
+
 	"github.com/planetscale/connect/source/cmd/internal"
 	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
-	"io"
 )
 
 type testFileReader struct {

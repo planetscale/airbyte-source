@@ -212,8 +212,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 			p.Logger.Log(LOGLEVEL_INFO, "no new rows found, exiting")
 			return TableCursorToSerializedCursor(tc)
 		}
-		p.Logger.Log(LOGLEVEL_INFO, "new rows found, continuing")
-		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("syncing rows for %v", readDuration))
+		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("new rows found, syncing rows for %v", readDuration))
 
 		_, tc, err = p.sync(readCtx, tc, table, ps, false)
 		if tc != nil {
