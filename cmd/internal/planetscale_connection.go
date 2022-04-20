@@ -35,7 +35,6 @@ func (psc PlanetScaleConnection) DSN() string {
 	} else {
 		config.TLSConfig = "skip-verify"
 	}
-	fmt.Printf("\n dsn is %v \n", config.FormatDSN())
 	return config.FormatDSN()
 }
 
