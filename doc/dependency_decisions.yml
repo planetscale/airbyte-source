@@ -57,3 +57,10 @@
     :why: 
     :versions: []
     :when: 2022-03-10 17:00:15.424812000 Z
+- - :approve
+  - github.com/spf13/cobra
+  - :who: 
+    :why: 
+    :versions:
+    - v1.4.0
+    :when: 2022-04-20 14:34:59.545073000 Z

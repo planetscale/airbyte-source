@@ -36,6 +36,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				os.Exit(1)
 			}
 
+			ch.Logger.Log(internal.LOGLEVEL_INFO, "Checking connection")
 			cs, psc, err := checkConnectionStatus(ch.Database, ch.FileReader, readSourceConfigFilePath)
 			if err != nil {
 				printConnectionStatus(cmd.OutOrStdout(), cs, "Connection test failed", internal.LOGLEVEL_ERROR)
@@ -77,9 +78,9 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				}
 
 				for shardName, shardState := range streamState.Shards {
-					tc, err := shardState.ToTableCursor()
+					tc, err := shardState.SerializedCursorToTableCursor(table)
 					if err != nil {
-						ch.Logger.Error(fmt.Sprintf("invalid cursor for stream %v", streamStateKey))
+						ch.Logger.Error(fmt.Sprintf("invalid cursor for stream %v, failed with [%v]", streamStateKey, err))
 						os.Exit(1)
 					}
 					sc, err := psc.Read(cmd.OutOrStdout(), table, tc)
@@ -120,7 +121,6 @@ func readState(state string, psc internal.PlanetScaleConnection, streams []inter
 	}
 
 	for _, s := range streams {
-
 		keyspaceOrDatabase := s.Stream.Namespace
 		if keyspaceOrDatabase == "" {
 			keyspaceOrDatabase = psc.Database

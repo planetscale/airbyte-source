@@ -3,12 +3,7 @@ package internal
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
-	"io"
-	"strings"
-	"time"
-
 	"github.com/pkg/errors"
 	"github.com/planetscale/edge-gateway/common/authorization"
 	"github.com/planetscale/edge-gateway/gateway/router"
@@ -17,6 +12,9 @@ import (
 	"github.com/planetscale/edge-gateway/psdbpool/options"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"io"
+	"strings"
+	"time"
 	"vitess.io/vitess/go/sqltypes"
 	_ "vitess.io/vitess/go/vt/vtctl/grpcvtctlclient"
 	_ "vitess.io/vitess/go/vt/vtgate/grpcvtgateconn"
@@ -33,8 +31,9 @@ func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScale
 		return false, err
 	}
 	defer db.Close()
-
-	err = db.Ping()
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	err = db.PingContext(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -157,7 +156,8 @@ func getJsonSchemaType(mysqlType string) string {
 
 func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScaleConnection) ([]string, error) {
 	var shards []string
-
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 	db, err := sql.Open("mysql", psc.DSN())
 	if err != nil {
 		return shards, errors.Wrap(err, "Unable to open SQL connection")
@@ -197,19 +197,20 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	)
 
 	table := s.Stream
-	peekCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	peekCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("will stop syncing after %v", maxReadDuration))
 	now := time.Now()
+
 	for time.Since(now) < maxReadDuration {
 
-		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("syncing rows for stream [%v] in namespace [%v] with cursor [%v]]", table.Name, table.Namespace, tc))
+		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("syncing rows for stream [%v] in namespace [%v] with cursor [%v]", table.Name, table.Namespace, tc))
 		p.Logger.Log(LOGLEVEL_INFO, "peeking to see if there's any new rows")
 
 		hasRows, _, _ = p.sync(peekCtx, tc, table, ps, true)
 		if !hasRows {
 			p.Logger.Log(LOGLEVEL_INFO, "no new rows found, exiting")
-			return p.serializeCursor(tc), nil
+			return TableCursorToSerializedCursor(tc)
 		}
 		p.Logger.Log(LOGLEVEL_INFO, "new rows found, continuing")
 
@@ -217,7 +218,10 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		defer cancel()
 		_, tc, err = p.sync(ctx, tc, table, ps, false)
 		if tc != nil {
-			sc = p.serializeCursor(tc)
+			sc, err = TableCursorToSerializedCursor(tc)
+			if err != nil {
+				return sc, err
+			}
 		}
 		if err != nil {
 			if s, ok := status.FromError(err); ok {
@@ -226,7 +230,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Got error [%v], Returning with cursor :[%v] after server timeout", s.Code(), tc))
 					return sc, nil
 				} else {
-					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Continuing with cursor :[%v] after server timeout", tc))
+					p.Logger.Log(LOGLEVEL_INFO, "Continuing with cursor after server timeout")
 				}
 			} else {
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("non-grpc error [%v]]", err))
@@ -241,8 +245,9 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 
 func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableCursor, s Stream, ps PlanetScaleConnection, peek bool) (bool, *psdbdatav1.TableCursor, error) {
 	defer p.Logger.Flush()
-	tlsConfig := options.DefaultTLSConfig()
 	var err error
+	tlsConfig := options.DefaultTLSConfig()
+
 	pool := psdbpool.New(
 		router.NewSingleRoute(ps.Host),
 		options.WithConnectionPool(4),
@@ -258,6 +263,10 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableC
 		return false, tc, err
 	}
 	defer conn.Release()
+
+	if tc.LastKnownPk != nil {
+		tc.Position = ""
+	}
 
 	sReq := &psdbdatav1.SyncRequest{
 		TableName: s.Name,
@@ -307,30 +316,12 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableC
 	}
 }
 
-func (p PlanetScaleEdgeDatabase) serializeCursor(cursor *psdbdatav1.TableCursor) *SerializedCursor {
-	b, _ := json.Marshal(cursor)
-
-	sc := &SerializedCursor{
-		Cursor: string(b),
-	}
-	return sc
-}
-
 // printQueryResult will pretty-print an AirbyteRecordMessage to the logger.
 // Copied from vtctl/query.go
 func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableNamespace, tableName string) {
-	data := make(map[string]interface{})
+	data := QueryResultToRecords(qr, false)
 
-	columns := make([]string, 0, len(qr.Fields))
-	for _, field := range qr.Fields {
-		columns = append(columns, field.Name)
-	}
-	for _, row := range qr.Rows {
-		for idx, val := range row {
-			if idx < len(columns) {
-				data[columns[idx]] = val
-			}
-		}
-		p.Logger.Record(tableNamespace, tableName, data)
+	for _, record := range data {
+		p.Logger.Record(tableNamespace, tableName, record)
 	}
 }

@@ -3,8 +3,12 @@ package internal
 import (
 	"context"
 	"encoding/json"
+	"github.com/pkg/errors"
+	"github.com/planetscale/edge-gateway/common/grpccommon/codec"
 	"io"
 	"time"
+	"vitess.io/vitess/go/sqltypes"
+	"vitess.io/vitess/go/vt/proto/query"
 
 	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
 )
@@ -100,10 +104,57 @@ type SerializedCursor struct {
 	Cursor string `json:"cursor"`
 }
 
-func (s SerializedCursor) ToTableCursor() (*psdbdatav1.TableCursor, error) {
-	var tc psdbdatav1.TableCursor
-	err := json.Unmarshal([]byte(s.Cursor), &tc)
-	return &tc, err
+func (s SerializedCursor) SerializedCursorToTableCursor(table ConfiguredStream) (*psdbdatav1.TableCursor, error) {
+	var (
+		tc psdbdatav1.TableCursor
+	)
+
+	err := codec.DefaultCodec.Unmarshal([]byte(s.Cursor), &tc)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to deserialize table cursor")
+	}
+
+	return &tc, nil
+}
+
+func TableCursorToSerializedCursor(cursor *psdbdatav1.TableCursor) (*SerializedCursor, error) {
+	d, err := codec.DefaultCodec.Marshal(cursor)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to marshal table cursor to save staate.")
+	}
+	sc := &SerializedCursor{
+		Cursor: string(d),
+	}
+	return sc, nil
+}
+
+func QueryResultToRecords(qr *sqltypes.Result, includeTypes bool) []map[string]interface{} {
+	data := make([]map[string]interface{}, 0, len(qr.Rows))
+
+	columns := make([]string, 0, len(qr.Fields))
+	for _, field := range qr.Fields {
+		columns = append(columns, field.Name)
+	}
+
+	if includeTypes {
+		columns = append(columns, "type")
+	}
+
+	for _, row := range qr.Rows {
+		record := make(map[string]interface{})
+		for idx, val := range row {
+			if idx < len(columns) {
+				record[columns[idx]] = val
+			}
+			if includeTypes {
+				queryType := val.Type()
+				record["type"] = query.Type_name[int32(queryType)]
+			}
+		}
+		data = append(data, record)
+	}
+
+	return data
 }
 
 func SerializeCursor(cursor *psdbdatav1.TableCursor) *SerializedCursor {
