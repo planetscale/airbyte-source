@@ -2,8 +2,8 @@ package internal
 
 import (
 	"encoding/base64"
-	"github.com/planetscale/edge-gateway/common/grpccommon/codec"
-	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
+	"github.com/planetscale/psdb/core/codec"
+	psdbconnect "github.com/planetscale/edge-gateway/proto/psdbconnect/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -13,7 +13,7 @@ import (
 
 func TestCanSerializeLastKnownState(t *testing.T) {
 	emp_no := "49999"
-	sc, err := TableCursorToSerializedCursor(&psdbdatav1.TableCursor{
+	sc, err := TableCursorToSerializedCursor(&psdbconnect.TableCursor{
 		Shard:    "40-80",
 		Keyspace: "connect",
 		Position: "THIS_IS_A_GTID",
@@ -36,7 +36,7 @@ func TestCanSerializeLastKnownState(t *testing.T) {
 
 	decodedBytes, err := base64.StdEncoding.DecodeString(sc.Cursor)
 	require.NoError(t, err)
-	var tc psdbdatav1.TableCursor
+	var tc psdbconnect.TableCursor
 	err = codec.DefaultCodec.Unmarshal(decodedBytes, &tc)
 	require.NoError(t, err)
 	assert.NotNil(t, tc.LastKnownPk)
@@ -62,7 +62,7 @@ func TestCanUnmarshalLastKnownState(t *testing.T) {
 			},
 		},
 	}
-	sc, err := TableCursorToSerializedCursor(&psdbdatav1.TableCursor{
+	sc, err := TableCursorToSerializedCursor(&psdbconnect.TableCursor{
 		Shard:       "40-80",
 		Keyspace:    "connect",
 		Position:    "THIS_IS_A_GTID",

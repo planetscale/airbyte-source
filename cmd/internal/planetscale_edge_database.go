@@ -5,11 +5,10 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/pkg/errors"
-	"github.com/planetscale/edge-gateway/common/authorization"
-	"github.com/planetscale/edge-gateway/gateway/router"
-	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
-	"github.com/planetscale/edge-gateway/psdbpool"
-	"github.com/planetscale/edge-gateway/psdbpool/options"
+	"github.com/planetscale/psdb/auth"
+	psdbconnect "github.com/planetscale/edge-gateway/proto/psdbconnect/v1alpha1"
+	grpcclient "github.com/planetscale/psdb/core/pool"
+	clientoptions "github.com/planetscale/psdb/core/pool/options"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"io"
@@ -188,7 +187,7 @@ func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScale
 	return shards, nil
 }
 
-func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s ConfiguredStream, tc *psdbdatav1.TableCursor) (*SerializedCursor, error) {
+func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s ConfiguredStream, tc *psdbconnect.TableCursor) (*SerializedCursor, error) {
 	var (
 		err     error
 		sc      *SerializedCursor
@@ -238,37 +237,34 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	}
 }
 
-func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableCursor, s Stream, ps PlanetScaleConnection, peek bool) (bool, *psdbdatav1.TableCursor, error) {
+func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, s Stream, ps PlanetScaleConnection, peek bool) (bool, *psdbconnect.TableCursor, error) {
 	defer p.Logger.Flush()
 	var err error
-	tlsConfig := options.DefaultTLSConfig()
 
-	pool := psdbpool.New(
-		router.NewSingleRoute(ps.Host),
-		options.WithConnectionPool(4),
-		options.WithTLSConfig(tlsConfig),
+	conn, err := grpcclient.Dial(context.Background(), ps.Host,
+		clientoptions.WithDefaultTLSConfig(),
+		clientoptions.WithCompression(true),
+		clientoptions.WithConnectionPool(1),
+		clientoptions.WithExtraCallOption(
+			auth.NewBasicAuth(ps.Username, ps.Password).CallOption(),
+		),
 	)
-	auth, err := authorization.NewBasicAuth(ps.Username, ps.Password)
 	if err != nil {
-		return false, tc, err
+		panic(err)
 	}
 
-	conn, err := pool.GetWithAuth(ctx, auth)
-	if err != nil {
-		return false, tc, err
-	}
-	defer conn.Release()
+	client := psdbconnect.NewConnectClient(conn)
 
 	if tc.LastKnownPk != nil {
 		tc.Position = ""
 	}
 
-	sReq := &psdbdatav1.SyncRequest{
+	sReq := &psdbconnect.SyncRequest{
 		TableName: s.Name,
 		Cursor:    tc,
 	}
 
-	c, err := conn.Sync(ctx, sReq)
+	c, err := client.Sync(ctx, sReq)
 	if err != nil {
 		return false, tc, nil
 	}
