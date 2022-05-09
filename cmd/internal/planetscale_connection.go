@@ -38,7 +38,7 @@ func (psc PlanetScaleConnection) DSN() string {
 
 	if useSecureConnection() {
 		config.TLSConfig = "true"
-		config.DBName = fmt.Sprintf("%v@%v", psc.Database, psc.TabletType.String())
+		config.DBName = fmt.Sprintf("%v@%v", psc.Database, TabletTypeToString(psc.TabletType))
 	} else {
 		config.TLSConfig = "skip-verify"
 	}
