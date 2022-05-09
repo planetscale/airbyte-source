@@ -46,7 +46,7 @@ func (p PlanetScaleEdgeDatabase) DiscoverTabletType(ctx context.Context, psc Pla
 		if p.supportsTabletType(ctx, psc, tt) {
 			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("picking tablet type : [%s]", strings.ToUpper(TabletTypeToString(tt))))
 			if tt == psdbconnect.TabletType_primary {
-				p.Logger.Log(LOGLEVEL_WARN, fmt.Sprintf("Connecting to the primary to download data might cause performance issues with your database"))
+				p.Logger.Log(LOGLEVEL_WARN, "Connecting to the primary to download data might cause performance issues with your database")
 			}
 			return tt, nil
 		}
