@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/base64"
 	"github.com/pkg/errors"
-	"github.com/planetscale/edge-gateway/common/grpccommon/codec"
+	"github.com/planetscale/psdb/core/codec"
 	"io"
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/proto/query"
 
-	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
+	psdbconnect "github.com/planetscale/edge-gateway/proto/psdbconnect/v1alpha1"
 )
 
 const (
@@ -36,7 +36,7 @@ type PlanetScaleDatabase interface {
 	CanConnect(ctx context.Context, ps PlanetScaleConnection) (bool, error)
 	DiscoverSchema(ctx context.Context, ps PlanetScaleConnection) (Catalog, error)
 	ListShards(ctx context.Context, ps PlanetScaleConnection) ([]string, error)
-	Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s ConfiguredStream, tc *psdbdatav1.TableCursor) (*SerializedCursor, error)
+	Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s ConfiguredStream, tc *psdbconnect.TableCursor) (*SerializedCursor, error)
 }
 
 type ConnectionStatus struct {
@@ -103,9 +103,9 @@ type SerializedCursor struct {
 	Cursor string `json:"cursor"`
 }
 
-func (s SerializedCursor) SerializedCursorToTableCursor(table ConfiguredStream) (*psdbdatav1.TableCursor, error) {
+func (s SerializedCursor) SerializedCursorToTableCursor(table ConfiguredStream) (*psdbconnect.TableCursor, error) {
 	var (
-		tc psdbdatav1.TableCursor
+		tc psdbconnect.TableCursor
 	)
 	decoded, err := base64.StdEncoding.DecodeString(s.Cursor)
 	if err != nil {
@@ -120,7 +120,7 @@ func (s SerializedCursor) SerializedCursorToTableCursor(table ConfiguredStream) 
 	return &tc, nil
 }
 
-func TableCursorToSerializedCursor(cursor *psdbdatav1.TableCursor) (*SerializedCursor, error) {
+func TableCursorToSerializedCursor(cursor *psdbconnect.TableCursor) (*SerializedCursor, error) {
 	d, err := codec.DefaultCodec.Marshal(cursor)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to marshal table cursor to save staate.")

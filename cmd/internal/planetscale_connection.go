@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-sql-driver/mysql"
-	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
+	psdbconnect "github.com/planetscale/edge-gateway/proto/psdbconnect/v1alpha1"
 	"io"
 	"os"
 	"strings"
@@ -66,7 +66,7 @@ func (psc PlanetScaleConnection) GetInitialState(keyspaceOrDatabase string) (Sha
 	}
 
 	for _, shard := range shards {
-		shardCursors.Shards[shard], _ = TableCursorToSerializedCursor(&psdbdatav1.TableCursor{
+		shardCursors.Shards[shard], _ = TableCursorToSerializedCursor(&psdbconnect.TableCursor{
 			Shard:    shard,
 			Keyspace: keyspaceOrDatabase,
 			Position: "",
@@ -121,7 +121,7 @@ func (psc PlanetScaleConnection) DiscoverSchema() (c Catalog, err error) {
 	return psc.DatabaseAccessor.DiscoverSchema(context.Background(), psc)
 }
 
-func (psc PlanetScaleConnection) Read(w io.Writer, table ConfiguredStream, tc *psdbdatav1.TableCursor) (*SerializedCursor, error) {
+func (psc PlanetScaleConnection) Read(w io.Writer, table ConfiguredStream, tc *psdbconnect.TableCursor) (*SerializedCursor, error) {
 	return psc.DatabaseAccessor.Read(context.Background(), w, psc, table, tc)
 }
 

@@ -4,17 +4,17 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/pkg/errors"
-	"github.com/planetscale/edge-gateway/common/authorization"
-	"github.com/planetscale/edge-gateway/gateway/router"
-	psdbdatav1 "github.com/planetscale/edge-gateway/proto/psdb/data_v1"
-	"github.com/planetscale/edge-gateway/psdbpool"
-	"github.com/planetscale/edge-gateway/psdbpool/options"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"io"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
+	psdbconnect "github.com/planetscale/edge-gateway/proto/psdbconnect/v1alpha1"
+	"github.com/planetscale/psdb/auth"
+	grpcclient "github.com/planetscale/psdb/core/pool"
+	clientoptions "github.com/planetscale/psdb/core/pool/options"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"vitess.io/vitess/go/sqltypes"
 	_ "vitess.io/vitess/go/vt/vtctl/grpcvtctlclient"
 	_ "vitess.io/vitess/go/vt/vtgate/grpcvtgateconn"
@@ -49,7 +49,6 @@ func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetS
 	}
 	defer db.Close()
 
-	// TODO: switch to information_schema with prepared statement?
 	tableNamesQR, err := db.Query(fmt.Sprintf("show tables from `%s`;", psc.Database))
 	if err != nil {
 		return c, errors.Wrap(err, "Unable to query database for schema")
@@ -115,6 +114,9 @@ func getStreamForTable(ctx context.Context, tableName, keyspace string, db *sql.
 		return stream, errors.Wrapf(err, "unable to iterate column names and tables for table %s", tableName)
 	}
 
+	// need this otherwise airbyte will fail schema discovery for views
+	// without primary keys.
+	stream.PrimaryKeys = [][]string{}
 	primaryKeysQR, err := db.QueryContext(
 		ctx,
 		"select column_name from information_schema.columns where table_schema=? AND table_name=? AND column_key='PRI';",
@@ -188,7 +190,7 @@ func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScale
 	return shards, nil
 }
 
-func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s ConfiguredStream, tc *psdbdatav1.TableCursor) (*SerializedCursor, error) {
+func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s ConfiguredStream, tc *psdbconnect.TableCursor) (*SerializedCursor, error) {
 	var (
 		err     error
 		sc      *SerializedCursor
@@ -238,37 +240,34 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	}
 }
 
-func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbdatav1.TableCursor, s Stream, ps PlanetScaleConnection, peek bool) (bool, *psdbdatav1.TableCursor, error) {
+func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, s Stream, ps PlanetScaleConnection, peek bool) (bool, *psdbconnect.TableCursor, error) {
 	defer p.Logger.Flush()
 	var err error
-	tlsConfig := options.DefaultTLSConfig()
 
-	pool := psdbpool.New(
-		router.NewSingleRoute(ps.Host),
-		options.WithConnectionPool(4),
-		options.WithTLSConfig(tlsConfig),
+	conn, err := grpcclient.Dial(context.Background(), ps.Host,
+		clientoptions.WithDefaultTLSConfig(),
+		clientoptions.WithCompression(true),
+		clientoptions.WithConnectionPool(1),
+		clientoptions.WithExtraCallOption(
+			auth.NewBasicAuth(ps.Username, ps.Password).CallOption(),
+		),
 	)
-	auth, err := authorization.NewBasicAuth(ps.Username, ps.Password)
 	if err != nil {
-		return false, tc, err
+		panic(err)
 	}
 
-	conn, err := pool.GetWithAuth(ctx, auth)
-	if err != nil {
-		return false, tc, err
-	}
-	defer conn.Release()
+	client := psdbconnect.NewConnectClient(conn)
 
 	if tc.LastKnownPk != nil {
 		tc.Position = ""
 	}
 
-	sReq := &psdbdatav1.SyncRequest{
+	sReq := &psdbconnect.SyncRequest{
 		TableName: s.Name,
 		Cursor:    tc,
 	}
 
-	c, err := conn.Sync(ctx, sReq)
+	c, err := client.Sync(ctx, sReq)
 	if err != nil {
 		return false, tc, nil
 	}
