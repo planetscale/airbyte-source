@@ -4,16 +4,17 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
+	"strings"
+	"time"
+
 	"github.com/pkg/errors"
-	"github.com/planetscale/psdb/auth"
 	psdbconnect "github.com/planetscale/edge-gateway/proto/psdbconnect/v1alpha1"
+	"github.com/planetscale/psdb/auth"
 	grpcclient "github.com/planetscale/psdb/core/pool"
 	clientoptions "github.com/planetscale/psdb/core/pool/options"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"io"
-	"strings"
-	"time"
 	"vitess.io/vitess/go/sqltypes"
 	_ "vitess.io/vitess/go/vt/vtctl/grpcvtctlclient"
 	_ "vitess.io/vitess/go/vt/vtgate/grpcvtgateconn"
@@ -48,7 +49,6 @@ func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetS
 	}
 	defer db.Close()
 
-	// TODO: switch to information_schema with prepared statement?
 	tableNamesQR, err := db.Query(fmt.Sprintf("show tables from `%s`;", psc.Database))
 	if err != nil {
 		return c, errors.Wrap(err, "Unable to query database for schema")
@@ -114,6 +114,9 @@ func getStreamForTable(ctx context.Context, tableName, keyspace string, db *sql.
 		return stream, errors.Wrapf(err, "unable to iterate column names and tables for table %s", tableName)
 	}
 
+	// need this otherwise airbyte will fail schema discovery for views
+	// without primary keys.
+	stream.PrimaryKeys = [][]string{}
 	primaryKeysQR, err := db.QueryContext(
 		ctx,
 		"select column_name from information_schema.columns where table_schema=? AND table_name=? AND column_key='PRI';",
