@@ -36,6 +36,10 @@ func (td testDatabase) CanConnect(ctx context.Context, ps internal.PlanetScaleCo
 	return td.connectResponse.canConnect, td.connectResponse.err
 }
 
+func (td testDatabase) DiscoverTabletType(ctx context.Context, psc internal.PlanetScaleConnection) (psdbconnect.TabletType, error) {
+	return psdbconnect.TabletType_replica, nil
+}
+
 func (td testDatabase) DiscoverSchema(ctx context.Context, ps internal.PlanetScaleConnection) (internal.Catalog, error) {
 	return td.discoverSchemaResponse.catalog, td.discoverSchemaResponse.err
 }
