@@ -10,6 +10,14 @@ import (
 	"strings"
 )
 
+func TabletTypeToString(t psdbconnect.TabletType) string {
+	if psdbconnect.TabletType_replica == t {
+		return "replica"
+	}
+
+	return "primary"
+}
+
 type PlanetScaleConnection struct {
 	Host             string `json:"host"`
 	Database         string `json:"database"`
@@ -17,6 +25,7 @@ type PlanetScaleConnection struct {
 	Password         string `json:"password"`
 	Shards           string `json:"shards"`
 	DatabaseAccessor PlanetScaleDatabase
+	TabletType       psdbconnect.TabletType `json:"tablet_type"`
 }
 
 func (psc PlanetScaleConnection) DSN() string {
@@ -26,9 +35,10 @@ func (psc PlanetScaleConnection) DSN() string {
 	config.User = psc.Username
 	config.DBName = psc.Database
 	config.Passwd = psc.Password
+
 	if useSecureConnection() {
 		config.TLSConfig = "true"
-		config.DBName = fmt.Sprintf("%v@replica", psc.Database)
+		config.DBName = fmt.Sprintf("%v@%v", psc.Database, psc.TabletType.String())
 	} else {
 		config.TLSConfig = "skip-verify"
 	}
@@ -103,8 +113,14 @@ func (psc PlanetScaleConnection) AssertConfiguredShards() error {
 	return nil
 }
 
-func (psc PlanetScaleConnection) Check() error {
-	_, err := psc.DatabaseAccessor.CanConnect(context.Background(), psc)
+func (psc *PlanetScaleConnection) Check() error {
+	tt, err := psc.DatabaseAccessor.DiscoverTabletType(context.Background(), *psc)
+	if err != nil {
+		return err
+	}
+	psc.TabletType = tt
+
+	_, err = psc.DatabaseAccessor.CanConnect(context.Background(), *psc)
 	if err != nil {
 		return err
 	}

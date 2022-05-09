@@ -41,6 +41,20 @@ func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScale
 	return true, nil
 }
 
+func (p PlanetScaleEdgeDatabase) DiscoverTabletType(ctx context.Context, psc PlanetScaleConnection) (psdbconnect.TabletType, error) {
+	for _, tt := range []psdbconnect.TabletType{psdbconnect.TabletType_replica, psdbconnect.TabletType_primary} {
+		if p.supportsTabletType(ctx, psc, tt) {
+			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("picking tablet type : [%s]", strings.ToUpper(TabletTypeToString(tt))))
+			if tt == psdbconnect.TabletType_primary {
+				p.Logger.Log(LOGLEVEL_WARN, fmt.Sprintf("Connecting to the primary to download data might cause performance issues with your database"))
+			}
+			return tt, nil
+		}
+	}
+
+	return psdbconnect.TabletType_primary, errors.New("Cannot detect tablet type")
+}
+
 func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetScaleConnection) (Catalog, error) {
 	var c Catalog
 	db, err := sql.Open("mysql", psc.DSN())
@@ -318,4 +332,50 @@ func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableName
 	for _, record := range data {
 		p.Logger.Record(tableNamespace, tableName, record)
 	}
+}
+
+func (p PlanetScaleEdgeDatabase) supportsTabletType(ctx context.Context, psc PlanetScaleConnection, tt psdbconnect.TabletType) bool {
+	psc.TabletType = tt
+	canConnect, err := p.CanConnect(ctx, psc)
+	if err != nil || !canConnect {
+		return false
+	}
+
+	db, err := sql.Open("mysql", psc.DSN())
+	if err != nil {
+		return false
+	}
+	defer db.Close()
+	tabletsQR, err := db.QueryContext(ctx, "Show vitess_tablets")
+	if err != nil {
+		return false
+	}
+
+	for tabletsQR.Next() {
+		var (
+			cell                 string
+			keyspace             string
+			shard                string
+			tabletType           string
+			state                string
+			alias                string
+			hostname             string
+			primaryTermStartTime string
+		)
+		// output is of the form :
+		//aws_useast1c_5 connect-test - PRIMARY SERVING aws_useast1c_5-2797914161 10.200.131.217 2022-05-09T14:11:56Z
+		//aws_useast1c_5 connect-test - REPLICA SERVING aws_useast1c_5-1559247072 10.200.178.136
+		//aws_useast1c_5 connect-test - PRIMARY SERVING aws_useast1c_5-2797914161 10.200.131.217 2022-05-09T14:11:56Z
+		//aws_useast1c_5 connect-test - REPLICA SERVING aws_useast1c_5-1559247072 10.200.178.136
+		err := tabletsQR.Scan(&cell, &keyspace, &shard, &tabletType, &state, &alias, &hostname, &primaryTermStartTime)
+		if err != nil {
+			return false
+		}
+
+		if strings.EqualFold(tabletType, TabletTypeToString(tt)) && strings.EqualFold(state, "SERVING") {
+			return true
+		}
+	}
+
+	return false
 }
