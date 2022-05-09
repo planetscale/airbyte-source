@@ -47,7 +47,7 @@ func (p PlanetScaleEdgeDatabase) HasTabletType(ctx context.Context, psc PlanetSc
 		return true, nil
 	}
 
-	return false, errors.New("Cannot detect tablet type")
+	return false, errors.Errorf("Does not support tablet type : [%v]", TabletTypeToString(tt))
 }
 
 func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetScaleConnection) (Catalog, error) {
