@@ -26,7 +26,7 @@ type PlanetScaleEdgeDatabase struct {
 
 func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleConnection) (bool, error) {
 	var db *sql.DB
-	db, err := sql.Open("mysql", psc.DSN())
+	db, err := sql.Open("mysql", psc.DSN(psc.TabletType))
 	if err != nil {
 		return false, err
 	}
@@ -52,7 +52,7 @@ func (p PlanetScaleEdgeDatabase) HasTabletType(ctx context.Context, psc PlanetSc
 
 func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetScaleConnection) (Catalog, error) {
 	var c Catalog
-	db, err := sql.Open("mysql", psc.DSN())
+	db, err := sql.Open("mysql", psc.DSN(psc.TabletType))
 	if err != nil {
 		return c, errors.Wrap(err, "Unable to open SQL connection")
 	}
@@ -169,7 +169,7 @@ func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScale
 	var shards []string
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	db, err := sql.Open("mysql", psc.DSN())
+	db, err := sql.Open("mysql", psc.DSN(psc.TabletType))
 	if err != nil {
 		return shards, errors.Wrap(err, "Unable to open SQL connection")
 	}
@@ -335,13 +335,12 @@ func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableName
 }
 
 func (p PlanetScaleEdgeDatabase) supportsTabletType(ctx context.Context, psc PlanetScaleConnection, tt psdbconnect.TabletType) bool {
-	psc.TabletType = tt
 	canConnect, err := p.CanConnect(ctx, psc)
 	if err != nil || !canConnect {
 		return false
 	}
 
-	db, err := sql.Open("mysql", psc.DSN())
+	db, err := sql.Open("mysql", psc.DSN(tt))
 	if err != nil {
 		return false
 	}

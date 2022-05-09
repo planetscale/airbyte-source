@@ -28,7 +28,7 @@ type PlanetScaleConnection struct {
 	TabletType       psdbconnect.TabletType `json:"tablet_type"`
 }
 
-func (psc PlanetScaleConnection) DSN() string {
+func (psc PlanetScaleConnection) DSN(tt psdbconnect.TabletType) string {
 	config := mysql.NewConfig()
 	config.Net = "tcp"
 	config.Addr = psc.Host
@@ -38,7 +38,7 @@ func (psc PlanetScaleConnection) DSN() string {
 
 	if useSecureConnection() {
 		config.TLSConfig = "true"
-		config.DBName = fmt.Sprintf("%v@%v", psc.Database, TabletTypeToString(psc.TabletType))
+		config.DBName = fmt.Sprintf("%v@%v", psc.Database, TabletTypeToString(tt))
 	} else {
 		config.TLSConfig = "skip-verify"
 	}
@@ -122,6 +122,7 @@ func (psc *PlanetScaleConnection) Check(ctx context.Context) error {
 
 		if hasTT {
 			psc.TabletType = tt
+			break
 		}
 	}
 

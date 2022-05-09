@@ -2,8 +2,8 @@ package internal
 
 import (
 	"encoding/base64"
-	"github.com/planetscale/psdb/core/codec"
 	psdbconnect "github.com/planetscale/edge-gateway/proto/psdbconnect/v1alpha1"
+	"github.com/planetscale/psdb/core/codec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"testing"
