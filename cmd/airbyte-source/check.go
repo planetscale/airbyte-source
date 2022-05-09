@@ -1,6 +1,7 @@
 package airbyte_source
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -66,7 +67,7 @@ func checkConnectionStatus(database internal.PlanetScaleDatabase, reader FileRea
 	}
 
 	psc.DatabaseAccessor = database
-	if err = psc.Check(); err != nil {
+	if err = psc.Check(context.Background()); err != nil {
 		return internal.ConnectionStatus{
 			Status:  "FAILED",
 			Message: fmt.Sprintf("Unable to connect to PlanetScale database %v at host %v with username %v. Failed with \n %v", psc.Database, psc.Host, psc.Username, err),

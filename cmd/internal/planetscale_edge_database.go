@@ -26,7 +26,7 @@ type PlanetScaleEdgeDatabase struct {
 
 func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleConnection) (bool, error) {
 	var db *sql.DB
-	db, err := sql.Open("mysql", psc.DSN())
+	db, err := sql.Open("mysql", psc.DSN(psc.TabletType))
 	if err != nil {
 		return false, err
 	}
@@ -41,9 +41,18 @@ func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScale
 	return true, nil
 }
 
+func (p PlanetScaleEdgeDatabase) HasTabletType(ctx context.Context, psc PlanetScaleConnection, tt psdbconnect.TabletType) (bool, error) {
+
+	if p.supportsTabletType(ctx, psc, tt) {
+		return true, nil
+	}
+
+	return false, errors.Errorf("Does not support tablet type : [%v]", TabletTypeToString(tt))
+}
+
 func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetScaleConnection) (Catalog, error) {
 	var c Catalog
-	db, err := sql.Open("mysql", psc.DSN())
+	db, err := sql.Open("mysql", psc.DSN(psc.TabletType))
 	if err != nil {
 		return c, errors.Wrap(err, "Unable to open SQL connection")
 	}
@@ -160,7 +169,7 @@ func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScale
 	var shards []string
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	db, err := sql.Open("mysql", psc.DSN())
+	db, err := sql.Open("mysql", psc.DSN(psc.TabletType))
 	if err != nil {
 		return shards, errors.Wrap(err, "Unable to open SQL connection")
 	}
@@ -197,6 +206,11 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		cancel  context.CancelFunc
 		hasRows bool
 	)
+
+	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("picking tablet type : [%s]", strings.ToUpper(TabletTypeToString(ps.TabletType))))
+	if ps.TabletType == psdbconnect.TabletType_primary {
+		p.Logger.Log(LOGLEVEL_WARN, "Connecting to the primary to download data might cause performance issues with your database")
+	}
 
 	table := s.Stream
 	readDuration := 1 * time.Minute
@@ -318,4 +332,49 @@ func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableName
 	for _, record := range data {
 		p.Logger.Record(tableNamespace, tableName, record)
 	}
+}
+
+func (p PlanetScaleEdgeDatabase) supportsTabletType(ctx context.Context, psc PlanetScaleConnection, tt psdbconnect.TabletType) bool {
+	canConnect, err := p.CanConnect(ctx, psc)
+	if err != nil || !canConnect {
+		return false
+	}
+
+	db, err := sql.Open("mysql", psc.DSN(tt))
+	if err != nil {
+		return false
+	}
+	defer db.Close()
+	tabletsQR, err := db.QueryContext(ctx, "Show vitess_tablets")
+	if err != nil {
+		return false
+	}
+
+	for tabletsQR.Next() {
+		var (
+			cell                 string
+			keyspace             string
+			shard                string
+			tabletType           string
+			state                string
+			alias                string
+			hostname             string
+			primaryTermStartTime string
+		)
+		// output is of the form :
+		//aws_useast1c_5 connect-test - PRIMARY SERVING aws_useast1c_5-2797914161 10.200.131.217 2022-05-09T14:11:56Z
+		//aws_useast1c_5 connect-test - REPLICA SERVING aws_useast1c_5-1559247072 10.200.178.136
+		//aws_useast1c_5 connect-test - PRIMARY SERVING aws_useast1c_5-2797914161 10.200.131.217 2022-05-09T14:11:56Z
+		//aws_useast1c_5 connect-test - REPLICA SERVING aws_useast1c_5-1559247072 10.200.178.136
+		err := tabletsQR.Scan(&cell, &keyspace, &shard, &tabletType, &state, &alias, &hostname, &primaryTermStartTime)
+		if err != nil {
+			return false
+		}
+
+		if strings.EqualFold(tabletType, TabletTypeToString(tt)) && strings.EqualFold(state, "SERVING") {
+			return true
+		}
+	}
+
+	return false
 }

@@ -33,6 +33,7 @@ const (
 )
 
 type PlanetScaleDatabase interface {
+	HasTabletType(ctx context.Context, ps PlanetScaleConnection, tt psdbconnect.TabletType) (bool, error)
 	CanConnect(ctx context.Context, ps PlanetScaleConnection) (bool, error)
 	DiscoverSchema(ctx context.Context, ps PlanetScaleConnection) (Catalog, error)
 	ListShards(ctx context.Context, ps PlanetScaleConnection) ([]string, error)
