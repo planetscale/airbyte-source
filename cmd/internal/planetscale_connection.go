@@ -113,14 +113,19 @@ func (psc PlanetScaleConnection) AssertConfiguredShards() error {
 	return nil
 }
 
-func (psc *PlanetScaleConnection) Check() error {
-	tt, err := psc.DatabaseAccessor.DiscoverTabletType(context.Background(), *psc)
-	if err != nil {
-		return err
-	}
-	psc.TabletType = tt
+func (psc *PlanetScaleConnection) Check(ctx context.Context) error {
+	for _, tt := range []psdbconnect.TabletType{psdbconnect.TabletType_replica, psdbconnect.TabletType_primary} {
+		hasTT, err := psc.DatabaseAccessor.HasTabletType(ctx, *psc, tt)
+		if err != nil {
+			return err
+		}
 
-	_, err = psc.DatabaseAccessor.CanConnect(context.Background(), *psc)
+		if hasTT {
+			psc.TabletType = tt
+		}
+	}
+
+	_, err := psc.DatabaseAccessor.CanConnect(ctx, *psc)
 	if err != nil {
 		return err
 	}

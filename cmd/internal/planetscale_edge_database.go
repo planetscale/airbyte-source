@@ -41,18 +41,13 @@ func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScale
 	return true, nil
 }
 
-func (p PlanetScaleEdgeDatabase) DiscoverTabletType(ctx context.Context, psc PlanetScaleConnection) (psdbconnect.TabletType, error) {
-	for _, tt := range []psdbconnect.TabletType{psdbconnect.TabletType_replica, psdbconnect.TabletType_primary} {
-		if p.supportsTabletType(ctx, psc, tt) {
-			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("picking tablet type : [%s]", strings.ToUpper(TabletTypeToString(tt))))
-			if tt == psdbconnect.TabletType_primary {
-				p.Logger.Log(LOGLEVEL_WARN, "Connecting to the primary to download data might cause performance issues with your database")
-			}
-			return tt, nil
-		}
+func (p PlanetScaleEdgeDatabase) HasTabletType(ctx context.Context, psc PlanetScaleConnection, tt psdbconnect.TabletType) (bool, error) {
+
+	if p.supportsTabletType(ctx, psc, tt) {
+		return true, nil
 	}
 
-	return psdbconnect.TabletType_primary, errors.New("Cannot detect tablet type")
+	return false, errors.New("Cannot detect tablet type")
 }
 
 func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetScaleConnection) (Catalog, error) {
@@ -211,6 +206,11 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		cancel  context.CancelFunc
 		hasRows bool
 	)
+
+	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("picking tablet type : [%s]", strings.ToUpper(TabletTypeToString(ps.TabletType))))
+	if ps.TabletType == psdbconnect.TabletType_primary {
+		p.Logger.Log(LOGLEVEL_WARN, "Connecting to the primary to download data might cause performance issues with your database")
+	}
 
 	table := s.Stream
 	readDuration := 1 * time.Minute
