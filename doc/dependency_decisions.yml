@@ -64,3 +64,9 @@
     :versions:
     - v1.4.0
     :when: 2022-04-20 14:34:59.545073000 Z
+- - :approve
+  - github.com/planetscale/psdb
+  - :who: 
+    :why: 
+    :versions: []
+    :when: 2022-05-09 14:35:18.417215000 Z
