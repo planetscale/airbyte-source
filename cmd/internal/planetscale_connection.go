@@ -25,7 +25,6 @@ type PlanetScaleConnection struct {
 	Password         string `json:"password"`
 	Shards           string `json:"shards"`
 	DatabaseAccessor PlanetScaleDatabase
-	TabletType       psdbconnect.TabletType `json:"tablet_type"`
 }
 
 func (psc PlanetScaleConnection) DSN(tt psdbconnect.TabletType) string {
@@ -114,18 +113,6 @@ func (psc PlanetScaleConnection) AssertConfiguredShards() error {
 }
 
 func (psc *PlanetScaleConnection) Check(ctx context.Context) error {
-	for _, tt := range []psdbconnect.TabletType{psdbconnect.TabletType_replica, psdbconnect.TabletType_primary} {
-		hasTT, err := psc.DatabaseAccessor.HasTabletType(ctx, *psc, tt)
-		if err != nil {
-			return err
-		}
-
-		if hasTT {
-			psc.TabletType = tt
-			break
-		}
-	}
-
 	_, err := psc.DatabaseAccessor.CanConnect(ctx, *psc)
 	if err != nil {
 		return err

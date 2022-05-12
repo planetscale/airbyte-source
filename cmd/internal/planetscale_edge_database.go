@@ -26,7 +26,7 @@ type PlanetScaleEdgeDatabase struct {
 
 func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleConnection) (bool, error) {
 	var db *sql.DB
-	db, err := sql.Open("mysql", psc.DSN(psc.TabletType))
+	db, err := sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
 	if err != nil {
 		return false, err
 	}
@@ -43,7 +43,7 @@ func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScale
 
 func (p PlanetScaleEdgeDatabase) HasTabletType(ctx context.Context, psc PlanetScaleConnection, tt psdbconnect.TabletType) (bool, error) {
 
-	if p.supportsTabletType(ctx, psc, tt) {
+	if p.supportsTabletType(ctx, psc, "", tt) {
 		return true, nil
 	}
 
@@ -52,7 +52,7 @@ func (p PlanetScaleEdgeDatabase) HasTabletType(ctx context.Context, psc PlanetSc
 
 func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetScaleConnection) (Catalog, error) {
 	var c Catalog
-	db, err := sql.Open("mysql", psc.DSN(psc.TabletType))
+	db, err := sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
 	if err != nil {
 		return c, errors.Wrap(err, "Unable to open SQL connection")
 	}
@@ -126,6 +126,7 @@ func getStreamForTable(ctx context.Context, tableName, keyspace string, db *sql.
 	// need this otherwise airbyte will fail schema discovery for views
 	// without primary keys.
 	stream.PrimaryKeys = [][]string{}
+	stream.DefaultCursorFields = []string{}
 	primaryKeysQR, err := db.QueryContext(
 		ctx,
 		"select column_name from information_schema.columns where table_schema=? AND table_name=? AND column_key='PRI';",
@@ -169,7 +170,7 @@ func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScale
 	var shards []string
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	db, err := sql.Open("mysql", psc.DSN(psc.TabletType))
+	db, err := sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
 	if err != nil {
 		return shards, errors.Wrap(err, "Unable to open SQL connection")
 	}
@@ -207,8 +208,18 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		hasRows bool
 	)
 
-	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("picking tablet type : [%s]", strings.ToUpper(TabletTypeToString(ps.TabletType))))
-	if ps.TabletType == psdbconnect.TabletType_primary {
+	tabletType := psdbconnect.TabletType_primary
+
+	if p.supportsTabletType(ctx, ps, "", psdbconnect.TabletType_replica) {
+		tabletType = psdbconnect.TabletType_replica
+	}
+
+	if tc.Shard != "" {
+		tabletType = psdbconnect.TabletType_primary
+	}
+
+	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("picking tablet type : [%s]", strings.ToUpper(TabletTypeToString(tabletType))))
+	if tabletType == psdbconnect.TabletType_primary {
 		p.Logger.Log(LOGLEVEL_WARN, "Connecting to the primary to download data might cause performance issues with your database")
 	}
 
@@ -223,14 +234,14 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("syncing rows for stream [%v] in namespace [%v] with cursor [%v]", table.Name, table.Namespace, tc))
 		p.Logger.Log(LOGLEVEL_INFO, "peeking to see if there's any new rows")
 
-		hasRows, _, _ = p.sync(peekCtx, tc, table, ps, true)
+		hasRows, _, _ = p.sync(peekCtx, tc, table, ps, tabletType, true)
 		if !hasRows {
 			p.Logger.Log(LOGLEVEL_INFO, "no new rows found, exiting")
 			return TableCursorToSerializedCursor(tc)
 		}
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("new rows found, syncing rows for %v", readDuration))
 
-		_, tc, err = p.sync(readCtx, tc, table, ps, false)
+		_, tc, err = p.sync(readCtx, tc, table, ps, tabletType, false)
 		if tc != nil {
 			sc, err = TableCursorToSerializedCursor(tc)
 			if err != nil {
@@ -254,7 +265,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	}
 }
 
-func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, s Stream, ps PlanetScaleConnection, peek bool) (bool, *psdbconnect.TableCursor, error) {
+func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, s Stream, ps PlanetScaleConnection, tabletType psdbconnect.TabletType, peek bool) (bool, *psdbconnect.TableCursor, error) {
 	defer p.Logger.Flush()
 	var err error
 
@@ -277,8 +288,9 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 	}
 
 	sReq := &psdbconnect.SyncRequest{
-		TableName: s.Name,
-		Cursor:    tc,
+		TableName:  s.Name,
+		Cursor:     tc,
+		TabletType: tabletType,
 	}
 
 	c, err := client.Sync(ctx, sReq)
@@ -334,7 +346,7 @@ func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableName
 	}
 }
 
-func (p PlanetScaleEdgeDatabase) supportsTabletType(ctx context.Context, psc PlanetScaleConnection, tt psdbconnect.TabletType) bool {
+func (p PlanetScaleEdgeDatabase) supportsTabletType(ctx context.Context, psc PlanetScaleConnection, shardName string, tt psdbconnect.TabletType) bool {
 	canConnect, err := p.CanConnect(ctx, psc)
 	if err != nil || !canConnect {
 		return false
@@ -371,7 +383,15 @@ func (p PlanetScaleEdgeDatabase) supportsTabletType(ctx context.Context, psc Pla
 			return false
 		}
 
-		if strings.EqualFold(tabletType, TabletTypeToString(tt)) && strings.EqualFold(state, "SERVING") {
+		keyspaceHasTablet := strings.EqualFold(keyspace, psc.Database)
+		tabletTypeIsServing := keyspaceHasTablet && strings.EqualFold(tabletType, TabletTypeToString(tt)) && strings.EqualFold(state, "SERVING")
+		matchesShardName := true
+
+		if shardName != "" {
+			matchesShardName = strings.EqualFold(shard, shardName)
+		}
+
+		if keyspaceHasTablet && tabletTypeIsServing && matchesShardName {
 			return true
 		}
 	}
