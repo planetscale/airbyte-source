@@ -210,12 +210,12 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 
 	tabletType := psdbconnect.TabletType_primary
 
-	if p.supportsTabletType(ctx, ps, "", psdbconnect.TabletType_replica) {
-		tabletType = psdbconnect.TabletType_replica
-	}
-
-	if tc.Shard != "" {
-		tabletType = psdbconnect.TabletType_primary
+	if tc.Shard == "-" {
+		// TODO : fix https://github.com/planetscale/issues/issues/296
+		// We make all non default keyspaces connect to the PRIMARY.
+		if p.supportsTabletType(ctx, ps, "", psdbconnect.TabletType_replica) {
+			tabletType = psdbconnect.TabletType_replica
+		}
 	}
 
 	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("picking tablet type : [%s]", strings.ToUpper(TabletTypeToString(tabletType))))
