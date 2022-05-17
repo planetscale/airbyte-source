@@ -32,8 +32,9 @@ type PlanetScaleDatabase interface {
 // It uses the mysql interface provided by PlanetScale for all schema/shard/tablet discovery and
 // the grpc API for incrementally syncing rows from PlanetScale.
 type PlanetScaleEdgeDatabase struct {
-	Logger AirbyteLogger
-	Mysql  PlanetScaleEdgeMysqlAccess
+	Logger   AirbyteLogger
+	Mysql    PlanetScaleEdgeMysqlAccess
+	clientFn func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error)
 }
 
 func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleSource) (bool, error) {
@@ -175,12 +176,11 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		}
 	}
 }
-
-func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType, peek bool) (bool, *psdbconnect.TableCursor, error) {
-	defer p.Logger.Flush()
-	var err error
-
-	conn, err := grpcclient.Dial(context.Background(), ps.Host,
+func (p PlanetScaleEdgeDatabase) client(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
+	if p.clientFn != nil {
+		return p.clientFn(ctx, ps)
+	}
+	conn, err := grpcclient.Dial(ctx, ps.Host,
 		clientoptions.WithDefaultTLSConfig(),
 		clientoptions.WithCompression(true),
 		clientoptions.WithConnectionPool(1),
@@ -193,6 +193,16 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 	}
 
 	client := psdbconnect.NewConnectClient(conn)
+	return client, nil
+}
+func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType, peek bool) (bool, *psdbconnect.TableCursor, error) {
+	defer p.Logger.Flush()
+
+	var err error
+	client, err := p.client(ctx, ps)
+	if err != nil {
+		panic(err)
+	}
 
 	if tc.LastKnownPk != nil {
 		tc.Position = ""

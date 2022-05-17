@@ -183,7 +183,7 @@ func (a planetScaleEdgeMySQLAccess) GetTablePrimaryKeys(ctx context.Context, psc
 		"select column_name from information_schema.columns where table_schema=? AND table_name=? AND column_key='PRI';",
 		psc.Database, tableName,
 	)
-	
+
 	if err != nil {
 		return primaryKeys, errors.Wrapf(err, "Unable to scan row for primary keys of table %v", tableName)
 	}
