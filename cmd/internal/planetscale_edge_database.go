@@ -19,25 +19,28 @@ import (
 	_ "vitess.io/vitess/go/vt/vtgate/grpcvtgateconn"
 )
 
+// PlanetScaleDatabase is a general purpose interface
+// that defines all the data access methods needed for the PlanetScale Airbyte source to function.
+type PlanetScaleDatabase interface {
+	CanConnect(ctx context.Context, ps PlanetScaleSource) (bool, error)
+	DiscoverSchema(ctx context.Context, ps PlanetScaleSource) (Catalog, error)
+	ListShards(ctx context.Context, ps PlanetScaleSource) ([]string, error)
+	Read(ctx context.Context, w io.Writer, ps PlanetScaleSource, s ConfiguredStream, tc *psdbconnect.TableCursor) (*SerializedCursor, error)
+}
+
+// PlanetScaleEdgeDatabase is an implementation of the PlanetScaleDatabase interface defined above.
+// It uses the mysql interface provided by PlanetScale for all schema/shard/tablet discovery and
+// the grpc API for incrementally syncing rows from PlanetScale.
 type PlanetScaleEdgeDatabase struct {
 	Logger AirbyteLogger
 	Mysql  PlanetScaleEdgeMysqlAccess
 }
 
-func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleConnection) (bool, error) {
+func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleSource) (bool, error) {
 	return p.Mysql.PingContext(ctx, psc)
 }
 
-func (p PlanetScaleEdgeDatabase) HasTabletType(ctx context.Context, psc PlanetScaleConnection, tt psdbconnect.TabletType) (bool, error) {
-
-	if p.supportsTabletType(ctx, psc, "", tt) {
-		return true, nil
-	}
-
-	return false, errors.Errorf("Does not support tablet type : [%v]", TabletTypeToString(tt))
-}
-
-func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetScaleConnection) (Catalog, error) {
+func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetScaleSource) (Catalog, error) {
 	var c Catalog
 
 	tables, err := p.Mysql.GetTableNames(ctx, psc)
@@ -55,7 +58,7 @@ func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetS
 	return c, nil
 }
 
-func (p PlanetScaleEdgeDatabase) getStreamForTable(ctx context.Context, psc PlanetScaleConnection, tableName string) (Stream, error) {
+func (p PlanetScaleEdgeDatabase) getStreamForTable(ctx context.Context, psc PlanetScaleSource, tableName string) (Stream, error) {
 	schema := StreamSchema{
 		Type:       "object",
 		Properties: map[string]PropertyType{},
@@ -104,11 +107,11 @@ func getJsonSchemaType(mysqlType string) string {
 	return "string"
 }
 
-func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScaleConnection) ([]string, error) {
+func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScaleSource) ([]string, error) {
 	return p.Mysql.GetVitessShards(ctx, psc)
 }
 
-func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s ConfiguredStream, tc *psdbconnect.TableCursor) (*SerializedCursor, error) {
+func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleSource, s ConfiguredStream, tc *psdbconnect.TableCursor) (*SerializedCursor, error) {
 	var (
 		err     error
 		sc      *SerializedCursor
@@ -173,7 +176,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	}
 }
 
-func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, s Stream, ps PlanetScaleConnection, tabletType psdbconnect.TabletType, peek bool) (bool, *psdbconnect.TableCursor, error) {
+func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType, peek bool) (bool, *psdbconnect.TableCursor, error) {
 	defer p.Logger.Flush()
 	var err error
 
@@ -254,7 +257,7 @@ func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableName
 	}
 }
 
-func (p PlanetScaleEdgeDatabase) supportsTabletType(ctx context.Context, psc PlanetScaleConnection, shardName string, tt psdbconnect.TabletType) bool {
+func (p PlanetScaleEdgeDatabase) supportsTabletType(ctx context.Context, psc PlanetScaleSource, shardName string, tt psdbconnect.TabletType) bool {
 	canConnect, err := p.CanConnect(ctx, psc)
 	if err != nil || !canConnect {
 		return false

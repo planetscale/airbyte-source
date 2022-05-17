@@ -49,8 +49,8 @@ func printConnectionStatus(writer io.Writer, status internal.ConnectionStatus, m
 	fmt.Fprintf(writer, "%s\n", string(msg))
 }
 
-func checkConnectionStatus(database internal.PlanetScaleDatabase, reader FileReader, configFilePath string) (internal.ConnectionStatus, internal.PlanetScaleConnection, error) {
-	var psc internal.PlanetScaleConnection
+func checkConnectionStatus(database internal.PlanetScaleDatabase, reader FileReader, configFilePath string) (internal.ConnectionStatus, internal.PlanetScaleSource, error) {
+	var psc internal.PlanetScaleSource
 	contents, err := reader.ReadFile(configFilePath)
 	if err != nil {
 		return internal.ConnectionStatus{
@@ -66,8 +66,7 @@ func checkConnectionStatus(database internal.PlanetScaleDatabase, reader FileRea
 		}, psc, err
 	}
 
-	psc.DatabaseAccessor = database
-	if err = psc.Check(context.Background()); err != nil {
+	if canConnect, err := database.CanConnect(context.Background(), psc); err != nil || !canConnect {
 		return internal.ConnectionStatus{
 			Status:  "FAILED",
 			Message: fmt.Sprintf("Unable to connect to PlanetScale database %v at host %v with username %v. Failed with \n %v", psc.Database, psc.Host, psc.Username, err),

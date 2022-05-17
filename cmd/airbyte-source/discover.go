@@ -1,6 +1,7 @@
 package airbyte_source
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -30,7 +31,7 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 				return
 			}
 
-			c, err := psc.DiscoverSchema()
+			c, err := ch.Database.DiscoverSchema(context.Background(), psc)
 			if err != nil {
 				ch.Logger.Log(internal.LOGLEVEL_ERROR, fmt.Sprintf("Unable to discover database, failed with [%v]", err))
 				return

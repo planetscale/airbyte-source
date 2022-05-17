@@ -21,20 +21,20 @@ type VitessTablet struct {
 	PrimaryTermStartTime string
 }
 type PlanetScaleEdgeMysqlAccess interface {
-	PingContext(context.Context, PlanetScaleConnection) (bool, error)
-	GetTableNames(context.Context, PlanetScaleConnection) ([]string, error)
-	GetTableSchema(context.Context, PlanetScaleConnection, string) (map[string]PropertyType, error)
-	GetTablePrimaryKeys(context.Context, PlanetScaleConnection, string) ([]string, error)
-	QueryContext(ctx context.Context, psc PlanetScaleConnection, query string, args ...interface{}) (*sql.Rows, error)
-	GetVitessShards(ctx context.Context, psc PlanetScaleConnection) ([]string, error)
-	GetVitessTablets(ctx context.Context, psc PlanetScaleConnection) ([]VitessTablet, error)
+	PingContext(context.Context, PlanetScaleSource) (bool, error)
+	GetTableNames(context.Context, PlanetScaleSource) ([]string, error)
+	GetTableSchema(context.Context, PlanetScaleSource, string) (map[string]PropertyType, error)
+	GetTablePrimaryKeys(context.Context, PlanetScaleSource, string) ([]string, error)
+	QueryContext(ctx context.Context, psc PlanetScaleSource, query string, args ...interface{}) (*sql.Rows, error)
+	GetVitessShards(ctx context.Context, psc PlanetScaleSource) ([]string, error)
+	GetVitessTablets(ctx context.Context, psc PlanetScaleSource) ([]VitessTablet, error)
 }
 
 func NewMySQL() PlanetScaleEdgeMysqlAccess {
 	return planetScaleEdgeMySQLAccess{}
 }
 
-func (a planetScaleEdgeMySQLAccess) GetVitessShards(ctx context.Context, psc PlanetScaleConnection) ([]string, error) {
+func (a planetScaleEdgeMySQLAccess) GetVitessShards(ctx context.Context, psc PlanetScaleSource) ([]string, error) {
 	var shards []string
 	var db *sql.DB
 	db, err := sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
@@ -65,7 +65,7 @@ func (a planetScaleEdgeMySQLAccess) GetVitessShards(ctx context.Context, psc Pla
 	return shards, nil
 }
 
-func (a planetScaleEdgeMySQLAccess) GetVitessTablets(ctx context.Context, psc PlanetScaleConnection) ([]VitessTablet, error) {
+func (a planetScaleEdgeMySQLAccess) GetVitessTablets(ctx context.Context, psc PlanetScaleSource) ([]VitessTablet, error) {
 	var tablets []VitessTablet
 	var db *sql.DB
 	db, err := sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
@@ -96,7 +96,7 @@ func (a planetScaleEdgeMySQLAccess) GetVitessTablets(ctx context.Context, psc Pl
 
 type planetScaleEdgeMySQLAccess struct{}
 
-func (planetScaleEdgeMySQLAccess) PingContext(ctx context.Context, psc PlanetScaleConnection) (bool, error) {
+func (planetScaleEdgeMySQLAccess) PingContext(ctx context.Context, psc PlanetScaleSource) (bool, error) {
 	var db *sql.DB
 	db, err := sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
 	if err != nil {
@@ -113,7 +113,7 @@ func (planetScaleEdgeMySQLAccess) PingContext(ctx context.Context, psc PlanetSca
 	return true, nil
 }
 
-func (a planetScaleEdgeMySQLAccess) GetTableNames(ctx context.Context, psc PlanetScaleConnection) ([]string, error) {
+func (a planetScaleEdgeMySQLAccess) GetTableNames(ctx context.Context, psc PlanetScaleSource) ([]string, error) {
 	var tables []string
 	db, err := sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
 	if err != nil {
@@ -140,7 +140,7 @@ func (a planetScaleEdgeMySQLAccess) GetTableNames(ctx context.Context, psc Plane
 	return tables, err
 }
 
-func (a planetScaleEdgeMySQLAccess) GetTableSchema(ctx context.Context, psc PlanetScaleConnection, tableName string) (map[string]PropertyType, error) {
+func (a planetScaleEdgeMySQLAccess) GetTableSchema(ctx context.Context, psc PlanetScaleSource, tableName string) (map[string]PropertyType, error) {
 	properties := map[string]PropertyType{}
 	db, err := sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
 	if err != nil {
@@ -171,7 +171,7 @@ func (a planetScaleEdgeMySQLAccess) GetTableSchema(ctx context.Context, psc Plan
 	return properties, nil
 }
 
-func (a planetScaleEdgeMySQLAccess) GetTablePrimaryKeys(ctx context.Context, psc PlanetScaleConnection, tableName string) ([]string, error) {
+func (a planetScaleEdgeMySQLAccess) GetTablePrimaryKeys(ctx context.Context, psc PlanetScaleSource, tableName string) ([]string, error) {
 	var primaryKeys []string
 	db, err := sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
 	if err != nil {
@@ -199,7 +199,7 @@ func (a planetScaleEdgeMySQLAccess) GetTablePrimaryKeys(ctx context.Context, psc
 	return primaryKeys, nil
 }
 
-func (planetScaleEdgeMySQLAccess) QueryContext(ctx context.Context, psc PlanetScaleConnection, query string, args ...interface{}) (*sql.Rows, error) {
+func (planetScaleEdgeMySQLAccess) QueryContext(ctx context.Context, psc PlanetScaleSource, query string, args ...interface{}) (*sql.Rows, error) {
 	//TODO implement me
 	panic("implement me")
 }

@@ -1,6 +1,7 @@
 package airbyte_source
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -27,7 +28,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			ch.Logger = internal.NewLogger(cmd.OutOrStdout())
 			if readSourceConfigFilePath == "" {
-				fmt.Fprintf(cmd.OutOrStdout(), "Please pass path to a valid source config file via the [%v] argument", "config")
+				fmt.Fprintf(cmd.ErrOrStderr(), "Please pass path to a valid source config file via the [%v] argument", "config")
 				os.Exit(1)
 			}
 
@@ -58,8 +59,13 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				}
 				state = string(b)
 			}
+			shards, err := ch.Database.ListShards(context.Background(), psc)
+			if err != nil {
+				ch.Logger.Error(fmt.Sprintf("Unable to list shards : %v", err))
+				os.Exit(1)
+			}
 
-			syncState, err := readState(state, psc, catalog.Streams)
+			syncState, err := readState(state, psc, catalog.Streams, shards)
 			if err != nil {
 				ch.Logger.Error(fmt.Sprintf("Unable to read state : %v", err))
 				os.Exit(1)
@@ -83,7 +89,8 @@ func ReadCommand(ch *Helper) *cobra.Command {
 						ch.Logger.Error(fmt.Sprintf("invalid cursor for stream %v, failed with [%v]", streamStateKey, err))
 						os.Exit(1)
 					}
-					sc, err := psc.Read(cmd.OutOrStdout(), table, tc)
+
+					sc, err := ch.Database.Read(context.Background(), cmd.OutOrStdout(), psc, table, tc)
 					if err != nil {
 						ch.Logger.Error(err.Error())
 						os.Exit(1)
@@ -109,7 +116,7 @@ type State struct {
 	Shards map[string]map[string]interface{} `json:"shards"`
 }
 
-func readState(state string, psc internal.PlanetScaleConnection, streams []internal.ConfiguredStream) (internal.SyncState, error) {
+func readState(state string, psc internal.PlanetScaleSource, streams []internal.ConfiguredStream, shards []string) (internal.SyncState, error) {
 	syncState := internal.SyncState{
 		Streams: map[string]internal.ShardStates{},
 	}
@@ -131,7 +138,7 @@ func readState(state string, psc internal.PlanetScaleConnection, streams []inter
 		// if no table cursor was found in the state, or we want to ignore the current cursor,
 		// Send along an empty cursor for each shard.
 		if _, ok := syncState.Streams[stateKey]; !ok || ignoreCurrentCursor {
-			initialState, err := psc.GetInitialState(keyspaceOrDatabase)
+			initialState, err := psc.GetInitialState(keyspaceOrDatabase, shards)
 			if err != nil {
 				return syncState, err
 			}
