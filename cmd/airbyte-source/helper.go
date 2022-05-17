@@ -28,6 +28,7 @@ func DefaultHelper(w io.Writer) *Helper {
 	return &Helper{
 		Database: internal.PlanetScaleEdgeDatabase{
 			Logger: logger,
+			Mysql:  internal.NewMySQL(),
 		},
 		FileReader: fileReader{},
 		Logger:     logger,

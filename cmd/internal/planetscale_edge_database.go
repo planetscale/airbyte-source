@@ -2,7 +2,6 @@ package internal
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"io"
 	"strings"
@@ -22,23 +21,11 @@ import (
 
 type PlanetScaleEdgeDatabase struct {
 	Logger AirbyteLogger
+	Mysql  PlanetScaleEdgeMysqlAccess
 }
 
 func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleConnection) (bool, error) {
-	var db *sql.DB
-	db, err := sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
-	if err != nil {
-		return false, err
-	}
-	defer db.Close()
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	err = db.PingContext(ctx)
-	if err != nil {
-		return false, err
-	}
-
-	return true, nil
+	return p.Mysql.PingContext(ctx, psc)
 }
 
 func (p PlanetScaleEdgeDatabase) HasTabletType(ctx context.Context, psc PlanetScaleConnection, tt psdbconnect.TabletType) (bool, error) {
@@ -52,33 +39,14 @@ func (p PlanetScaleEdgeDatabase) HasTabletType(ctx context.Context, psc PlanetSc
 
 func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetScaleConnection) (Catalog, error) {
 	var c Catalog
-	db, err := sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
-	if err != nil {
-		return c, errors.Wrap(err, "Unable to open SQL connection")
-	}
-	defer db.Close()
 
-	tableNamesQR, err := db.Query(fmt.Sprintf("show tables from `%s`;", psc.Database))
+	tables, err := p.Mysql.GetTableNames(ctx, psc)
 	if err != nil {
 		return c, errors.Wrap(err, "Unable to query database for schema")
 	}
 
-	var tables []string
-
-	for tableNamesQR.Next() {
-		var name string
-		if err = tableNamesQR.Scan(&name); err != nil {
-			return c, errors.Wrap(err, "unable to get table names")
-		}
-
-		tables = append(tables, name)
-	}
-	if err := tableNamesQR.Err(); err != nil {
-		return c, errors.Wrap(err, "unable to iterate table rows")
-	}
-
 	for _, tableName := range tables {
-		stream, err := getStreamForTable(ctx, tableName, psc.Database, db)
+		stream, err := p.getStreamForTable(ctx, psc, tableName)
 		if err != nil {
 			return c, errors.Wrapf(err, "unable to get stream for table %v", tableName)
 		}
@@ -87,7 +55,7 @@ func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetS
 	return c, nil
 }
 
-func getStreamForTable(ctx context.Context, tableName, keyspace string, db *sql.DB) (Stream, error) {
+func (p PlanetScaleEdgeDatabase) getStreamForTable(ctx context.Context, psc PlanetScaleConnection, tableName string) (Stream, error) {
 	schema := StreamSchema{
 		Type:       "object",
 		Properties: map[string]PropertyType{},
@@ -96,57 +64,27 @@ func getStreamForTable(ctx context.Context, tableName, keyspace string, db *sql.
 		Name:               tableName,
 		Schema:             schema,
 		SupportedSyncModes: []string{"full_refresh", "incremental"},
-		Namespace:          keyspace,
+		Namespace:          psc.Database,
 	}
 
-	columnNamesQR, err := db.QueryContext(
-		ctx,
-		"select column_name, column_type from information_schema.columns where table_name=? AND table_schema=?;",
-		tableName, keyspace,
-	)
+	var err error
+	stream.Schema.Properties, err = p.Mysql.GetTableSchema(ctx, psc, tableName)
 	if err != nil {
 		return stream, errors.Wrapf(err, "Unable to get column names & types for table %v", tableName)
 	}
 
-	for columnNamesQR.Next() {
-		var (
-			name       string
-			columnType string
-		)
-		if err = columnNamesQR.Scan(&name, &columnType); err != nil {
-			return stream, errors.Wrapf(err, "Unable to scan row for column names & types of table %v", tableName)
-		}
-
-		stream.Schema.Properties[name] = PropertyType{getJsonSchemaType(columnType)}
-	}
-	if err := columnNamesQR.Err(); err != nil {
-		return stream, errors.Wrapf(err, "unable to iterate column names and tables for table %s", tableName)
-	}
-
-	// need this otherwise airbyte will fail schema discovery for views
+	// need this otherwise Airbyte will fail schema discovery for views
 	// without primary keys.
 	stream.PrimaryKeys = [][]string{}
 	stream.DefaultCursorFields = []string{}
-	primaryKeysQR, err := db.QueryContext(
-		ctx,
-		"select column_name from information_schema.columns where table_schema=? AND table_name=? AND column_key='PRI';",
-		keyspace, tableName,
-	)
+
+	primaryKeys, err := p.Mysql.GetTablePrimaryKeys(ctx, psc, tableName)
 	if err != nil {
-		return stream, errors.Wrapf(err, "Unable to get primary key column names for table %v", tableName)
-	}
-
-	for primaryKeysQR.Next() {
-		var name string
-		if err = primaryKeysQR.Scan(&name); err != nil {
-			return stream, errors.Wrapf(err, "Unable to scan row for primary keys of table %v", tableName)
-		}
-
-		stream.PrimaryKeys = append(stream.PrimaryKeys, []string{name})
-		stream.DefaultCursorFields = append(stream.DefaultCursorFields, name)
-	}
-	if err := primaryKeysQR.Err(); err != nil {
 		return stream, errors.Wrapf(err, "unable to iterate primary keys for table %s", tableName)
+	}
+	for _, key := range primaryKeys {
+		stream.PrimaryKeys = append(stream.PrimaryKeys, []string{key})
+		stream.DefaultCursorFields = append(stream.DefaultCursorFields, key)
 	}
 
 	stream.SourceDefinedCursor = true
@@ -167,37 +105,7 @@ func getJsonSchemaType(mysqlType string) string {
 }
 
 func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScaleConnection) ([]string, error) {
-	var shards []string
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	db, err := sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
-	if err != nil {
-		return shards, errors.Wrap(err, "Unable to open SQL connection")
-	}
-	defer db.Close()
-
-	// TODO: is there a prepared statement equivalent?
-	shardNamesQR, err := db.QueryContext(
-		ctx,
-		`show vitess_shards like "%`+psc.Database+`%";`,
-	)
-	if err != nil {
-		return shards, errors.Wrap(err, "Unable to query database for shards")
-	}
-
-	for shardNamesQR.Next() {
-		var name string
-		if err = shardNamesQR.Scan(&name); err != nil {
-			return shards, errors.Wrap(err, "unable to get shard names")
-		}
-
-		shards = append(shards, strings.TrimPrefix(name, psc.Database+"/"))
-	}
-	if err := shardNamesQR.Err(); err != nil {
-		return shards, errors.Wrapf(err, "unable to iterate shard names for %s", psc.Database)
-	}
-
-	return shards, nil
+	return p.Mysql.GetVitessShards(ctx, psc)
 }
 
 func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s ConfiguredStream, tc *psdbconnect.TableCursor) (*SerializedCursor, error) {
@@ -352,43 +260,18 @@ func (p PlanetScaleEdgeDatabase) supportsTabletType(ctx context.Context, psc Pla
 		return false
 	}
 
-	db, err := sql.Open("mysql", psc.DSN(tt))
-	if err != nil {
-		return false
-	}
-	defer db.Close()
-	tabletsQR, err := db.QueryContext(ctx, "Show vitess_tablets")
+	tablets, err := p.Mysql.GetVitessTablets(ctx, psc)
 	if err != nil {
 		return false
 	}
 
-	for tabletsQR.Next() {
-		var (
-			cell                 string
-			keyspace             string
-			shard                string
-			tabletType           string
-			state                string
-			alias                string
-			hostname             string
-			primaryTermStartTime string
-		)
-		// output is of the form :
-		//aws_useast1c_5 connect-test - PRIMARY SERVING aws_useast1c_5-2797914161 10.200.131.217 2022-05-09T14:11:56Z
-		//aws_useast1c_5 connect-test - REPLICA SERVING aws_useast1c_5-1559247072 10.200.178.136
-		//aws_useast1c_5 connect-test - PRIMARY SERVING aws_useast1c_5-2797914161 10.200.131.217 2022-05-09T14:11:56Z
-		//aws_useast1c_5 connect-test - REPLICA SERVING aws_useast1c_5-1559247072 10.200.178.136
-		err := tabletsQR.Scan(&cell, &keyspace, &shard, &tabletType, &state, &alias, &hostname, &primaryTermStartTime)
-		if err != nil {
-			return false
-		}
-
-		keyspaceHasTablet := strings.EqualFold(keyspace, psc.Database)
-		tabletTypeIsServing := keyspaceHasTablet && strings.EqualFold(tabletType, TabletTypeToString(tt)) && strings.EqualFold(state, "SERVING")
+	for _, tablet := range tablets {
+		keyspaceHasTablet := strings.EqualFold(tablet.Keyspace, psc.Database)
+		tabletTypeIsServing := keyspaceHasTablet && strings.EqualFold(tablet.TabletType, TabletTypeToString(tt)) && strings.EqualFold(tablet.State, "SERVING")
 		matchesShardName := true
 
 		if shardName != "" {
-			matchesShardName = strings.EqualFold(shard, shardName)
+			matchesShardName = strings.EqualFold(tablet.Shard, shardName)
 		}
 
 		if keyspaceHasTablet && tabletTypeIsServing && matchesShardName {
