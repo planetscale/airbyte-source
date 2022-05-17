@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-sql-driver/mysql"
-	psdbconnect "github.com/planetscale/edge-gateway/proto/psdbconnect/v1alpha1"
+	psdbconnect "github.com/planetscale/connect/source/proto/psdbconnect/v1alpha1"
 	"io"
 	"os"
 	"strings"

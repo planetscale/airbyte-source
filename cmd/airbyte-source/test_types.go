@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/planetscale/connect/source/cmd/internal"
-	psdbconnect "github.com/planetscale/edge-gateway/proto/psdbconnect/v1alpha1"
+	psdbconnect "github.com/planetscale/connect/source/proto/psdbconnect/v1alpha1"
 )
 
 type testFileReader struct {
