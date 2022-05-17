@@ -246,12 +246,14 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 			}
 			for _, result := range res.Result {
 				qr := sqltypes.Proto3ToResult(result)
-				sqlResult := &sqltypes.Result{
-					Fields: result.Fields,
+				for _, row := range qr.Rows {
+					sqlResult := &sqltypes.Result{
+						Fields: result.Fields,
+					}
+					sqlResult.Rows = append(sqlResult.Rows, row)
+					// print AirbyteRecord messages to stdout here.
+					p.printQueryResult(sqlResult, keyspaceOrDatabase, s.Name)
 				}
-				sqlResult.Rows = append(sqlResult.Rows, qr.Rows[0])
-				// print AirbyteRecord messages to stdout here.
-				p.printQueryResult(sqlResult, keyspaceOrDatabase, s.Name)
 			}
 		}
 	}

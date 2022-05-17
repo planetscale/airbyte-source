@@ -8,6 +8,49 @@ import (
 	"io"
 )
 
+type testAirbyteLogger struct {
+	logMessages map[string][]string
+	records     map[string][]map[string]interface{}
+}
+
+func (tal testAirbyteLogger) Log(level, message string) {
+	if tal.logMessages == nil {
+		tal.logMessages = map[string][]string{}
+	}
+	tal.logMessages[level] = append(tal.logMessages[level], message)
+}
+
+func (testAirbyteLogger) Catalog(catalog Catalog) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (testAirbyteLogger) ConnectionStatus(status ConnectionStatus) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (tal *testAirbyteLogger) Record(tableNamespace, tableName string, data map[string]interface{}) {
+	if tal.records == nil {
+		tal.records = map[string][]map[string]interface{}{}
+	}
+	key := tableNamespace + "." + tableName
+	tal.records[key] = append(tal.records[key], data)
+}
+
+func (testAirbyteLogger) Flush() {
+}
+
+func (testAirbyteLogger) State(syncState SyncState) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (testAirbyteLogger) Error(error string) {
+	//TODO implement me
+	panic("implement me")
+}
+
 type clientConnectionMock struct {
 	syncClient         connectSyncClientMock
 	syncFn             func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error)
