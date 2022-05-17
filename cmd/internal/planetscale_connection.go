@@ -3,7 +3,7 @@ package internal
 import (
 	"fmt"
 	"github.com/go-sql-driver/mysql"
-	psdbconnect "github.com/planetscale/edge-gateway/proto/psdbconnect/v1alpha1"
+	psdbconnect "github.com/planetscale/connect/source/proto/psdbconnect/v1alpha1"
 	"os"
 	"strings"
 )
