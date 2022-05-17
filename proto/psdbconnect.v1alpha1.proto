@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package psdbconnect.v1alpha1;
+
+import "query.proto";
+import "vtrpc.proto";
+
+option go_package = "github.com/planetscale/edge-gateway/proto/psdbconnect/v1alpha1;psdbconnectv1alpha1";
+
+//enumcheck:exhaustive
+enum TabletType {
+  replica = 0;
+  primary = 1;
+}
+
+message SyncRequest {
+  string table_name = 1;
+  TableCursor cursor = 2;
+  TabletType tablet_type = 3;
+}
+
+message SyncResponse {
+  repeated query.QueryResult result = 1;
+  TableCursor cursor = 2;
+  vtrpc.RPCError error = 3;
+}
+
+message TableCursor {
+  string shard = 1;
+  string keyspace = 2;
+  string position = 3;
+  query.QueryResult last_known_pk = 4;
+}
+
+service Connect {
+  rpc Sync(SyncRequest) returns (stream SyncResponse) {}
+}

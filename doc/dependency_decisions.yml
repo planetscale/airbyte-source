@@ -52,12 +52,6 @@
     :versions: []
     :when: 2022-03-10 17:00:10.855308000 Z
 - - :approve
-  - github.com/planetscale/edge-gateway
-  - :who: 
-    :why: 
-    :versions: []
-    :when: 2022-03-10 17:00:15.424812000 Z
-- - :approve
   - github.com/spf13/cobra
   - :who: 
     :why: 
