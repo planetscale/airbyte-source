@@ -1,7 +1,7 @@
 package internal
 
 import (
-	psdbconnect "github.com/planetscale/edge-gateway/proto/psdbconnect/v1alpha1"
+	psdbconnect "github.com/planetscale/connect/source/proto/psdbconnect/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"

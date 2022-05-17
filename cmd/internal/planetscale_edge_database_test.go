@@ -3,24 +3,12 @@ package internal
 import (
 	"bytes"
 	"context"
-	psdbconnect "github.com/planetscale/edge-gateway/proto/psdbconnect/v1alpha1"
+	psdbconnect "github.com/planetscale/connect/source/proto/psdbconnect/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"os"
 	"testing"
 )
-
-func TestHasTabletType_Primary(t *testing.T) {
-
-}
-
-func TestHasTabletType_Replica(t *testing.T) {
-
-}
-
-func TestCanDiscoverSchema(t *testing.T) {
-
-}
 
 func TestCanPeekBeforeRead(t *testing.T) {
 	tma := getTestMysqlAccess()
