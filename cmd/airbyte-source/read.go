@@ -56,7 +56,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				}
 			}()
 
-			cs, _ := checkConnectionStatus(ch.Database, psc)
+			cs, err := checkConnectionStatus(ch.Database, psc)
 			if err != nil {
 				ch.Logger.ConnectionStatus(cs)
 				return
