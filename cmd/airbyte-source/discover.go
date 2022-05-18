@@ -25,11 +25,32 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 				return
 			}
 
-			cs, psc, err := checkConnectionStatus(ch.Database, ch.FileReader, sourceConfigFilePath)
+			psc, err := parseSource(ch.FileReader, sourceConfigFilePath)
+			if err != nil {
+				cs := internal.ConnectionStatus{
+					Status:  "FAILED",
+					Message: fmt.Sprintf("Configuration for PlanetScale database is invalid, unable to read source configuration : %v", err),
+				}
+				ch.Logger.ConnectionStatus(cs)
+				return
+			}
+
+			if err := ch.EnsureDB(psc); err != nil {
+				fmt.Fprintln(cmd.OutOrStdout(), "Unable to connect to PlanetScale Database")
+				return
+			}
+
+			cs, err := checkConnectionStatus(ch.Database, psc)
 			if err != nil {
 				ch.Logger.ConnectionStatus(cs)
 				return
 			}
+
+			defer func() {
+				if err := ch.Database.Close(); err != nil {
+					fmt.Fprintf(cmd.OutOrStdout(), "Unable to close connection to PlanetScale Database, failed with %v", err)
+				}
+			}()
 
 			c, err := ch.Database.DiscoverSchema(context.Background(), psc)
 			if err != nil {
