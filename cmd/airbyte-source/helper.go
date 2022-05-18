@@ -4,7 +4,7 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/planetscale/connect/source/cmd/internal"
+	"github.com/planetscale/airbyte-source/cmd/internal"
 )
 
 type Helper struct {

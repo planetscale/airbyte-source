@@ -1,6 +1,7 @@
 package airbyte_source
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -15,7 +16,7 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-func Execute() {
+func Execute(ctx context.Context, ver, commit, buildDate string) {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

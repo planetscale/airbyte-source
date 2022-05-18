@@ -3,7 +3,7 @@ package internal
 import (
 	"context"
 	"database/sql"
-	psdbconnect "github.com/planetscale/connect/source/proto/psdbconnect/v1alpha1"
+	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"google.golang.org/grpc"
 	"io"
 )
