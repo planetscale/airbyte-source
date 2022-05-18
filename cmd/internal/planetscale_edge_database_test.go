@@ -12,7 +12,7 @@ import (
 	"vitess.io/vitess/go/vt/proto/query"
 )
 
-func TestCanPeekBeforeRead(t *testing.T) {
+func TestRead_CanPeekBeforeRead(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
 	ped := PlanetScaleEdgeDatabase{
@@ -61,7 +61,7 @@ func TestCanPeekBeforeRead(t *testing.T) {
 	assert.True(t, tma.GetVitessTabletsFnInvoked)
 }
 
-func TestCanEarlyExitIfNoRecordsInPeek(t *testing.T) {
+func TestRead_CanEarlyExitIfNoRecordsInPeek(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
 	ped := PlanetScaleEdgeDatabase{
@@ -101,7 +101,7 @@ func TestCanEarlyExitIfNoRecordsInPeek(t *testing.T) {
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
 }
 
-func TestCanPickPrimaryForShardedKeyspaces(t *testing.T) {
+func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
 	ped := PlanetScaleEdgeDatabase{
@@ -146,7 +146,7 @@ func TestCanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
 
-func TestCanPickReplicaForUnshardedKeyspaces(t *testing.T) {
+func TestRead_CanPickReplicaForUnshardedKeyspaces(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
 	ped := PlanetScaleEdgeDatabase{
@@ -191,7 +191,7 @@ func TestCanPickReplicaForUnshardedKeyspaces(t *testing.T) {
 	assert.True(t, tma.GetVitessTabletsFnInvoked)
 }
 
-func TestCanReturnOriginalCursorIfNoNewFound(t *testing.T) {
+func TestRead_CanReturnOriginalCursorIfNoNewFound(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
 	ped := PlanetScaleEdgeDatabase{
@@ -234,7 +234,7 @@ func TestCanReturnOriginalCursorIfNoNewFound(t *testing.T) {
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
 }
 
-func TestCanReturnNewCursorIfNewFound(t *testing.T) {
+func TestRead_CanReturnNewCursorIfNewFound(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
 	ped := PlanetScaleEdgeDatabase{
@@ -285,7 +285,7 @@ func TestCanReturnNewCursorIfNewFound(t *testing.T) {
 	assert.Equal(t, 3, cc.syncFnInvokedCount)
 }
 
-func TestCanLogResults(t *testing.T) {
+func TestRead_CanLogResults(t *testing.T) {
 	tma := getTestMysqlAccess()
 	tal := testAirbyteLogger{}
 	ped := PlanetScaleEdgeDatabase{
