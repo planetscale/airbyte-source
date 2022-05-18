@@ -22,7 +22,7 @@ import (
 // PlanetScaleDatabase is a general purpose interface
 // that defines all the data access methods needed for the PlanetScale Airbyte source to function.
 type PlanetScaleDatabase interface {
-	CanConnect(ctx context.Context, ps PlanetScaleSource) (bool, error)
+	CanConnect(ctx context.Context, ps PlanetScaleSource) error
 	DiscoverSchema(ctx context.Context, ps PlanetScaleSource) (Catalog, error)
 	ListShards(ctx context.Context, ps PlanetScaleSource) ([]string, error)
 	Read(ctx context.Context, w io.Writer, ps PlanetScaleSource, s ConfiguredStream, tc *psdbconnect.TableCursor) (*SerializedCursor, error)
@@ -37,7 +37,7 @@ type PlanetScaleEdgeDatabase struct {
 	clientFn func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error)
 }
 
-func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleSource) (bool, error) {
+func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleSource) error {
 	return p.Mysql.PingContext(ctx, psc)
 }
 
@@ -277,8 +277,8 @@ func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableName
 }
 
 func (p PlanetScaleEdgeDatabase) supportsTabletType(ctx context.Context, psc PlanetScaleSource, shardName string, tt psdbconnect.TabletType) bool {
-	canConnect, err := p.CanConnect(ctx, psc)
-	if err != nil || !canConnect {
+
+	if err := p.CanConnect(ctx, psc); err != nil {
 		return false
 	}
 

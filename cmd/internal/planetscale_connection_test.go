@@ -3,7 +3,6 @@ package internal
 import (
 	psdbconnect "github.com/planetscale/connect/source/proto/psdbconnect/v1alpha1"
 	"github.com/stretchr/testify/assert"
-	"os"
 	"testing"
 )
 
@@ -25,11 +24,9 @@ func TestCanGenerateInsecureDSN(t *testing.T) {
 		Password: "pscale_password",
 		Database: "connect-test",
 	}
-	os.Setenv("PS_END_TO_END_TEST_RUN", "true")
-	defer os.Unsetenv("PS_END_TO_END_TEST_RUN")
+	t.Setenv("PS_END_TO_END_TEST_RUN", "true")
 	dsn := psc.DSN(psdbconnect.TabletType_primary)
 	assert.Equal(t, "usernameus-east-4:pscale_password@tcp(useast.psdb.connect)/connect-test?tls=skip-verify", dsn)
-
 }
 
 func TestCanGenerateInitialState_Sharded(t *testing.T) {
@@ -46,17 +43,18 @@ func TestCanGenerateInitialState_Sharded(t *testing.T) {
 		"c0-",
 	}
 	shardStates, err := psc.GetInitialState("connect-test", shards)
-
+	assert.NoError(t, err)
 	expectedShardStates := ShardStates{
 		Shards: map[string]*SerializedCursor{},
 	}
 
 	for _, shard := range shards {
-		expectedShardStates.Shards[shard], _ = TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+		expectedShardStates.Shards[shard], err = TableCursorToSerializedCursor(&psdbconnect.TableCursor{
 			Shard:    shard,
 			Keyspace: "connect-test",
 			Position: "",
 		})
+		assert.NoError(t, err)
 	}
 
 	assert.NoError(t, err)
@@ -75,17 +73,18 @@ func TestCanGenerateInitialState_Unsharded(t *testing.T) {
 		"-",
 	}
 	shardStates, err := psc.GetInitialState("connect-test", shards)
-
+	assert.NoError(t, err)
 	expectedShardStates := ShardStates{
 		Shards: map[string]*SerializedCursor{},
 	}
 
 	for _, shard := range shards {
-		expectedShardStates.Shards[shard], _ = TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+		expectedShardStates.Shards[shard], err = TableCursorToSerializedCursor(&psdbconnect.TableCursor{
 			Shard:    shard,
 			Keyspace: "connect-test",
 			Position: "",
 		})
+		assert.NoError(t, err)
 	}
 
 	assert.NoError(t, err)

@@ -66,7 +66,7 @@ func checkConnectionStatus(database internal.PlanetScaleDatabase, reader FileRea
 		}, psc, err
 	}
 
-	if canConnect, err := database.CanConnect(context.Background(), psc); err != nil || !canConnect {
+	if err := database.CanConnect(context.Background(), psc); err != nil {
 		return internal.ConnectionStatus{
 			Status:  "FAILED",
 			Message: fmt.Sprintf("Unable to connect to PlanetScale database %v at host %v with username %v. Failed with \n %v", psc.Database, psc.Host, psc.Username, err),

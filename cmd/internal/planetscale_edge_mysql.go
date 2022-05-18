@@ -21,34 +21,61 @@ type VitessTablet struct {
 	PrimaryTermStartTime string
 }
 type PlanetScaleEdgeMysqlAccess interface {
-	PingContext(context.Context, PlanetScaleSource) (bool, error)
+	PingContext(context.Context, PlanetScaleSource) error
 	GetTableNames(context.Context, PlanetScaleSource) ([]string, error)
 	GetTableSchema(context.Context, PlanetScaleSource, string) (map[string]PropertyType, error)
 	GetTablePrimaryKeys(context.Context, PlanetScaleSource, string) ([]string, error)
-	QueryContext(ctx context.Context, psc PlanetScaleSource, query string, args ...interface{}) (*sql.Rows, error)
 	GetVitessShards(ctx context.Context, psc PlanetScaleSource) ([]string, error)
 	GetVitessTablets(ctx context.Context, psc PlanetScaleSource) ([]VitessTablet, error)
+	Close() error
 }
 
 func NewMySQL() PlanetScaleEdgeMysqlAccess {
 	return planetScaleEdgeMySQLAccess{}
 }
 
-func (a planetScaleEdgeMySQLAccess) GetVitessShards(ctx context.Context, psc PlanetScaleSource) ([]string, error) {
+type planetScaleEdgeMySQLAccess struct {
+	psc *PlanetScaleSource
+	db  *sql.DB
+}
+
+func (p *planetScaleEdgeMySQLAccess) ensureDB(psc *PlanetScaleSource) error {
+	if p.db != nil && p.psc == psc {
+		return nil
+	}
+
+	var err error
+
+	p.db, err = sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
+	if err != nil {
+		return err
+	}
+
+	p.psc = psc
+	return nil
+}
+
+func (p planetScaleEdgeMySQLAccess) Close() error {
+	return p.db.Close()
+}
+
+func (p planetScaleEdgeMySQLAccess) GetVitessShards(ctx context.Context, psc PlanetScaleSource) ([]string, error) {
 	var shards []string
-	var db *sql.DB
-	db, err := sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
+	err := p.ensureDB(&psc)
 	if err != nil {
 		return shards, err
 	}
-	defer db.Close()
 	// TODO: is there a prepared statement equivalent?
-	shardNamesQR, err := db.QueryContext(
+	shardNamesQR, err := p.db.QueryContext(
 		ctx,
 		`show vitess_shards like "%`+psc.Database+`%";`,
 	)
 	if err != nil {
 		return shards, errors.Wrap(err, "Unable to query database for shards")
+	}
+
+	if err := shardNamesQR.Err(); err != nil {
+		return shards, errors.Wrapf(err, "unable to iterate shard names for %s", psc.Database)
 	}
 
 	for shardNamesQR.Next() {
@@ -59,23 +86,22 @@ func (a planetScaleEdgeMySQLAccess) GetVitessShards(ctx context.Context, psc Pla
 
 		shards = append(shards, strings.TrimPrefix(name, psc.Database+"/"))
 	}
-	if err := shardNamesQR.Err(); err != nil {
-		return shards, errors.Wrapf(err, "unable to iterate shard names for %s", psc.Database)
-	}
 	return shards, nil
 }
 
-func (a planetScaleEdgeMySQLAccess) GetVitessTablets(ctx context.Context, psc PlanetScaleSource) ([]VitessTablet, error) {
+func (p planetScaleEdgeMySQLAccess) GetVitessTablets(ctx context.Context, psc PlanetScaleSource) ([]VitessTablet, error) {
 	var tablets []VitessTablet
-	var db *sql.DB
-	db, err := sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
+	err := p.ensureDB(&psc)
 	if err != nil {
 		return tablets, err
 	}
-	defer db.Close()
-	tabletsQR, err := db.QueryContext(ctx, "Show vitess_tablets")
+
+	tabletsQR, err := p.db.QueryContext(ctx, "Show vitess_tablets")
 	if err != nil {
 		return tablets, err
+	}
+	if err := tabletsQR.Err(); err != nil {
+		return tablets, errors.Wrapf(err, "unable to iterate tablets for %s", psc.Database)
 	}
 
 	for tabletsQR.Next() {
@@ -94,36 +120,36 @@ func (a planetScaleEdgeMySQLAccess) GetVitessTablets(ctx context.Context, psc Pl
 	return tablets, nil
 }
 
-type planetScaleEdgeMySQLAccess struct{}
-
-func (planetScaleEdgeMySQLAccess) PingContext(ctx context.Context, psc PlanetScaleSource) (bool, error) {
-	var db *sql.DB
-	db, err := sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
+func (p planetScaleEdgeMySQLAccess) PingContext(ctx context.Context, psc PlanetScaleSource) error {
+	err := p.ensureDB(&psc)
 	if err != nil {
-		return false, err
+		return err
 	}
-	defer db.Close()
+
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	err = db.PingContext(ctx)
+	err = p.db.PingContext(ctx)
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	return true, nil
+	return nil
 }
 
-func (a planetScaleEdgeMySQLAccess) GetTableNames(ctx context.Context, psc PlanetScaleSource) ([]string, error) {
+func (p planetScaleEdgeMySQLAccess) GetTableNames(ctx context.Context, psc PlanetScaleSource) ([]string, error) {
 	var tables []string
-	db, err := sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
+	err := p.ensureDB(&psc)
 	if err != nil {
-		return tables, errors.Wrap(err, "Unable to open SQL connection")
+		return tables, err
 	}
-	defer db.Close()
 
-	tableNamesQR, err := db.Query(fmt.Sprintf("show tables from `%s`;", psc.Database))
+	tableNamesQR, err := p.db.Query(fmt.Sprintf("show tables from `%s`;", psc.Database))
 	if err != nil {
 		return tables, errors.Wrap(err, "Unable to query database for schema")
+	}
+
+	if err := tableNamesQR.Err(); err != nil {
+		return tables, errors.Wrap(err, "unable to iterate table rows")
 	}
 
 	for tableNamesQR.Next() {
@@ -134,27 +160,28 @@ func (a planetScaleEdgeMySQLAccess) GetTableNames(ctx context.Context, psc Plane
 
 		tables = append(tables, name)
 	}
-	if err := tableNamesQR.Err(); err != nil {
-		return tables, errors.Wrap(err, "unable to iterate table rows")
-	}
+
 	return tables, err
 }
 
-func (a planetScaleEdgeMySQLAccess) GetTableSchema(ctx context.Context, psc PlanetScaleSource, tableName string) (map[string]PropertyType, error) {
+func (p planetScaleEdgeMySQLAccess) GetTableSchema(ctx context.Context, psc PlanetScaleSource, tableName string) (map[string]PropertyType, error) {
 	properties := map[string]PropertyType{}
-	db, err := sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
+	err := p.ensureDB(&psc)
 	if err != nil {
-		return properties, errors.Wrap(err, "Unable to open SQL connection")
+		return properties, err
 	}
-	defer db.Close()
 
-	columnNamesQR, err := db.QueryContext(
+	columnNamesQR, err := p.db.QueryContext(
 		ctx,
 		"select column_name, column_type from information_schema.columns where table_name=? AND table_schema=?;",
 		tableName, psc.Database,
 	)
 	if err != nil {
 		return properties, errors.Wrapf(err, "Unable to get column names & types for table %v", tableName)
+	}
+
+	if err := columnNamesQR.Err(); err != nil {
+		return properties, errors.Wrapf(err, "unable to iterate columns for table %s", tableName)
 	}
 
 	for columnNamesQR.Next() {
@@ -171,14 +198,14 @@ func (a planetScaleEdgeMySQLAccess) GetTableSchema(ctx context.Context, psc Plan
 	return properties, nil
 }
 
-func (a planetScaleEdgeMySQLAccess) GetTablePrimaryKeys(ctx context.Context, psc PlanetScaleSource, tableName string) ([]string, error) {
+func (p planetScaleEdgeMySQLAccess) GetTablePrimaryKeys(ctx context.Context, psc PlanetScaleSource, tableName string) ([]string, error) {
 	var primaryKeys []string
-	db, err := sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
+	err := p.ensureDB(&psc)
 	if err != nil {
-		return primaryKeys, errors.Wrap(err, "Unable to open SQL connection")
+		return primaryKeys, err
 	}
-	defer db.Close()
-	primaryKeysQR, err := db.QueryContext(
+
+	primaryKeysQR, err := p.db.QueryContext(
 		ctx,
 		"select column_name from information_schema.columns where table_schema=? AND table_name=? AND column_key='PRI';",
 		psc.Database, tableName,
@@ -186,6 +213,10 @@ func (a planetScaleEdgeMySQLAccess) GetTablePrimaryKeys(ctx context.Context, psc
 
 	if err != nil {
 		return primaryKeys, errors.Wrapf(err, "Unable to scan row for primary keys of table %v", tableName)
+	}
+
+	if err := primaryKeysQR.Err(); err != nil {
+		return primaryKeys, errors.Wrapf(err, "unable to iterate primary keys for table %s", tableName)
 	}
 
 	for primaryKeysQR.Next() {
@@ -197,13 +228,5 @@ func (a planetScaleEdgeMySQLAccess) GetTablePrimaryKeys(ctx context.Context, psc
 		primaryKeys = append(primaryKeys, name)
 	}
 
-	if err := primaryKeysQR.Err(); err != nil {
-		return primaryKeys, errors.Wrapf(err, "unable to iterate primary keys for table %s", tableName)
-	}
 	return primaryKeys, nil
-}
-
-func (planetScaleEdgeMySQLAccess) QueryContext(ctx context.Context, psc PlanetScaleSource, query string, args ...interface{}) (*sql.Rows, error) {
-	//TODO implement me
-	panic("implement me")
 }

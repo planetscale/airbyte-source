@@ -87,7 +87,7 @@ func useSecureConnection() bool {
 }
 
 func TabletTypeToString(t psdbconnect.TabletType) string {
-	if psdbconnect.TabletType_replica == t {
+	if t == psdbconnect.TabletType_replica {
 		return "replica"
 	}
 
