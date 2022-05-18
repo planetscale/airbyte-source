@@ -77,13 +77,13 @@ func (c *clientConnectionMock) Sync(ctx context.Context, in *psdbconnect.SyncReq
 }
 
 type mysqlAccessMock struct {
-	PingContextFn             func(ctx context.Context, source PlanetScaleSource) (bool, error)
+	PingContextFn             func(ctx context.Context, source PlanetScaleSource) error
 	PingContextFnInvoked      bool
 	GetVitessTabletsFn        func(ctx context.Context, psc PlanetScaleSource) ([]VitessTablet, error)
 	GetVitessTabletsFnInvoked bool
 }
 
-func (tma *mysqlAccessMock) PingContext(ctx context.Context, source PlanetScaleSource) (bool, error) {
+func (tma *mysqlAccessMock) PingContext(ctx context.Context, source PlanetScaleSource) error {
 	tma.PingContextFnInvoked = true
 	return tma.PingContextFn(ctx, source)
 }
@@ -117,3 +117,4 @@ func (mysqlAccessMock) GetVitessShards(ctx context.Context, psc PlanetScaleSourc
 	//TODO implement me
 	panic("implement me")
 }
+func (mysqlAccessMock) Close() error { return nil }

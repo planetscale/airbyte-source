@@ -18,8 +18,7 @@ func (tfr testFileReader) ReadFile(path string) ([]byte, error) {
 }
 
 type canConnectResponse struct {
-	canConnect bool
-	err        error
+	err error
 }
 
 type discoverSchemaResponse struct {
@@ -32,8 +31,8 @@ type testDatabase struct {
 	discoverSchemaResponse discoverSchemaResponse
 }
 
-func (td testDatabase) CanConnect(ctx context.Context, ps internal.PlanetScaleSource) (bool, error) {
-	return td.connectResponse.canConnect, td.connectResponse.err
+func (td testDatabase) CanConnect(ctx context.Context, ps internal.PlanetScaleSource) error {
+	return td.connectResponse.err
 }
 
 func (td testDatabase) HasTabletType(ctx context.Context, psc internal.PlanetScaleSource, tt psdbconnect.TabletType) (bool, error) {

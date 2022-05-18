@@ -57,8 +57,7 @@ func TestCheckCredentialsInvalid(t *testing.T) {
 
 	td := testDatabase{
 		connectResponse: canConnectResponse{
-			canConnect: false,
-			err:        fmt.Errorf("[%v] is invalid", "username"),
+			err: fmt.Errorf("[%v] is invalid", "username"),
 		},
 	}
 
@@ -89,7 +88,7 @@ func TestCheckExecuteSuccessful(t *testing.T) {
 
 	td := testDatabase{
 		connectResponse: canConnectResponse{
-			canConnect: true,
+			err: nil,
 		},
 	}
 

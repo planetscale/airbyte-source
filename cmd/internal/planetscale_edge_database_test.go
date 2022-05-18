@@ -365,8 +365,8 @@ func TestRead_CanLogResults(t *testing.T) {
 
 func getTestMysqlAccess() *mysqlAccessMock {
 	tma := mysqlAccessMock{
-		PingContextFn: func(ctx context.Context, source PlanetScaleSource) (bool, error) {
-			return true, nil
+		PingContextFn: func(ctx context.Context, source PlanetScaleSource) error {
+			return nil
 		},
 		GetVitessTabletsFn: func(ctx context.Context, psc PlanetScaleSource) ([]VitessTablet, error) {
 			return []VitessTablet{
