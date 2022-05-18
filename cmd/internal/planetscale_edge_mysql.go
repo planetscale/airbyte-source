@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	psdbconnect "github.com/planetscale/connect/source/proto/psdbconnect/v1alpha1"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -35,8 +36,9 @@ func NewMySQL() PlanetScaleEdgeMysqlAccess {
 }
 
 type planetScaleEdgeMySQLAccess struct {
-	psc *PlanetScaleSource
-	db  *sql.DB
+	psc     *PlanetScaleSource
+	db      *sql.DB
+	dbMutex sync.Mutex
 }
 
 func (p *planetScaleEdgeMySQLAccess) ensureDB(psc *PlanetScaleSource) error {
@@ -45,6 +47,9 @@ func (p *planetScaleEdgeMySQLAccess) ensureDB(psc *PlanetScaleSource) error {
 	}
 
 	var err error
+
+	p.dbMutex.Lock()
+	defer p.dbMutex.Unlock()
 
 	p.db, err = sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
 	if err != nil {
