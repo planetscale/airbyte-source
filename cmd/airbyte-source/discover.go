@@ -45,6 +45,9 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 				ch.Logger.ConnectionStatus(cs)
 				return
 			}
+			defer func() {
+				_ = ch.Database.Close()
+			}()
 
 			c, err := ch.Database.DiscoverSchema(context.Background(), psc)
 			if err != nil {

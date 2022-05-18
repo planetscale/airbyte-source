@@ -49,6 +49,9 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				fmt.Fprintln(cmd.OutOrStdout(), "Unable to connect to PlanetScale Database")
 				return
 			}
+			defer func() {
+				_ = ch.Database.Close()
+			}()
 
 			cs, _ := checkConnectionStatus(ch.Database, psc)
 			if err != nil {

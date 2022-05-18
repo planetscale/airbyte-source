@@ -26,6 +26,7 @@ type PlanetScaleDatabase interface {
 	DiscoverSchema(ctx context.Context, ps PlanetScaleSource) (Catalog, error)
 	ListShards(ctx context.Context, ps PlanetScaleSource) ([]string, error)
 	Read(ctx context.Context, w io.Writer, ps PlanetScaleSource, s ConfiguredStream, tc *psdbconnect.TableCursor) (*SerializedCursor, error)
+	Close() error
 }
 
 // PlanetScaleEdgeDatabase is an implementation of the PlanetScaleDatabase interface defined above.
@@ -106,6 +107,10 @@ func getJsonSchemaType(mysqlType string) string {
 	}
 
 	return "string"
+}
+
+func (p PlanetScaleEdgeDatabase) Close() error {
+	return p.Mysql.Close()
 }
 
 func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScaleSource) ([]string, error) {
