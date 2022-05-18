@@ -57,6 +57,8 @@ func TestCanPeekBeforeRead(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 3, cc.syncFnInvokedCount)
+	assert.True(t, tma.PingContextFnInvoked)
+	assert.True(t, tma.GetVitessTabletsFnInvoked)
 }
 
 func TestCanEarlyExitIfNoRecordsInPeek(t *testing.T) {
@@ -140,6 +142,8 @@ func TestCanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
+	assert.False(t, tma.PingContextFnInvoked)
+	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
 
 func TestCanPickReplicaForUnshardedKeyspaces(t *testing.T) {
@@ -183,6 +187,8 @@ func TestCanPickReplicaForUnshardedKeyspaces(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
+	assert.True(t, tma.PingContextFnInvoked)
+	assert.True(t, tma.GetVitessTabletsFnInvoked)
 }
 
 func TestCanReturnOriginalCursorIfNoNewFound(t *testing.T) {

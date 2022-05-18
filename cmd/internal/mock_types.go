@@ -52,7 +52,6 @@ func (testAirbyteLogger) Error(error string) {
 }
 
 type clientConnectionMock struct {
-	syncClient         connectSyncClientMock
 	syncFn             func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error)
 	syncFnInvoked      bool
 	syncFnInvokedCount int
@@ -84,7 +83,7 @@ type mysqlAccessMock struct {
 	GetVitessTabletsFnInvoked bool
 }
 
-func (tma mysqlAccessMock) PingContext(ctx context.Context, source PlanetScaleSource) (bool, error) {
+func (tma *mysqlAccessMock) PingContext(ctx context.Context, source PlanetScaleSource) (bool, error) {
 	tma.PingContextFnInvoked = true
 	return tma.PingContextFn(ctx, source)
 }
@@ -109,7 +108,7 @@ func (mysqlAccessMock) QueryContext(ctx context.Context, psc PlanetScaleSource, 
 	panic("implement me")
 }
 
-func (tma mysqlAccessMock) GetVitessTablets(ctx context.Context, psc PlanetScaleSource) ([]VitessTablet, error) {
+func (tma *mysqlAccessMock) GetVitessTablets(ctx context.Context, psc PlanetScaleSource) ([]VitessTablet, error) {
 	tma.GetVitessTabletsFnInvoked = true
 	return tma.GetVitessTabletsFn(ctx, psc)
 }
