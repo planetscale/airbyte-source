@@ -176,32 +176,34 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		}
 	}
 }
-func (p PlanetScaleEdgeDatabase) client(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
-	if p.clientFn != nil {
-		return p.clientFn(ctx, ps)
-	}
-	conn, err := grpcclient.Dial(ctx, ps.Host,
-		clientoptions.WithDefaultTLSConfig(),
-		clientoptions.WithCompression(true),
-		clientoptions.WithConnectionPool(1),
-		clientoptions.WithExtraCallOption(
-			auth.NewBasicAuth(ps.Username, ps.Password).CallOption(),
-		),
-	)
-	if err != nil {
-		panic(err)
-	}
 
-	client := psdbconnect.NewConnectClient(conn)
-	return client, nil
-}
 func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType, peek bool) (bool, *psdbconnect.TableCursor, error) {
 	defer p.Logger.Flush()
 
-	var err error
-	client, err := p.client(ctx, ps)
-	if err != nil {
-		panic(err)
+	var (
+		err    error
+		client psdbconnect.ConnectClient
+	)
+
+	if p.clientFn == nil {
+		conn, err := grpcclient.Dial(ctx, ps.Host,
+			clientoptions.WithDefaultTLSConfig(),
+			clientoptions.WithCompression(true),
+			clientoptions.WithConnectionPool(1),
+			clientoptions.WithExtraCallOption(
+				auth.NewBasicAuth(ps.Username, ps.Password).CallOption(),
+			),
+		)
+		if err != nil {
+			return false, tc, err
+		}
+
+		client = psdbconnect.NewConnectClient(conn)
+	} else {
+		client, err = p.clientFn(ctx, ps)
+		if err != nil {
+			return false, tc, err
+		}
 	}
 
 	if tc.LastKnownPk != nil {
@@ -216,8 +218,13 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 
 	c, err := client.Sync(ctx, sReq)
 	if err != nil {
-		return false, tc, nil
+		if peek {
+			return false, tc, nil
+		}
+
+		return false, tc, err
 	}
+
 	keyspaceOrDatabase := s.Namespace
 	if keyspaceOrDatabase == "" {
 		keyspaceOrDatabase = ps.Database
