@@ -38,10 +38,22 @@ func ReadCommand(ch *Helper) *cobra.Command {
 			}
 
 			ch.Logger.Log(internal.LOGLEVEL_INFO, "Checking connection")
-			cs, psc, err := checkConnectionStatus(ch.Database, ch.FileReader, readSourceConfigFilePath)
+
+			psc, err := parseSource(ch.FileReader, readSourceConfigFilePath)
 			if err != nil {
-				printConnectionStatus(cmd.OutOrStdout(), cs, "Connection test failed", internal.LOGLEVEL_ERROR)
-				os.Exit(1)
+				fmt.Fprintln(cmd.OutOrStdout(), "Please provide path to a valid configuration file")
+				return
+			}
+
+			if err := ch.EnsureDB(psc); err != nil {
+				fmt.Fprintln(cmd.OutOrStdout(), "Unable to connect to PlanetScale Database")
+				return
+			}
+
+			cs, _ := checkConnectionStatus(ch.Database, psc)
+			if err != nil {
+				ch.Logger.ConnectionStatus(cs)
+				return
 			}
 
 			catalog, err := readCatalog(readSourceCatalogPath)
