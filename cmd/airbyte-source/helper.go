@@ -26,10 +26,24 @@ func (f fileReader) ReadFile(path string) ([]byte, error) {
 func DefaultHelper(w io.Writer) *Helper {
 	logger := internal.NewLogger(w)
 	return &Helper{
-		Database: internal.PlanetScaleEdgeDatabase{
-			Logger: logger,
-		},
 		FileReader: fileReader{},
 		Logger:     logger,
 	}
+}
+
+func (h *Helper) EnsureDB(psc internal.PlanetScaleSource) error {
+	if h.Database != nil {
+		return nil
+	}
+
+	mysql, err := internal.NewMySQL(&psc)
+	if err != nil {
+		return err
+	}
+	h.Database = internal.PlanetScaleEdgeDatabase{
+		Logger: h.Logger,
+		Mysql:  mysql,
+	}
+
+	return nil
 }

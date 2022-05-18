@@ -1,43 +1,35 @@
 package internal
 
 import (
-	"context"
 	"encoding/base64"
 	"github.com/pkg/errors"
-	"github.com/planetscale/psdb/core/codec"
-	"io"
-	"vitess.io/vitess/go/sqltypes"
-	"vitess.io/vitess/go/vt/proto/query"
-
 	psdbconnect "github.com/planetscale/connect/source/proto/psdbconnect/v1alpha1"
+	"github.com/planetscale/psdb/core/codec"
+	"vitess.io/vitess/go/sqltypes"
 )
 
 const (
 	RECORD            = "RECORD"
 	STATE             = "STATE"
 	LOG               = "LOG"
-	SPEC              = "SPEC"
 	CONNECTION_STATUS = "CONNECTION_STATUS"
 	CATALOG           = "CATALOG"
 )
 
 const (
-	LOGLEVEL_FATAL    = "FATAL"
-	LOGLEVEL_CRITICAL = "CRITICAL"
-	LOGLEVEL_ERROR    = "ERROR"
-	LOGLEVEL_WARN     = "WARN"
-	LOGLEVEL_WARNING  = "WARNING"
-	LOGLEVEL_INFO     = "INFO"
-	LOGLEVEL_DEBUG    = "DEBUG"
-	LOGLEVEL_TRACE    = "TRACE"
+	LOGLEVEL_ERROR = "ERROR"
+	LOGLEVEL_WARN  = "WARN"
+	LOGLEVEL_INFO  = "INFO"
 )
 
-type PlanetScaleDatabase interface {
-	HasTabletType(ctx context.Context, ps PlanetScaleConnection, tt psdbconnect.TabletType) (bool, error)
-	CanConnect(ctx context.Context, ps PlanetScaleConnection) (bool, error)
-	DiscoverSchema(ctx context.Context, ps PlanetScaleConnection) (Catalog, error)
-	ListShards(ctx context.Context, ps PlanetScaleConnection) ([]string, error)
-	Read(ctx context.Context, w io.Writer, ps PlanetScaleConnection, s ConfiguredStream, tc *psdbconnect.TableCursor) (*SerializedCursor, error)
+type Stream struct {
+	Name                string       `json:"name"`
+	Schema              StreamSchema `json:"json_schema"`
+	SupportedSyncModes  []string     `json:"supported_sync_modes"`
+	Namespace           string       `json:"namespace"`
+	PrimaryKeys         [][]string   `json:"source_defined_primary_key"`
+	SourceDefinedCursor bool         `json:"source_defined_cursor"`
+	DefaultCursorFields []string     `json:"default_cursor_field"`
 }
 
 type ConnectionStatus struct {
@@ -133,7 +125,7 @@ func TableCursorToSerializedCursor(cursor *psdbconnect.TableCursor) (*Serialized
 	return sc, nil
 }
 
-func QueryResultToRecords(qr *sqltypes.Result, includeTypes bool) []map[string]interface{} {
+func QueryResultToRecords(qr *sqltypes.Result) []map[string]interface{} {
 	data := make([]map[string]interface{}, 0, len(qr.Rows))
 
 	columns := make([]string, 0, len(qr.Fields))
@@ -141,19 +133,11 @@ func QueryResultToRecords(qr *sqltypes.Result, includeTypes bool) []map[string]i
 		columns = append(columns, field.Name)
 	}
 
-	if includeTypes {
-		columns = append(columns, "type")
-	}
-
 	for _, row := range qr.Rows {
 		record := make(map[string]interface{})
 		for idx, val := range row {
 			if idx < len(columns) {
 				record[columns[idx]] = val
-			}
-			if includeTypes {
-				queryType := val.Type()
-				record["type"] = query.Type_name[int32(queryType)]
 			}
 		}
 		data = append(data, record)

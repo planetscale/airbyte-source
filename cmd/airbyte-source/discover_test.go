@@ -18,8 +18,7 @@ func TestDiscoverInvalidSource(t *testing.T) {
 	}
 	td := testDatabase{
 		connectResponse: canConnectResponse{
-			canConnect: false,
-			err:        fmt.Errorf("[%v] is invalid", "username"),
+			err: fmt.Errorf("[%v] is invalid", "username"),
 		},
 	}
 
@@ -51,7 +50,7 @@ func TestDiscoverFailed(t *testing.T) {
 	}
 	td := testDatabase{
 		connectResponse: canConnectResponse{
-			canConnect: true,
+			err: nil,
 		},
 		discoverSchemaResponse: discoverSchemaResponse{
 			err: fmt.Errorf("unable to get catalog for %v", "keyspace"),

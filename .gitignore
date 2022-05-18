@@ -1,2 +1,4 @@
 # Testing JSON files
 *.json
+sources/**
+fixture/*.json
