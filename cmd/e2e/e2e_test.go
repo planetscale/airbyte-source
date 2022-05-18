@@ -7,8 +7,8 @@ import (
 	"os"
 	"testing"
 
-	airbyte_source "github.com/planetscale/connect/source/cmd/airbyte-source"
-	"github.com/planetscale/connect/source/cmd/internal"
+	airbyte_source "github.com/planetscale/airbyte-source/cmd/airbyte-source"
+	"github.com/planetscale/airbyte-source/cmd/internal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

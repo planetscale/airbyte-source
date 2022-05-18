@@ -5,7 +5,7 @@ package psdbconnect.v1alpha1;
 import "query.proto";
 import "vtrpc.proto";
 
-option go_package = "github.com/planetscale/connect/source/proto/psdbconnect/v1alpha1;psdbconnectv1alpha1";
+option go_package = "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1;psdbconnectv1alpha1";
 
 //enumcheck:exhaustive
 enum TabletType {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"io"
 
-	"github.com/planetscale/connect/source/cmd/internal"
-	psdbconnect "github.com/planetscale/connect/source/proto/psdbconnect/v1alpha1"
+	"github.com/planetscale/airbyte-source/cmd/internal"
+	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 )
 
 type testFileReader struct {

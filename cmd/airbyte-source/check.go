@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/planetscale/connect/source/cmd/internal"
+	"github.com/planetscale/airbyte-source/cmd/internal"
 	"github.com/spf13/cobra"
 )
 

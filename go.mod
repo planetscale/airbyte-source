@@ -1,4 +1,4 @@
-module github.com/planetscale/connect/source
+module github.com/planetscale/airbyte-source
 
 go 1.17
 

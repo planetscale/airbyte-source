@@ -2,7 +2,7 @@ package internal
 
 import (
 	"encoding/base64"
-	psdbconnect "github.com/planetscale/connect/source/proto/psdbconnect/v1alpha1"
+	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/planetscale/psdb/core/codec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
