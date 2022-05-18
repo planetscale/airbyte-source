@@ -43,8 +43,11 @@ func CheckCommand(ch *Helper) *cobra.Command {
 				fmt.Fprintln(cmd.OutOrStdout(), "Unable to connect to PlanetScale Database")
 				return
 			}
+
 			defer func() {
-				_ = ch.Database.Close()
+				if err := ch.Database.Close(); err != nil {
+					fmt.Fprintf(cmd.OutOrStdout(), "Unable to close connection to PlanetScale Database, failed with %v", err)
+				}
 			}()
 
 			cs, _ := checkConnectionStatus(ch.Database, psc)

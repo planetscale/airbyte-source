@@ -45,8 +45,11 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 				ch.Logger.ConnectionStatus(cs)
 				return
 			}
+
 			defer func() {
-				_ = ch.Database.Close()
+				if err := ch.Database.Close(); err != nil {
+					fmt.Fprintf(cmd.OutOrStdout(), "Unable to close connection to PlanetScale Database, failed with %v", err)
+				}
 			}()
 
 			c, err := ch.Database.DiscoverSchema(context.Background(), psc)
