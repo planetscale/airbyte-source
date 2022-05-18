@@ -262,7 +262,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 // printQueryResult will pretty-print an AirbyteRecordMessage to the logger.
 // Copied from vtctl/query.go
 func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableNamespace, tableName string) {
-	data := QueryResultToRecords(qr, false)
+	data := QueryResultToRecords(qr)
 
 	for _, record := range data {
 		p.Logger.Record(tableNamespace, tableName, record)
