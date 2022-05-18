@@ -42,8 +42,7 @@ func NewMySQL(psc *PlanetScaleSource) (PlanetScaleEdgeMysqlAccess, error) {
 }
 
 type planetScaleEdgeMySQLAccess struct {
-	psc *PlanetScaleSource
-	db  *sql.DB
+	db *sql.DB
 }
 
 func (p planetScaleEdgeMySQLAccess) Close() error {

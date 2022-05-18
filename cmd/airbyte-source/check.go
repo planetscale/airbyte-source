@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 
 	"github.com/planetscale/connect/source/cmd/internal"
@@ -56,19 +55,6 @@ func CheckCommand(ch *Helper) *cobra.Command {
 	}
 	checkCmd.Flags().StringVar(&configFilePath, "config", "", "Path to the PlanetScale source configuration")
 	return checkCmd
-}
-
-func printConnectionStatus(writer io.Writer, status internal.ConnectionStatus, message, level string) {
-	amsg := internal.AirbyteMessage{
-		Type:             internal.CONNECTION_STATUS,
-		ConnectionStatus: &status,
-		Log: &internal.AirbyteLogMessage{
-			Level:   level,
-			Message: message,
-		},
-	}
-	msg, _ := json.Marshal(amsg)
-	fmt.Fprintf(writer, "%s\n", string(msg))
 }
 
 func parseSource(reader FileReader, configFilePath string) (internal.PlanetScaleSource, error) {
