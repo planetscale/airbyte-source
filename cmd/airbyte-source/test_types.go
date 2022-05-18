@@ -48,6 +48,10 @@ func (td testDatabase) Read(ctx context.Context, w io.Writer, ps internal.Planet
 	panic("implement me")
 }
 
+func (td testDatabase) Close() error {
+	return nil
+}
+
 func (td testDatabase) ListShards(ctx context.Context, ps internal.PlanetScaleSource) ([]string, error) {
 	panic("implement me")
 }
