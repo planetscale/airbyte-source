@@ -126,20 +126,6 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	)
 
 	tabletType := psdbconnect.TabletType_primary
-
-	if tc.Shard == "-" {
-		// TODO : fix https://github.com/planetscale/issues/issues/296
-		// We make all non default keyspaces connect to the PRIMARY.
-		if p.supportsTabletType(ctx, ps, "", psdbconnect.TabletType_replica) {
-			tabletType = psdbconnect.TabletType_replica
-		}
-	}
-
-	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("picking tablet type : [%s]", strings.ToUpper(TabletTypeToString(tabletType))))
-	if tabletType == psdbconnect.TabletType_primary {
-		p.Logger.Log(LOGLEVEL_WARN, "Connecting to the primary to download data might cause performance issues with your database")
-	}
-
 	table := s.Stream
 	readDuration := 1 * time.Minute
 	peekCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -215,6 +201,8 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		tc.Position = ""
 	}
 
+	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Syncing with cursor position : [%v], last known PK : %v", tc.Position, tc.LastKnownPk != nil))
+
 	sReq := &psdbconnect.SyncRequest{
 		TableName:  s.Name,
 		Cursor:     tc,
@@ -279,32 +267,4 @@ func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableName
 	for _, record := range data {
 		p.Logger.Record(tableNamespace, tableName, record)
 	}
-}
-
-func (p PlanetScaleEdgeDatabase) supportsTabletType(ctx context.Context, psc PlanetScaleSource, shardName string, tt psdbconnect.TabletType) bool {
-
-	if err := p.CanConnect(ctx, psc); err != nil {
-		return false
-	}
-
-	tablets, err := p.Mysql.GetVitessTablets(ctx, psc)
-	if err != nil {
-		return false
-	}
-
-	for _, tablet := range tablets {
-		keyspaceHasTablet := strings.EqualFold(tablet.Keyspace, psc.Database)
-		tabletTypeIsServing := keyspaceHasTablet && strings.EqualFold(tablet.TabletType, TabletTypeToString(tt)) && strings.EqualFold(tablet.State, "SERVING")
-		matchesShardName := true
-
-		if shardName != "" {
-			matchesShardName = strings.EqualFold(tablet.Shard, shardName)
-		}
-
-		if keyspaceHasTablet && tabletTypeIsServing && matchesShardName {
-			return true
-		}
-	}
-
-	return false
 }

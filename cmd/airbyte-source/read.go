@@ -68,6 +68,11 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				os.Exit(1)
 			}
 
+			if len(catalog.Streams) == 0 {
+				ch.Logger.Log(internal.LOGLEVEL_ERROR, "catalog has no streams")
+				return
+			}
+
 			state := ""
 			if stateFilePath != "" {
 				b, err := ioutil.ReadFile(stateFilePath)

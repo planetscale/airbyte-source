@@ -57,8 +57,8 @@ func TestRead_CanPeekBeforeRead(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 3, cc.syncFnInvokedCount)
-	assert.True(t, tma.PingContextFnInvoked)
-	assert.True(t, tma.GetVitessTabletsFnInvoked)
+	assert.False(t, tma.PingContextFnInvoked)
+	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
 
 func TestRead_CanEarlyExitIfNoRecordsInPeek(t *testing.T) {
@@ -146,7 +146,7 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
 
-func TestRead_CanPickReplicaForUnshardedKeyspaces(t *testing.T) {
+func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
 	ped := PlanetScaleEdgeDatabase{
@@ -165,7 +165,7 @@ func TestRead_CanPickReplicaForUnshardedKeyspaces(t *testing.T) {
 
 	cc := clientConnectionMock{
 		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-			assert.Equal(t, psdbconnect.TabletType_replica, in.TabletType)
+			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
 			return syncClient, nil
 		},
 	}
@@ -187,8 +187,8 @@ func TestRead_CanPickReplicaForUnshardedKeyspaces(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
-	assert.True(t, tma.PingContextFnInvoked)
-	assert.True(t, tma.GetVitessTabletsFnInvoked)
+	assert.False(t, tma.PingContextFnInvoked)
+	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
 
 func TestRead_CanReturnOriginalCursorIfNoNewFound(t *testing.T) {
@@ -210,7 +210,7 @@ func TestRead_CanReturnOriginalCursorIfNoNewFound(t *testing.T) {
 
 	cc := clientConnectionMock{
 		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-			assert.Equal(t, psdbconnect.TabletType_replica, in.TabletType)
+			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
 			return syncClient, nil
 		},
 	}
@@ -261,7 +261,7 @@ func TestRead_CanReturnNewCursorIfNewFound(t *testing.T) {
 
 	cc := clientConnectionMock{
 		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-			assert.Equal(t, psdbconnect.TabletType_replica, in.TabletType)
+			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
 			return syncClient, nil
 		},
 	}
@@ -321,7 +321,7 @@ func TestRead_CanLogResults(t *testing.T) {
 
 	cc := clientConnectionMock{
 		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-			assert.Equal(t, psdbconnect.TabletType_replica, in.TabletType)
+			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
 			return syncClient, nil
 		},
 	}
