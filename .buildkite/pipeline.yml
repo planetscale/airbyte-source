@@ -1,5 +1,5 @@
 agents:
-  queue: "public"
+  queue: "private"
 
 steps:
   - name: "go build"
