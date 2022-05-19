@@ -1,0 +1,9 @@
+# syntax=docker/dockerfile:1
+FROM debian:bullseye-slim
+
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y default-mysql-client ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY connect /usr/local/bin/
+ENTRYPOINT ["/usr/local/bin/connect"]

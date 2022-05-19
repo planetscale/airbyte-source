@@ -56,7 +56,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				}
 			}()
 
-			cs, _ := checkConnectionStatus(ch.Database, psc)
+			cs, err := checkConnectionStatus(ch.Database, psc)
 			if err != nil {
 				ch.Logger.ConnectionStatus(cs)
 				return
@@ -66,6 +66,11 @@ func ReadCommand(ch *Helper) *cobra.Command {
 			if err != nil {
 				ch.Logger.Error("Unable to read catalog")
 				os.Exit(1)
+			}
+
+			if len(catalog.Streams) == 0 {
+				ch.Logger.Log(internal.LOGLEVEL_ERROR, "catalog has no streams")
+				return
 			}
 
 			state := ""
