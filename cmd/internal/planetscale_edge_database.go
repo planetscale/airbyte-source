@@ -126,8 +126,8 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	)
 
 	tabletType := psdbconnect.TabletType_primary
-
-	if tc.Shard == "-" {
+	willNeverMatch := "phani"
+	if tc.Shard == willNeverMatch {
 		// TODO : fix https://github.com/planetscale/issues/issues/296
 		// We make all non default keyspaces connect to the PRIMARY.
 		if p.supportsTabletType(ctx, ps, "", psdbconnect.TabletType_replica) {
@@ -214,6 +214,8 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 	if tc.LastKnownPk != nil {
 		tc.Position = ""
 	}
+
+	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Syncing with cursor position : [%v], last known PK : %v", tc.Position, tc.LastKnownPk != nil))
 
 	sReq := &psdbconnect.SyncRequest{
 		TableName:  s.Name,
