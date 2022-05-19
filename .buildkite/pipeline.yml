@@ -48,10 +48,10 @@ steps:
 
   - block: ":rocket: Release !"
 
-  - command: script/bump-version.sh
-    label: ":arrow_up_small: Bump & tag version"
-
-  - wait
+#  - command: script/bump-version.sh
+#    label: ":arrow_up_small: Bump & tag version"
+#
+#  - wait
 
   - label: ":github: Publishing artifacts"
     command: script/release.sh
