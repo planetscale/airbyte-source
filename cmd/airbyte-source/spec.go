@@ -20,7 +20,7 @@ func SpecCommand() *cobra.Command {
 			specMessage := internal.SpecMessage{
 				Type: "SPEC",
 				Spec: internal.Spec{
-					DocumentationURL: "https://docs.airbyte.io/integrations/sources/mysql",
+					DocumentationURL: "https://docs.planetscale.com/integrations/airbyte",
 					SupportedDestinationSyncModes: []string{
 						"overwrite",
 					},
