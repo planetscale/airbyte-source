@@ -1,6 +1,4 @@
 project_name: airbyte-source
-release:
-  prerelease: auto # don't publish release with -rc1,-pre, etc suffixes
 before:
   hooks:
     - go mod tidy
