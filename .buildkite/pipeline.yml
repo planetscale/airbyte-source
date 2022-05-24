@@ -52,8 +52,6 @@ steps:
     label: ":arrow_up_small: Bump & tag version"
 
   - wait
-  - label: ":github: Publishing environment variable names"
-    command: env | cut -d"=" -f1 | sort
 
   - label: ":github: Publishing artifacts"
     command: script/release.sh
