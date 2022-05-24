@@ -18,8 +18,8 @@ builds:
     binary: "connect"
 dockers:
   - image_templates:
-    - "phanatic/airbyte-source:latest"
-    - "phanatic/airbyte-source:{{ .Tag }}"
+    - "planetscale/airbyte-source:latest"
+    - "planetscale/airbyte-source:{{ .Tag }}"
     skip_push: false
     build_flag_templates:
     - "--pull"
