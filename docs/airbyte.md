@@ -83,17 +83,3 @@ Connector Documentation URL : https://docs.planetscale.com
 ![Connector Input](img/connector-input.png)
  
 4. Now you're ready to connect Airbyte to your PlanetScale database! :tada:
-
-<a name="connecting-to-planetscale"></a>
-### 3. Connecting to your PlanetScale database
-1. To start, create a connection string to your PlanetScale database, following [these instructions](https://docs.planetscale.com/concepts/connection-strings#creating-a-password)
-
- ![PSDB connection string](img/psdb-connection-string.png)
-
-2. Now navigate to the `Sources` page in Airbyte and click on `New Source`
-
-3. Pick a name for the Source, I have `My PlanetScale Database` here, and pick `PlanetScale` as the `Source type`.
-
-![PSDB connection](img/psdb-input-cs.png)
-
-4. Once the connection tests are passed, we can now connect your PlanetScale to an [Airbyte destination of your choice](https://docs.airbyte.com/integrations/destinations).
