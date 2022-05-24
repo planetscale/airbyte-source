@@ -1,10 +1,5 @@
 agents:
-  queue: "private"
-
-env:
-  IMAGE_NAME: "airbyte-source"
-  REGISTRY: "997601596833.dkr.ecr.us-east-1.amazonaws.com"
-  MAIN_BRANCH: "main"
+  queue: "public"
 
 steps:
   - name: "go build"
@@ -49,37 +44,27 @@ steps:
       - docker-compose#v3.9.0:
           run: ci
 
-  - name: "Branch build and push"
-    label: ":docker: Build and push"
-    branches: "!${MAIN_BRANCH}"
-    env:
-      BUILDKIT_INLINE_CACHE: 1
-      BUILDKIT_PROGRESS: plain
-      COMPOSE_DOCKER_CLI_BUILD: 1
-      DOCKER_BUILDKIT: 1
-    plugins:
-      - ecr#v2.3.0:
-          login: true
-      - docker-compose#v3.7.0:
-          config: .buildkite/docker-compose.yml
-          cache-from:
-            - "ci:${REGISTRY}/branch/${IMAGE_NAME}:${DOCKER_BRANCH_TAG}"
-            - "ci:${REGISTRY}/main/${IMAGE_NAME}:latest"
-          push:
-            - "ci:${REGISTRY}/branch/${IMAGE_NAME}:${DOCKER_BRANCH_TAG}"
+  - wait
 
-  - name: "Main build and push"
-    label: ":docker: Build and push"
-    branches: "${MAIN_BRANCH}"
-    env:
-      BUILDKIT_PROGRESS: plain
-      COMPOSE_DOCKER_CLI_BUILD: 1
-      DOCKER_BUILDKIT: 1
+  - block: ":rocket: Release !"
+    branches: "main"
+
+  - command: script/bump-version.sh
+    if: build.branch == "main"
+    label: ":arrow_up_small: Bump & tag version"
+
+  - wait
+
+  - label: ":github: Publishing artifacts"
+    if: build.branch == "main"
+    command: script/release.sh
     plugins:
-      - ecr#v2.3.0:
-          login: true
-      - docker-compose#v3.7.0:
-          config: .buildkite/docker-compose.yml
-          push:
-            - "ci:${REGISTRY}/main/${IMAGE_NAME}:${BUILDKITE_COMMIT}"
-            - "ci:${REGISTRY}/main/${IMAGE_NAME}:latest"
+      - docker#v3.8.0:
+          image: "golang:1.18"
+          propagate-environment: true
+          environment:
+            - "GITHUB_TOKEN"
+            - "DOCKER_USERNAME"
+            - "DOCKER_PASSWORD"
+          volumes:
+            - "/var/run/docker.sock:/var/run/docker.sock"
