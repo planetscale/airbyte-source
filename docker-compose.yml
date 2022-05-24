@@ -4,8 +4,6 @@ version: '3.1'
 services:
   app:
     build:
-      args:
-        - GITHUB_TOKEN=${ACTIONS_BOT_TOKEN:?}
       context: .
     volumes:
       - .:/work
@@ -13,8 +11,6 @@ services:
     command: spec
   ci:
     build:
-      args:
-        - GITHUB_TOKEN=${ACTIONS_BOT_TOKEN:?}
       context: .
       dockerfile: Dockerfile.ci
     volumes:
@@ -33,8 +29,6 @@ services:
   licensing:
     build:
       context: containers/licensing
-      args:
-        - GITHUB_TOKEN=${ACTIONS_BOT_TOKEN:?}
     volumes:
       - .:/work
     working_dir: /work
