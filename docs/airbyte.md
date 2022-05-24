@@ -1,12 +1,10 @@
-## PlanetScale Airbyte Source Connector
+## Self-hosting the PlanetScale Airbyte Source Connector
 
-1. [Hosting the docker image](#hosting-image)
+1. [Self-publishing the docker image](#self-hosting-image)
 2. [Add PlanetScale as a source in Airbyte](#planetscale-source)
-3. [Connecting to your PlanetScale database](#connecting-to-planetscale)
 
-
-<a name="hosting-image"></a>
-### 1. Hosting the docker image
+<a name="self-hosting-image"></a>
+### 1. Self-publishing the docker image
 
 Run `make push REPO=<Your Dockerhub organization name>`
 
@@ -64,7 +62,7 @@ f64c71a2c1b6: Layer already exists
 ```
 
 <a name="planetscale-source"></a>
-### 2. Add PlanetScale as a source in Airbyte
+### 2. Add your custom image as a source in Airbyte
 
 1. In the Airbyte UI, navigate to `settings > sources`
 
