@@ -4,5 +4,3 @@ services:
   ci:
     build:
       context: ../
-      args:
-        - GITHUB_TOKEN=${ACTIONS_BOT_TOKEN:?}
