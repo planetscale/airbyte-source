@@ -1,11 +1,12 @@
-# airbyte-source
+# PlanetScale Airbyte Source
 
-Airbyte source is a binary that is distributed as a Docker Image. 
-It is intended to act as a [Source](https://docs.airbyte.com/understanding-airbyte/airbyte-specification#source) when connecting to PlanetScale, from Airbyte.
+This repository builds a docker container that is used a [Source Connector](https://docs.airbyte.com/understanding-airbyte/airbyte-specification#source) in [Airbyte](https://airbyte.com/).
 
-## Airbyte Usage
+Official documentation of connecting to PlanetScale databases from your Airbyte installation is available [here](https://docs.planetscale.com/integrations/airbyte)
 
-Click [here](docs/airbyte.md) for docs to use this source in your Airbyte installation.
+## Self-hosting
+
+Click [here](docs/airbyte.md) for docs to self-host this docker image.
 
 ### How the container will be called:
 The first argument passed to the image must be the command (e.g. spec, check, discover, read). 
@@ -34,9 +35,9 @@ read(Config, ConfiguredAirbyteCatalog, State) -> Stream<AirbyteMessage>
 1. Connection check for a given set of credentials.
 2. Schema fetch for a given database 
 3. Reading all records for a given table.
-
-### Coming Soon
-1. Incremental data fetch, based on some cursor.
+4. Incremental data fetch, based on VGTID.
+5. Support for sharded databases.
+6. Peek before Sync.
 
 ## Running the application locally.
 
