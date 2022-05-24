@@ -1,7 +1,7 @@
-# airbyte-source
+# PlanetScale Airbyte Source
 
-This repository builds a docker container that is used a Source Connector in [Airbyte](https://airbyte.com/).
-It is intended to act as a [Source](https://docs.airbyte.com/understanding-airbyte/airbyte-specification#source) when connecting to PlanetScale, from Airbyte.
+This repository builds a docker container that is used a [Source Connector](https://docs.airbyte.com/understanding-airbyte/airbyte-specification#source) in [Airbyte](https://airbyte.com/).
+
 Official documentation of connecting to PlanetScale databases from your Airbyte installation is available [here](https://docs.planetscale.com/integrations/airbyte)
 
 ## Self-hosting
