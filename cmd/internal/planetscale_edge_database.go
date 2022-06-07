@@ -97,16 +97,20 @@ func (p PlanetScaleEdgeDatabase) getStreamForTable(ctx context.Context, psc Plan
 }
 
 // Convert columnType to Airbyte type.
-func getJsonSchemaType(mysqlType string) string {
+func getJsonSchemaType(mysqlType string) PropertyType {
 	if strings.HasPrefix(mysqlType, "int") {
-		return "integer"
+		return PropertyType{Type: "integer"}
+	}
+
+	if strings.HasPrefix(mysqlType, "bigint") {
+		return PropertyType{Type: "string", AirbyteType: "big_integer"}
 	}
 
 	if mysqlType == "tinyint(1)" {
-		return "boolean"
+		return PropertyType{Type: "boolean"}
 	}
 
-	return "string"
+	return PropertyType{Type: "string"}
 }
 
 func (p PlanetScaleEdgeDatabase) Close() error {
