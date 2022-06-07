@@ -165,11 +165,9 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 
 func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType, peek bool) (bool, *psdbconnect.TableCursor, error) {
 	defer p.Logger.Flush()
-	readDuration := 1 * time.Minute
-	peekDuration := 5 * time.Second
-	timeout := readDuration
+	timeout = 1 * time.Minute
 	if peek {
-		timeout = peekDuration
+		timeout = 5 * time.Second
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
