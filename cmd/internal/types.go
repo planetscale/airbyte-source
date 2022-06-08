@@ -48,7 +48,8 @@ const (
 )
 
 type PropertyType struct {
-	Type string `json:"type"`
+	Type        string `json:"type"`
+	AirbyteType string `json:"airbyte_type,omitempty"`
 }
 
 type StreamSchema struct {
