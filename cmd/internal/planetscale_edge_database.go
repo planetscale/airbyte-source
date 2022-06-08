@@ -182,7 +182,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 	defer p.Logger.Flush()
 	timeout := 1 * time.Minute
 	if peek {
-		timeout = 5 * time.Second
+		timeout = 45 * time.Second
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
