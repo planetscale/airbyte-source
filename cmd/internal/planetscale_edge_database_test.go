@@ -3,6 +3,7 @@ package internal
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"github.com/pkg/errors"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/stretchr/testify/assert"
@@ -60,6 +61,68 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
 
+func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
+	var tests = []struct {
+		MysqlType      string
+		JSONSchemaType string
+		AirbyteType    string
+	}{
+		{
+			MysqlType:      "int(32)",
+			JSONSchemaType: "integer",
+			AirbyteType:    "",
+		},
+		{
+			MysqlType:      "tinyint(1)",
+			JSONSchemaType: "boolean",
+			AirbyteType:    "",
+		},
+		{
+			MysqlType:      "bigint(16)",
+			JSONSchemaType: "string",
+			AirbyteType:    "big_integer",
+		},
+		{
+			MysqlType:      "bigint unsigned",
+			JSONSchemaType: "string",
+			AirbyteType:    "big_integer",
+		},
+		{
+			MysqlType:      "bigint zerofill",
+			JSONSchemaType: "string",
+			AirbyteType:    "big_integer",
+		},
+		{
+			MysqlType:      "datetime",
+			JSONSchemaType: "string",
+			AirbyteType:    "timestamp_with_timezone",
+		},
+		{
+			MysqlType:      "date",
+			JSONSchemaType: "string",
+			AirbyteType:    "date",
+		},
+		{
+			MysqlType:      "text",
+			JSONSchemaType: "string",
+			AirbyteType:    "",
+		},
+		{
+			MysqlType:      "varchar(256)",
+			JSONSchemaType: "string",
+			AirbyteType:    "",
+		},
+	}
+
+	for _, typeTest := range tests {
+
+		t.Run(fmt.Sprintf("mysql_type_%v", typeTest.MysqlType), func(t *testing.T) {
+			p := getJsonSchemaType(typeTest.MysqlType)
+			assert.Equal(t, typeTest.AirbyteType, p.AirbyteType)
+			assert.Equal(t, typeTest.JSONSchemaType, p.Type)
+		})
+	}
+}
 func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
