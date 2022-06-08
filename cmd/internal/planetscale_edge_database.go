@@ -33,9 +33,18 @@ type PlanetScaleDatabase interface {
 // It uses the mysql interface provided by PlanetScale for all schema/shard/tablet discovery and
 // the grpc API for incrementally syncing rows from PlanetScale.
 type PlanetScaleEdgeDatabase struct {
-	Logger   AirbyteLogger
-	Mysql    PlanetScaleEdgeMysqlAccess
-	clientFn func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error)
+	Logger       AirbyteLogger
+	Mysql        PlanetScaleEdgeMysqlAccess
+	clientFn     func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error)
+	readDuration time.Duration
+}
+
+func NewPlanetScaleEdgeDatabase(log AirbyteLogger, mysql PlanetScaleEdgeMysqlAccess) PlanetScaleDatabase {
+	return PlanetScaleEdgeDatabase{
+		Logger:       log,
+		Mysql:        mysql,
+		readDuration: 1 * time.Minute,
+	}
 }
 
 func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleSource) error {
@@ -119,58 +128,47 @@ func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScale
 
 func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleSource, s ConfiguredStream, tc *psdbconnect.TableCursor) (*SerializedCursor, error) {
 	var (
-		err     error
-		sc      *SerializedCursor
-		hasRows bool
+		sc           *SerializedCursor
+		syncErr      error
+		serializeErr error
 	)
 
 	tabletType := psdbconnect.TabletType_primary
 	table := s.Stream
-	readDuration := 1 * time.Minute
 
 	for {
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("syncing rows for stream [%v] in namespace [%v] with cursor [%v]", table.Name, table.Namespace, tc))
-		p.Logger.Log(LOGLEVEL_INFO, "peeking to see if there's any new rows")
-
-		hasRows, _, _ = p.sync(ctx, tc, table, ps, tabletType, true)
-		if !hasRows {
-			p.Logger.Log(LOGLEVEL_INFO, "no new rows found, exiting")
-			return TableCursorToSerializedCursor(tc)
-		}
-		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("new rows found, syncing rows for %v", readDuration))
-
-		_, tc, err = p.sync(ctx, tc, table, ps, tabletType, false)
+		tc, syncErr = p.sync(ctx, tc, table, ps, tabletType)
 		if tc != nil {
-			sc, err = TableCursorToSerializedCursor(tc)
-			if err != nil {
-				return sc, err
+			sc, serializeErr = TableCursorToSerializedCursor(tc)
+			if serializeErr != nil {
+				return sc, serializeErr
 			}
 		}
-		if err != nil {
-			if s, ok := status.FromError(err); ok {
-				// if the error is anything other than server timeout, keep going
-				if s.Code() != codes.DeadlineExceeded {
-					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Got error [%v], Returning with cursor :[%v] after server timeout", s.Code(), tc))
-					return sc, nil
-				} else {
+
+		if syncErr != nil {
+			if s, ok := status.FromError(syncErr); ok {
+				if s.Code() == codes.DeadlineExceeded {
 					p.Logger.Log(LOGLEVEL_INFO, "Continuing with cursor after server timeout")
+				} else {
+					// if the error is anything other than server timeout, keep going
+					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Got error [%v], Returning with cursor :[%v]", s.Code(), tc))
+					return sc, nil
 				}
+			} else if errors.Is(syncErr, io.EOF) {
+				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Done synchronizing rows for stream [%v]", table.Name))
+				return sc, nil
 			} else {
-				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("non-grpc error [%v]]", err))
-				return sc, err
+				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("non-grpc error [%v]]", syncErr))
+				return sc, syncErr
 			}
 		}
 	}
 }
 
-func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType, peek bool) (bool, *psdbconnect.TableCursor, error) {
+func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType) (*psdbconnect.TableCursor, error) {
 	defer p.Logger.Flush()
-	timeout := 1 * time.Minute
-	if peek {
-		timeout = 5 * time.Second
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeout(ctx, p.readDuration)
 	defer cancel()
 
 	var (
@@ -188,14 +186,14 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 			),
 		)
 		if err != nil {
-			return false, tc, err
+			return tc, err
 		}
 
 		client = psdbconnect.NewConnectClient(conn)
 	} else {
 		client, err = p.clientFn(ctx, ps)
 		if err != nil {
-			return false, tc, err
+			return tc, err
 		}
 	}
 
@@ -213,11 +211,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 
 	c, err := client.Sync(ctx, sReq)
 	if err != nil {
-		if peek {
-			return false, tc, nil
-		}
-
-		return false, tc, err
+		return tc, err
 	}
 
 	keyspaceOrDatabase := s.Namespace
@@ -226,26 +220,16 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 	}
 	for {
 		res, err := c.Recv()
-		if errors.Is(err, io.EOF) {
-			// we're done receiving rows from the server
-			return false, tc, nil
-		}
 		if err != nil {
-			return false, tc, err
+			return tc, err
 		}
 
 		if res.Cursor != nil {
 			// print the cursor to stdout here.
 			tc = res.Cursor
-			if peek {
-				return true, nil, nil
-			}
 		}
 
 		if len(res.Result) > 0 {
-			if peek {
-				return true, nil, nil
-			}
 			for _, result := range res.Result {
 				qr := sqltypes.Proto3ToResult(result)
 				for _, row := range qr.Rows {

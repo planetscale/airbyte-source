@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"io"
 )
 
@@ -13,7 +15,7 @@ type testAirbyteLogger struct {
 	records     map[string][]map[string]interface{}
 }
 
-func (tal testAirbyteLogger) Log(level, message string) {
+func (tal *testAirbyteLogger) Log(level, message string) {
 	if tal.logMessages == nil {
 		tal.logMessages = map[string][]string{}
 	}
@@ -58,13 +60,26 @@ type clientConnectionMock struct {
 }
 
 type connectSyncClientMock struct {
-	lastResponseSent int
-	syncResponses    []*psdbconnect.SyncResponse
+	lastResponseSent     int
+	sendDeadLineExceeded bool
+	sendNonEOF           bool
+	syncResponses        []*psdbconnect.SyncResponse
 	grpc.ClientStream
 }
 
 func (x *connectSyncClientMock) Recv() (*psdbconnect.SyncResponse, error) {
+
 	if x.lastResponseSent >= len(x.syncResponses) {
+		if x.sendDeadLineExceeded {
+			x.sendDeadLineExceeded = false
+			return nil, status.Error(codes.DeadlineExceeded, "all done")
+		}
+
+		if x.sendNonEOF {
+			x.sendNonEOF = false
+			return nil, status.Error(codes.FailedPrecondition, "something bad happened")
+		}
+
 		return nil, io.EOF
 	}
 	x.lastResponseSent += 1
