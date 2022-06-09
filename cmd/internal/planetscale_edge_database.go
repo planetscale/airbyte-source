@@ -142,16 +142,16 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	tabletType := psdbconnect.TabletType_primary
 	table := s.Stream
 	readDuration := 1 * time.Minute
+	preamble := fmt.Sprintf("[%v:%v shard : %v] ", table.Namespace, table.Name, tc.Shard)
 	for {
-
-		p.Logger.Log(LOGLEVEL_INFO, "peeking to see if there's any new rows")
+		p.Logger.Log(LOGLEVEL_INFO, preamble+"peeking to see if there's any new rows")
 		latestCursorPosition, _ := p.getLatestCursorPosition(ctx, tc.Shard, tc.Keyspace, table, ps, tabletType)
 		if latestCursorPosition == tc.Position {
-			p.Logger.Log(LOGLEVEL_INFO, "no new rows found, exiting")
+			p.Logger.Log(LOGLEVEL_INFO, preamble+"no new rows found, exiting")
 			return TableCursorToSerializedCursor(tc)
 		}
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("new rows found, syncing rows for %v", readDuration))
-		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("syncing rows for stream [%v] in namespace [%v] with cursor [%v]", table.Name, table.Namespace, tc))
+		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf(preamble+"syncing rows with cursor [%v]", tc))
 
 		tc, err = p.sync(ctx, tc, latestCursorPosition, table, ps, tabletType)
 		if tc.Position != "" {
@@ -164,13 +164,13 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 			if s, ok := status.FromError(err); ok {
 				// if the error is anything other than server timeout, keep going
 				if s.Code() != codes.DeadlineExceeded {
-					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Got error [%v], Returning with cursor :[%v] after server timeout", s.Code(), tc))
+					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%v Got error [%v], Returning with cursor :[%v] after server timeout", preamble, s.Code(), tc))
 					return sc, nil
 				} else {
-					p.Logger.Log(LOGLEVEL_INFO, "Continuing with cursor after server timeout")
+					p.Logger.Log(LOGLEVEL_INFO, preamble+"Continuing with cursor after server timeout")
 				}
 			} else if errors.Is(err, io.EOF) {
-				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Finished reading all rows for table [%v]]", table.Name))
+				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%v Finished reading all rows for table [%v]]", preamble, table.Name))
 				return sc, nil
 			} else {
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("non-grpc error [%v]]", err))
@@ -216,7 +216,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		tc.Position = ""
 	}
 
-	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Syncing with cursor position : [%v], using last known PK : %v", tc.Position, tc.LastKnownPk != nil))
+	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Syncing with cursor position : [%v], using last known PK : %v, stop cursor is : [%v]", tc.Position, tc.LastKnownPk != nil, stopPosition))
 
 	sReq := &psdbconnect.SyncRequest{
 		TableName:  s.Name,
@@ -235,12 +235,9 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 	}
 
 	// stop when we've reached the well known stop position for this sync session.
-	stopSyncSession := false
+	watchForVgGtidChange := false
 
 	for {
-		if stopSyncSession {
-			return tc, nil
-		}
 
 		res, err := c.Recv()
 		if err != nil {
@@ -253,9 +250,14 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 
 		// Because of the ordering of events in a vstream
 		// we receive the vgtid event first and then the rows.
-		// so we mark this as the last Recv session and stop it on the next iteration.
-		// after we've receieved all rows marked by this vgtid.
-		stopSyncSession = tc.Position == stopPosition
+		// the vgtid event might repeat, but they're ordered.
+		// so we once we reach the desired stop vgtid, we stop the sync session
+		// if we get a newer vgtid.
+		watchForVgGtidChange = watchForVgGtidChange || tc.Position == stopPosition
+
+		if watchForVgGtidChange && tc.Position != stopPosition {
+			return tc, io.EOF
+		}
 
 		if len(res.Result) > 0 {
 			for _, result := range res.Result {
@@ -270,6 +272,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 				}
 			}
 		}
+
 	}
 }
 
