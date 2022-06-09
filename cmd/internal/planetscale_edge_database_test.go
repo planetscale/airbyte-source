@@ -57,12 +57,12 @@ func TestRead_CanPeekBeforeRead(t *testing.T) {
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
-	assert.Equal(t, 3, cc.syncFnInvokedCount)
+	assert.Equal(t, 1, cc.syncFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
 	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
 
-func TestRead_CanEarlyExitIfNoRecordsInPeek(t *testing.T) {
+func TestRead_CanEarlyExitIfNoNewVGtidInPeek(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
 	ped := PlanetScaleEdgeDatabase{
@@ -76,7 +76,9 @@ func TestRead_CanEarlyExitIfNoRecordsInPeek(t *testing.T) {
 	}
 
 	syncClient := &connectSyncClientMock{
-		syncResponses: []*psdbconnect.SyncResponse{},
+		syncResponses: []*psdbconnect.SyncResponse{
+			{Cursor: tc},
+		},
 	}
 
 	cc := clientConnectionMock{
@@ -223,7 +225,11 @@ func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 	}
 
 	syncClient := &connectSyncClientMock{
-		syncResponses: []*psdbconnect.SyncResponse{},
+		syncResponses: []*psdbconnect.SyncResponse{
+			{
+				Cursor: tc,
+			},
+		},
 	}
 
 	cc := clientConnectionMock{
@@ -268,7 +274,9 @@ func TestRead_CanReturnOriginalCursorIfNoNewFound(t *testing.T) {
 	}
 
 	syncClient := &connectSyncClientMock{
-		syncResponses: []*psdbconnect.SyncResponse{},
+		syncResponses: []*psdbconnect.SyncResponse{
+			{Cursor: tc},
+		},
 	}
 
 	cc := clientConnectionMock{
@@ -345,7 +353,7 @@ func TestRead_CanReturnNewCursorIfNewFound(t *testing.T) {
 	esc, err := TableCursorToSerializedCursor(newTC)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
-	assert.Equal(t, 3, cc.syncFnInvokedCount)
+	assert.Equal(t, 2, cc.syncFnInvokedCount)
 }
 
 func TestRead_CanLogResults(t *testing.T) {
