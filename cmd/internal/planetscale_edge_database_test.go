@@ -356,6 +356,79 @@ func TestRead_CanReturnNewCursorIfNewFound(t *testing.T) {
 	assert.Equal(t, 2, cc.syncFnInvokedCount)
 }
 
+func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
+	tma := getTestMysqlAccess()
+	tal := testAirbyteLogger{}
+	ped := PlanetScaleEdgeDatabase{
+		Logger: &tal,
+		Mysql:  tma,
+	}
+
+	numResponses := 10
+	// when the client tries to get the "current" vgtid,
+	// we return the penultimate element of the array.
+	currentVGtidPosition := numResponses - 2
+	// this is the next vgtid that should stop the sync session.
+	nextVGtidPosition := currentVGtidPosition + 1
+	responses := make([]*psdbconnect.SyncResponse, 0, numResponses)
+	for i := 0; i < numResponses; i++ {
+		// this simulates multiple events being returned, for the same vgtid, from vstream
+		for x := 0; x < 3; x++ {
+			responses = append(responses, &psdbconnect.SyncResponse{
+				Cursor: &psdbconnect.TableCursor{
+					Shard:    "-",
+					Keyspace: "connect-test",
+					Position: fmt.Sprintf("e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", i),
+				},
+			})
+		}
+	}
+
+	syncClient := &connectSyncClientMock{
+		syncResponses: responses,
+	}
+
+	getCurrentVGtidClient := &connectSyncClientMock{
+		syncResponses: []*psdbconnect.SyncResponse{
+			responses[currentVGtidPosition],
+		},
+	}
+
+	cc := clientConnectionMock{
+		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
+			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
+			if in.Cursor.Position == "current" {
+				return getCurrentVGtidClient, nil
+			}
+
+			return syncClient, nil
+		},
+	}
+
+	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
+		return &cc, nil
+	}
+	ps := PlanetScaleSource{
+		Database: "connect-test",
+	}
+	cs := ConfiguredStream{
+		Stream: Stream{
+			Name:      "customers",
+			Namespace: "connect-test",
+		},
+	}
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, responses[0].Cursor)
+	assert.NoError(t, err)
+	// sync should start at the first vgtid
+	esc, err := TableCursorToSerializedCursor(responses[nextVGtidPosition].Cursor)
+	assert.NoError(t, err)
+	assert.Equal(t, esc, sc)
+	assert.Equal(t, 2, cc.syncFnInvokedCount)
+
+	logLines := tal.logMessages[LOGLEVEL_INFO]
+	assert.Equal(t, "[connect-test:customers shard : -] Finished reading all rows for table [customers]", logLines[len(logLines)-1])
+}
+
 func TestRead_CanLogResults(t *testing.T) {
 	tma := getTestMysqlAccess()
 	tal := testAirbyteLogger{}

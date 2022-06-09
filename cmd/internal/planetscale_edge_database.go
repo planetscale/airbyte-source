@@ -170,7 +170,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 					p.Logger.Log(LOGLEVEL_INFO, preamble+"Continuing with cursor after server timeout")
 				}
 			} else if errors.Is(err, io.EOF) {
-				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%v Finished reading all rows for table [%v]]", preamble, table.Name))
+				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%vFinished reading all rows for table [%v]", preamble, table.Name))
 				return sc, nil
 			} else {
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("non-grpc error [%v]]", err))

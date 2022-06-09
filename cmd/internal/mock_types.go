@@ -13,7 +13,7 @@ type testAirbyteLogger struct {
 	records     map[string][]map[string]interface{}
 }
 
-func (tal testAirbyteLogger) Log(level, message string) {
+func (tal *testAirbyteLogger) Log(level, message string) {
 	if tal.logMessages == nil {
 		tal.logMessages = map[string][]string{}
 	}
