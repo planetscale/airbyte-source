@@ -147,8 +147,6 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		p.Logger.Log(LOGLEVEL_INFO, preamble+"peeking to see if there's any new rows")
 		latestCursorPosition, lcErr := p.getLatestCursorPosition(ctx, tc.Shard, tc.Keyspace, table, ps, tabletType)
 		if lcErr != nil {
-			fmt.Println("Failed getting latest cursor position")
-			fmt.Printf("\n\t error is %v", lcErr)
 			return sc, errors.Wrap(err, "Unable to get latest cursor position")
 		}
 
