@@ -132,6 +132,12 @@ func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScale
 	return p.Mysql.GetVitessShards(ctx, psc)
 }
 
+// Read streams rows from a table given a starting cursor.
+// 1. We will get the latest vgtid for a given table in a shard when a sync session starts.
+// 2. This latest vgtid is now the stopping point for this sync session.
+// 3. Ask vstream to stream from the last known vgtid
+// 4. When we reach the stopping point, read all rows available at this vgtid
+// 5. End the stream when (a) a vgtid newer than latest vgtid is encountered or (b) the timeout kicks in.
 func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleSource, s ConfiguredStream, tc *psdbconnect.TableCursor) (*SerializedCursor, error) {
 	var (
 		err  error
