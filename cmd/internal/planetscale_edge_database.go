@@ -138,53 +138,56 @@ func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScale
 // 3. Ask vstream to stream from the last known vgtid
 // 4. When we reach the stopping point, read all rows available at this vgtid
 // 5. End the stream when (a) a vgtid newer than latest vgtid is encountered or (b) the timeout kicks in.
-func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleSource, s ConfiguredStream, tc *psdbconnect.TableCursor) (*SerializedCursor, error) {
+func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleSource, s ConfiguredStream, lastKnownPosition *psdbconnect.TableCursor) (*SerializedCursor, error) {
 	var (
-		err  error
-		sErr error
-		sc   *SerializedCursor
+		err                     error
+		sErr                    error
+		currentSerializedCursor *SerializedCursor
 	)
 
 	tabletType := psdbconnect.TabletType_primary
+	currentPosition := lastKnownPosition
 	table := s.Stream
 	readDuration := 1 * time.Minute
-	preamble := fmt.Sprintf("[%v:%v shard : %v] ", table.Namespace, table.Name, tc.Shard)
+	preamble := fmt.Sprintf("[%v:%v shard : %v] ", table.Namespace, table.Name, currentPosition.Shard)
 	for {
 		p.Logger.Log(LOGLEVEL_INFO, preamble+"peeking to see if there's any new rows")
-		latestCursorPosition, lcErr := p.getLatestCursorPosition(ctx, tc.Shard, tc.Keyspace, table, ps, tabletType)
+		latestCursorPosition, lcErr := p.getLatestCursorPosition(ctx, currentPosition.Shard, currentPosition.Keyspace, table, ps, tabletType)
 		if lcErr != nil {
-			return sc, errors.Wrap(err, "Unable to get latest cursor position")
+			return currentSerializedCursor, errors.Wrap(err, "Unable to get latest cursor position")
 		}
 
-		if latestCursorPosition == tc.Position {
+		// the current vgtid is the same as the last synced vgtid, no new rows.
+		if latestCursorPosition == currentPosition.Position {
 			p.Logger.Log(LOGLEVEL_INFO, preamble+"no new rows found, exiting")
-			return TableCursorToSerializedCursor(tc)
+			return TableCursorToSerializedCursor(currentPosition)
 		}
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("new rows found, syncing rows for %v", readDuration))
-		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf(preamble+"syncing rows with cursor [%v]", tc))
+		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf(preamble+"syncing rows with cursor [%v]", currentPosition))
 
-		tc, err = p.sync(ctx, tc, latestCursorPosition, table, ps, tabletType)
-		if tc.Position != "" {
-			sc, sErr = TableCursorToSerializedCursor(tc)
+		currentPosition, err = p.sync(ctx, currentPosition, latestCursorPosition, table, ps, tabletType)
+		if currentPosition.Position != "" {
+			currentSerializedCursor, sErr = TableCursorToSerializedCursor(currentPosition)
 			if sErr != nil {
-				return sc, sErr
+				// if we failed to serialize here, we should bail.
+				return currentSerializedCursor, errors.Wrap(sErr, "unable to serialize current position")
 			}
 		}
 		if err != nil {
 			if s, ok := status.FromError(err); ok {
 				// if the error is anything other than server timeout, keep going
 				if s.Code() != codes.DeadlineExceeded {
-					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%v Got error [%v], Returning with cursor :[%v] after server timeout", preamble, s.Code(), tc))
-					return sc, nil
+					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%v Got error [%v], Returning with cursor :[%v] after server timeout", preamble, s.Code(), currentPosition))
+					return currentSerializedCursor, nil
 				} else {
 					p.Logger.Log(LOGLEVEL_INFO, preamble+"Continuing with cursor after server timeout")
 				}
 			} else if errors.Is(err, io.EOF) {
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%vFinished reading all rows for table [%v]", preamble, table.Name))
-				return sc, nil
+				return currentSerializedCursor, nil
 			} else {
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("non-grpc error [%v]]", err))
-				return sc, err
+				return currentSerializedCursor, err
 			}
 		}
 	}
