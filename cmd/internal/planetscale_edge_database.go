@@ -132,60 +132,70 @@ func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScale
 	return p.Mysql.GetVitessShards(ctx, psc)
 }
 
-func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleSource, s ConfiguredStream, tc *psdbconnect.TableCursor) (*SerializedCursor, error) {
+// Read streams rows from a table given a starting cursor.
+// 1. We will get the latest vgtid for a given table in a shard when a sync session starts.
+// 2. This latest vgtid is now the stopping point for this sync session.
+// 3. Ask vstream to stream from the last known vgtid
+// 4. When we reach the stopping point, read all rows available at this vgtid
+// 5. End the stream when (a) a vgtid newer than latest vgtid is encountered or (b) the timeout kicks in.
+func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleSource, s ConfiguredStream, lastKnownPosition *psdbconnect.TableCursor) (*SerializedCursor, error) {
 	var (
-		err     error
-		sc      *SerializedCursor
-		hasRows bool
+		err                     error
+		sErr                    error
+		currentSerializedCursor *SerializedCursor
 	)
 
 	tabletType := psdbconnect.TabletType_primary
+	currentPosition := lastKnownPosition
 	table := s.Stream
 	readDuration := 1 * time.Minute
-
+	preamble := fmt.Sprintf("[%v:%v shard : %v] ", table.Namespace, table.Name, currentPosition.Shard)
 	for {
-		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("syncing rows for stream [%v] in namespace [%v] with cursor [%v]", table.Name, table.Namespace, tc))
-		p.Logger.Log(LOGLEVEL_INFO, "peeking to see if there's any new rows")
+		p.Logger.Log(LOGLEVEL_INFO, preamble+"peeking to see if there's any new rows")
+		latestCursorPosition, lcErr := p.getLatestCursorPosition(ctx, currentPosition.Shard, currentPosition.Keyspace, table, ps, tabletType)
+		if lcErr != nil {
+			return currentSerializedCursor, errors.Wrap(err, "Unable to get latest cursor position")
+		}
 
-		hasRows, _, _ = p.sync(ctx, tc, table, ps, tabletType, true)
-		if !hasRows {
-			p.Logger.Log(LOGLEVEL_INFO, "no new rows found, exiting")
-			return TableCursorToSerializedCursor(tc)
+		// the current vgtid is the same as the last synced vgtid, no new rows.
+		if latestCursorPosition == currentPosition.Position {
+			p.Logger.Log(LOGLEVEL_INFO, preamble+"no new rows found, exiting")
+			return TableCursorToSerializedCursor(currentPosition)
 		}
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("new rows found, syncing rows for %v", readDuration))
+		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf(preamble+"syncing rows with cursor [%v]", currentPosition))
 
-		_, tc, err = p.sync(ctx, tc, table, ps, tabletType, false)
-		if tc != nil {
-			sc, err = TableCursorToSerializedCursor(tc)
-			if err != nil {
-				return sc, err
+		currentPosition, err = p.sync(ctx, currentPosition, latestCursorPosition, table, ps, tabletType, readDuration)
+		if currentPosition.Position != "" {
+			currentSerializedCursor, sErr = TableCursorToSerializedCursor(currentPosition)
+			if sErr != nil {
+				// if we failed to serialize here, we should bail.
+				return currentSerializedCursor, errors.Wrap(sErr, "unable to serialize current position")
 			}
 		}
 		if err != nil {
 			if s, ok := status.FromError(err); ok {
 				// if the error is anything other than server timeout, keep going
 				if s.Code() != codes.DeadlineExceeded {
-					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Got error [%v], Returning with cursor :[%v] after server timeout", s.Code(), tc))
-					return sc, nil
+					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%v Got error [%v], Returning with cursor :[%v] after server timeout", preamble, s.Code(), currentPosition))
+					return currentSerializedCursor, nil
 				} else {
-					p.Logger.Log(LOGLEVEL_INFO, "Continuing with cursor after server timeout")
+					p.Logger.Log(LOGLEVEL_INFO, preamble+"Continuing with cursor after server timeout")
 				}
+			} else if errors.Is(err, io.EOF) {
+				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%vFinished reading all rows for table [%v]", preamble, table.Name))
+				return currentSerializedCursor, nil
 			} else {
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("non-grpc error [%v]]", err))
-				return sc, err
+				return currentSerializedCursor, err
 			}
 		}
 	}
 }
 
-func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType, peek bool) (bool, *psdbconnect.TableCursor, error) {
+func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, stopPosition string, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType, readDuration time.Duration) (*psdbconnect.TableCursor, error) {
 	defer p.Logger.Flush()
-	timeout := 1 * time.Minute
-	if peek {
-		timeout = 45 * time.Second
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeout(ctx, readDuration)
 	defer cancel()
 
 	var (
@@ -203,14 +213,14 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 			),
 		)
 		if err != nil {
-			return false, tc, err
+			return tc, err
 		}
-
+		defer conn.Close()
 		client = psdbconnect.NewConnectClient(conn)
 	} else {
 		client, err = p.clientFn(ctx, ps)
 		if err != nil {
-			return false, tc, err
+			return tc, err
 		}
 	}
 
@@ -218,7 +228,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		tc.Position = ""
 	}
 
-	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Syncing with cursor position : [%v], last known PK : %v", tc.Position, tc.LastKnownPk != nil))
+	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Syncing with cursor position : [%v], using last known PK : %v, stop cursor is : [%v]", tc.Position, tc.LastKnownPk != nil, stopPosition))
 
 	sReq := &psdbconnect.SyncRequest{
 		TableName:  s.Name,
@@ -228,39 +238,40 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 
 	c, err := client.Sync(ctx, sReq)
 	if err != nil {
-		if peek {
-			return false, tc, nil
-		}
-
-		return false, tc, err
+		return tc, err
 	}
 
 	keyspaceOrDatabase := s.Namespace
 	if keyspaceOrDatabase == "" {
 		keyspaceOrDatabase = ps.Database
 	}
+
+	// stop when we've reached the well known stop position for this sync session.
+	watchForVgGtidChange := false
+
 	for {
+
 		res, err := c.Recv()
-		if errors.Is(err, io.EOF) {
-			// we're done receiving rows from the server
-			return false, tc, nil
-		}
 		if err != nil {
-			return false, tc, err
+			return tc, err
 		}
 
 		if res.Cursor != nil {
-			// print the cursor to stdout here.
 			tc = res.Cursor
-			if peek {
-				return true, nil, nil
-			}
+		}
+
+		// Because of the ordering of events in a vstream
+		// we receive the vgtid event first and then the rows.
+		// the vgtid event might repeat, but they're ordered.
+		// so we once we reach the desired stop vgtid, we stop the sync session
+		// if we get a newer vgtid.
+		watchForVgGtidChange = watchForVgGtidChange || tc.Position == stopPosition
+
+		if watchForVgGtidChange && tc.Position != stopPosition {
+			return tc, io.EOF
 		}
 
 		if len(res.Result) > 0 {
-			if peek {
-				return true, nil, nil
-			}
 			for _, result := range res.Result {
 				qr := sqltypes.Proto3ToResult(result)
 				for _, row := range qr.Rows {
@@ -272,6 +283,65 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 					p.printQueryResult(sqlResult, keyspaceOrDatabase, s.Name)
 				}
 			}
+		}
+
+	}
+}
+
+func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, shard, keyspace string, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType) (string, error) {
+	defer p.Logger.Flush()
+	timeout := 45 * time.Second
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	var (
+		err    error
+		client psdbconnect.ConnectClient
+	)
+
+	if p.clientFn == nil {
+		conn, err := grpcclient.Dial(ctx, ps.Host,
+			clientoptions.WithDefaultTLSConfig(),
+			clientoptions.WithCompression(true),
+			clientoptions.WithConnectionPool(1),
+			clientoptions.WithExtraCallOption(
+				auth.NewBasicAuth(ps.Username, ps.Password).CallOption(),
+			),
+		)
+		if err != nil {
+			return "", err
+		}
+		defer conn.Close()
+		client = psdbconnect.NewConnectClient(conn)
+	} else {
+		client, err = p.clientFn(ctx, ps)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	sReq := &psdbconnect.SyncRequest{
+		TableName: s.Name,
+		Cursor: &psdbconnect.TableCursor{
+			Shard:    shard,
+			Keyspace: keyspace,
+			Position: "current",
+		},
+		TabletType: tabletType,
+	}
+
+	c, err := client.Sync(ctx, sReq)
+	if err != nil {
+		return "", nil
+	}
+
+	for {
+		res, err := c.Recv()
+		if err != nil {
+			return "", err
+		}
+
+		if res.Cursor != nil {
+			return res.Cursor.Position, nil
 		}
 	}
 }
