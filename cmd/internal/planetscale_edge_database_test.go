@@ -118,7 +118,9 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	}
 
 	syncClient := &connectSyncClientMock{
-		syncResponses: []*psdbconnect.SyncResponse{},
+		syncResponses: []*psdbconnect.SyncResponse{
+			{Cursor: tc},
+		},
 	}
 
 	cc := clientConnectionMock{
@@ -144,7 +146,7 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
-	assert.Equal(t, 2, cc.syncFnInvokedCount)
+	assert.Equal(t, 1, cc.syncFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
 	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }

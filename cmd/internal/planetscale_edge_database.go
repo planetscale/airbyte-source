@@ -145,7 +145,13 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	preamble := fmt.Sprintf("[%v:%v shard : %v] ", table.Namespace, table.Name, tc.Shard)
 	for {
 		p.Logger.Log(LOGLEVEL_INFO, preamble+"peeking to see if there's any new rows")
-		latestCursorPosition, _ := p.getLatestCursorPosition(ctx, tc.Shard, tc.Keyspace, table, ps, tabletType)
+		latestCursorPosition, lcErr := p.getLatestCursorPosition(ctx, tc.Shard, tc.Keyspace, table, ps, tabletType)
+		if lcErr != nil {
+			fmt.Println("Failed getting latest cursor position")
+			fmt.Printf("\n\t error is %v", lcErr)
+			return sc, errors.Wrap(err, "Unable to get latest cursor position")
+		}
+
 		if latestCursorPosition == tc.Position {
 			p.Logger.Log(LOGLEVEL_INFO, preamble+"no new rows found, exiting")
 			return TableCursorToSerializedCursor(tc)
@@ -203,7 +209,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		if err != nil {
 			return tc, err
 		}
-
+		defer conn.Close()
 		client = psdbconnect.NewConnectClient(conn)
 	} else {
 		client, err = p.clientFn(ctx, ps)
@@ -298,7 +304,7 @@ func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, sh
 		if err != nil {
 			return "", err
 		}
-
+		defer conn.Close()
 		client = psdbconnect.NewConnectClient(conn)
 	} else {
 		client, err = p.clientFn(ctx, ps)
