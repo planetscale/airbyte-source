@@ -50,19 +50,15 @@ func (psc PlanetScaleSource) GetInitialState(keyspaceOrDatabase string, shards [
 		}
 
 		for _, configuredShard := range configuredShards {
-			if _, ok := foundShards[strings.TrimSpace(configuredShard)]; !ok {
-				return shardCursors, fmt.Errorf("shard %v does not exist on the source database", configuredShard)
+			if len(configuredShard) > 0 {
+				if _, ok := foundShards[strings.TrimSpace(configuredShard)]; !ok {
+					return shardCursors, fmt.Errorf("shard %v does not exist on the source database", configuredShard)
+				}
 			}
 		}
 
 		// if we got this far, all the shards that the customer asked for exist in the PlanetScale database.
-		filteredShards := make([]string, 0, len(configuredShards))
-		for _, key := range configuredShards {
-			if len(configuredShards) > 0 {
-				filteredShards = append(filteredShards, key)
-			}
-		}
-		shards = filteredShards
+		shards = configuredShards
 	}
 
 	for _, shard := range shards {
