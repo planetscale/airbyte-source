@@ -56,8 +56,8 @@ func (psc PlanetScaleSource) GetInitialState(keyspaceOrDatabase string, shards [
 		}
 
 		// if we got this far, all the shards that the customer asked for exist in the PlanetScale database.
-		filteredShards := make([]string, len(foundShards))
-		for key := range foundShards {
+		filteredShards := make([]string, len(configuredShards))
+		for _, key := range configuredShards {
 			filteredShards = append(filteredShards, key)
 		}
 		shards = filteredShards

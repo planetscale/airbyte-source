@@ -376,12 +376,22 @@ func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
 	for i := 0; i < numResponses; i++ {
 		// this simulates multiple events being returned, for the same vgtid, from vstream
 		for x := 0; x < 3; x++ {
+
+			result := []*query.QueryResult{
+				sqltypes.ResultToProto3(sqltypes.MakeTestResult(sqltypes.MakeTestFields(
+					"pid|description",
+					"int64|varbinary"),
+					fmt.Sprintf("%v|keyboard", i+1),
+					fmt.Sprintf("%v|monitor", i+2),
+				)),
+			}
 			responses = append(responses, &psdbconnect.SyncResponse{
 				Cursor: &psdbconnect.TableCursor{
 					Shard:    "-",
 					Keyspace: "connect-test",
 					Position: fmt.Sprintf("e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", i),
 				},
+				Result: result,
 			})
 		}
 	}
@@ -429,6 +439,8 @@ func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
 
 	logLines := tal.logMessages[LOGLEVEL_INFO]
 	assert.Equal(t, "[connect-test:customers shard : -] Finished reading all rows for table [customers]", logLines[len(logLines)-1])
+	records := tal.records["connect-test.customers"]
+	assert.Equal(t, numResponses*2, len(records))
 }
 
 func TestRead_CanLogResults(t *testing.T) {
