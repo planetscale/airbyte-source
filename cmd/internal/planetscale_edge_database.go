@@ -267,10 +267,6 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		// if we get a newer vgtid.
 		watchForVgGtidChange = watchForVgGtidChange || tc.Position == stopPosition
 
-		if watchForVgGtidChange && tc.Position != stopPosition {
-			return tc, io.EOF
-		}
-
 		if len(res.Result) > 0 {
 			for _, result := range res.Result {
 				qr := sqltypes.Proto3ToResult(result)
@@ -285,6 +281,9 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 			}
 		}
 
+		if watchForVgGtidChange && tc.Position != stopPosition {
+			return tc, io.EOF
+		}
 	}
 }
 

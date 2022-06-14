@@ -368,20 +368,34 @@ func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
 
 	numResponses := 10
 	// when the client tries to get the "current" vgtid,
-	// we return the penultimate element of the array.
-	currentVGtidPosition := numResponses - 2
+	// we return the ante-penultimate element of the array.
+	currentVGtidPosition := (numResponses * 3) - 4
 	// this is the next vgtid that should stop the sync session.
 	nextVGtidPosition := currentVGtidPosition + 1
 	responses := make([]*psdbconnect.SyncResponse, 0, numResponses)
 	for i := 0; i < numResponses; i++ {
 		// this simulates multiple events being returned, for the same vgtid, from vstream
 		for x := 0; x < 3; x++ {
+			var result []*query.QueryResult
+			if x == 2 {
+				result = []*query.QueryResult{
+					sqltypes.ResultToProto3(sqltypes.MakeTestResult(sqltypes.MakeTestFields(
+						"pid|description",
+						"int64|varbinary"),
+						fmt.Sprintf("%v|keyboard", i+1),
+						fmt.Sprintf("%v|monitor", i+2),
+					)),
+				}
+			}
+
+			vgtid := fmt.Sprintf("e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", i)
 			responses = append(responses, &psdbconnect.SyncResponse{
 				Cursor: &psdbconnect.TableCursor{
 					Shard:    "-",
 					Keyspace: "connect-test",
-					Position: fmt.Sprintf("e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", i),
+					Position: vgtid,
 				},
+				Result: result,
 			})
 		}
 	}
@@ -419,6 +433,7 @@ func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
 			Namespace: "connect-test",
 		},
 	}
+
 	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, responses[0].Cursor)
 	assert.NoError(t, err)
 	// sync should start at the first vgtid
@@ -429,6 +444,8 @@ func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
 
 	logLines := tal.logMessages[LOGLEVEL_INFO]
 	assert.Equal(t, "[connect-test:customers shard : -] Finished reading all rows for table [customers]", logLines[len(logLines)-1])
+	records := tal.records["connect-test.customers"]
+	assert.Equal(t, 2*(nextVGtidPosition/3), len(records))
 }
 
 func TestRead_CanLogResults(t *testing.T) {
