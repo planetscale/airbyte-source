@@ -92,7 +92,9 @@ func (p PlanetScaleEdgeDatabase) getStreamForTable(ctx context.Context, psc Plan
 	}
 
 	// pick the last key field as the default cursor field.
-	stream.DefaultCursorFields = append(stream.DefaultCursorFields, primaryKeys[len(primaryKeys)-1])
+	if len(primaryKeys) > 0 {
+		stream.DefaultCursorFields = append(stream.DefaultCursorFields, primaryKeys[len(primaryKeys)-1])
+	}
 
 	stream.SourceDefinedCursor = true
 	return stream, nil
