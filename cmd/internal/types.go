@@ -166,11 +166,12 @@ type SpecMessage struct {
 }
 
 type ConnectionProperties struct {
-	Host     ConnectionProperty `json:"host"`
-	Shards   ConnectionProperty `json:"shards"`
-	Database ConnectionProperty `json:"database"`
-	Username ConnectionProperty `json:"username"`
-	Password ConnectionProperty `json:"password"`
+	Host                       ConnectionProperty `json:"host"`
+	Shards                     ConnectionProperty `json:"shards"`
+	Database                   ConnectionProperty `json:"database"`
+	Username                   ConnectionProperty `json:"username"`
+	Password                   ConnectionProperty `json:"password"`
+	DoNotTreatTinyIntAsBoolean ConnectionProperty `json:"do_not_treat_tiny_int_as_boolean"`
 }
 
 type ConnectionProperty struct {

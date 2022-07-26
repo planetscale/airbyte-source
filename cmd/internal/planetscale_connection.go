@@ -10,11 +10,12 @@ import (
 
 // PlanetScaleSource defines a configured Airbyte Source for a PlanetScale database
 type PlanetScaleSource struct {
-	Host     string `json:"host"`
-	Database string `json:"database"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Shards   string `json:"shards"`
+	Host                       string `json:"host"`
+	Database                   string `json:"database"`
+	Username                   string `json:"username"`
+	Password                   string `json:"password"`
+	Shards                     string `json:"shards"`
+	DoNotTreatTinyIntAsBoolean bool   `json:"do_not_treat_tiny_int_as_boolean"`
 }
 
 // DSN returns a DataSource that mysql libraries can use to connect to a PlanetScale database.

@@ -62,6 +62,12 @@ func SpecCommand() *cobra.Command {
 								Type:        "string",
 								Order:       4,
 							},
+							DoNotTreatTinyIntAsBoolean: internal.ConnectionProperty{
+								Description: "If enabled, properties of type TinyInt(1) are output as TinyInt, and not boolean.",
+								Title:       "Do Not Treat TinyInt(1) as boolean",
+								Type:        "boolean",
+								Order:       5,
+							},
 						},
 					},
 				},

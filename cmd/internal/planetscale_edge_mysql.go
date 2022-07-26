@@ -155,7 +155,7 @@ func (p planetScaleEdgeMySQLAccess) GetTableSchema(ctx context.Context, psc Plan
 			return properties, errors.Wrapf(err, "Unable to scan row for column names & types of table %v", tableName)
 		}
 
-		properties[name] = getJsonSchemaType(columnType)
+		properties[name] = getJsonSchemaType(columnType, !psc.DoNotTreatTinyIntAsBoolean)
 	}
 
 	if err := columnNamesQR.Err(); err != nil {
