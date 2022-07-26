@@ -165,13 +165,45 @@ type SpecMessage struct {
 	Spec Spec   `json:"spec"`
 }
 
-type ConnectionProperties struct {
-	Host                       ConnectionProperty `json:"host"`
-	Shards                     ConnectionProperty `json:"shards"`
-	Database                   ConnectionProperty `json:"database"`
-	Username                   ConnectionProperty `json:"username"`
-	Password                   ConnectionProperty `json:"password"`
+type ConnectionPropertyHash struct {
+	Description string                             `json:"description"`
+	Title       string                             `json:"title"`
+	Type        string                             `json:"type"`
+	Order       int                                `json:"order"`
+	Options     []ConnectionPropertyHashProperties `json:"oneOf"`
+}
+
+type ConnectionPropertyHashProperties struct {
 	DoNotTreatTinyIntAsBoolean ConnectionProperty `json:"do_not_treat_tiny_int_as_boolean"`
+}
+
+type CustomOptionsSpecification struct {
+	Description string          `json:"description"`
+	Title       string          `json:"title"`
+	Type        string          `json:"type"`
+	Order       int             `json:"order"`
+	Options     []CustomOptions `json:"oneOf"`
+}
+
+type CustomOptions struct {
+	Description string                  `json:"description"`
+	Title       string                  `json:"title"`
+	Type        string                  `json:"type"`
+	Order       int                     `json:"order"`
+	Properties  CustomOptionsProperties `json:"properties"`
+}
+
+type CustomOptionsProperties struct {
+	DoNotTreatTinyIntAsBoolean ConnectionProperty `json:"do_not_treat_tiny_int_as_boolean"`
+}
+
+type ConnectionProperties struct {
+	Host     ConnectionProperty         `json:"host"`
+	Shards   ConnectionProperty         `json:"shards"`
+	Database ConnectionProperty         `json:"database"`
+	Username ConnectionProperty         `json:"username"`
+	Password ConnectionProperty         `json:"password"`
+	Options  CustomOptionsSpecification `json:"options"`
 }
 
 type ConnectionProperty struct {

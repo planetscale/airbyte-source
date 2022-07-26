@@ -62,11 +62,26 @@ func SpecCommand() *cobra.Command {
 								Type:        "string",
 								Order:       4,
 							},
-							DoNotTreatTinyIntAsBoolean: internal.ConnectionProperty{
-								Description: "If enabled, properties of type TinyInt(1) are output as TinyInt, and not boolean.",
-								Title:       "Do Not Treat TinyInt(1) as boolean",
-								Type:        "boolean",
+							Options: internal.CustomOptionsSpecification{
 								Order:       5,
+								Type:        "object",
+								Title:       "Custom configuration options",
+								Description: "Configuration options to customize PlanetScale source",
+								Options: []internal.CustomOptions{
+									{
+										Type:        "object",
+										Title:       "options",
+										Description: "options",
+										Properties: internal.CustomOptionsProperties{
+											DoNotTreatTinyIntAsBoolean: internal.ConnectionProperty{
+												Description: "If enabled, properties of type TinyInt(1) are output as TinyInt, and not boolean.",
+												Title:       "Do Not Treat TinyInt(1) as boolean",
+												Type:        "boolean",
+												Order:       5,
+											},
+										},
+									},
+								},
 							},
 						},
 					},
