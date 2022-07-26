@@ -153,9 +153,10 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 
 func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 	var tests = []struct {
-		MysqlType      string
-		JSONSchemaType string
-		AirbyteType    string
+		MysqlType             string
+		JSONSchemaType        string
+		AirbyteType           string
+		TreatTinyIntAsBoolean bool
 	}{
 		{
 			MysqlType:      "int(32)",
@@ -163,9 +164,16 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 			AirbyteType:    "",
 		},
 		{
-			MysqlType:      "tinyint(1)",
-			JSONSchemaType: "boolean",
-			AirbyteType:    "",
+			MysqlType:             "tinyint(1)",
+			JSONSchemaType:        "boolean",
+			AirbyteType:           "",
+			TreatTinyIntAsBoolean: true,
+		},
+		{
+			MysqlType:             "tinyint(1)",
+			JSONSchemaType:        "integer",
+			AirbyteType:           "",
+			TreatTinyIntAsBoolean: false,
 		},
 		{
 			MysqlType:      "bigint(16)",
@@ -207,7 +215,7 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 	for _, typeTest := range tests {
 
 		t.Run(fmt.Sprintf("mysql_type_%v", typeTest.MysqlType), func(t *testing.T) {
-			p := getJsonSchemaType(typeTest.MysqlType)
+			p := getJsonSchemaType(typeTest.MysqlType, typeTest.TreatTinyIntAsBoolean)
 			assert.Equal(t, typeTest.AirbyteType, p.AirbyteType)
 			assert.Equal(t, typeTest.JSONSchemaType, p.Type)
 		})
