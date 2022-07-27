@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/bufbuild/connect-go"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
@@ -38,7 +39,7 @@ func TestRead_CanPeekBeforeRead(t *testing.T) {
 	}
 
 	cc := clientConnectionMock{
-		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
+		syncFn: func(ctx context.Context, in *connect.Request[psdbconnect.SyncRequest]) (*connect.ServerStreamForClient[psdbconnect.SyncResponse], error) {
 			return syncClient, nil
 		},
 	}
@@ -82,7 +83,7 @@ func TestRead_CanEarlyExitIfNoNewVGtidInPeek(t *testing.T) {
 	}
 
 	cc := clientConnectionMock{
-		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
+		syncFn: func(ctx context.Context, in *connect.Request[psdbconnect.SyncRequest]) (*connect.ServerStreamForClient[psdbconnect.SyncResponse], error) {
 			return syncClient, nil
 		},
 	}
@@ -124,8 +125,8 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	}
 
 	cc := clientConnectionMock{
-		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
+		syncFn: func(ctx context.Context, in *connect.Request[psdbconnect.SyncRequest]) (*connect.ServerStreamForClient[psdbconnect.SyncResponse], error) {
+			assert.Equal(t, psdbconnect.TabletType_primary, in.Msg().TabletType)
 			return syncClient, nil
 		},
 	}
