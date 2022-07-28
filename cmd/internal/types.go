@@ -211,10 +211,10 @@ type ConnectionProperty struct {
 	Title       string      `json:"title"`
 	Type        string      `json:"type"`
 	Order       int         `json:"order"`
-	IsSecret    bool        `json:"airbyte_secret"`
-	Minimum     int         `json:"minimum"`
-	Maximum     int         `json:"maximum"`
-	Default     interface{} `json:"default"`
+	IsSecret    bool        `json:"airbyte_secret,omitempty"`
+	Minimum     int         `json:"minimum,omitempty"`
+	Maximum     int         `json:"maximum,omitempty"`
+	Default     interface{} `json:"default,omitempty"`
 }
 
 type ConnectionSpecification struct {
