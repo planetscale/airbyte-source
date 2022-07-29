@@ -3,9 +3,8 @@ package internal
 import (
 	"context"
 	"database/sql"
+	"github.com/bufbuild/connect-go"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
-	"google.golang.org/grpc"
-	"io"
 )
 
 type testAirbyteLogger struct {
@@ -52,7 +51,7 @@ func (testAirbyteLogger) Error(error string) {
 }
 
 type clientConnectionMock struct {
-	syncFn             func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error)
+	syncFn             func(ctx context.Context, in *connect.Request[psdbconnect.SyncRequest]) (*connect.ServerStreamForClient[psdbconnect.SyncResponse], error)
 	syncFnInvoked      bool
 	syncFnInvokedCount int
 }
@@ -60,20 +59,28 @@ type clientConnectionMock struct {
 type connectSyncClientMock struct {
 	lastResponseSent int
 	syncResponses    []*psdbconnect.SyncResponse
-	grpc.ClientStream
 }
 
-func (x *connectSyncClientMock) Recv() (*psdbconnect.SyncResponse, error) {
-	if x.lastResponseSent >= len(x.syncResponses) {
-		return nil, io.EOF
+func (c *connectSyncClientMock) Receive() bool {
+	if c.lastResponseSent >= len(c.syncResponses) {
+		return false
 	}
-	x.lastResponseSent += 1
-	return x.syncResponses[x.lastResponseSent-1], nil
+	c.lastResponseSent += 1
+	return true
 }
-func (c *clientConnectionMock) Sync(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
+
+func (c *connectSyncClientMock) Msg() *psdbconnect.SyncResponse {
+	return c.syncResponses[c.lastResponseSent-1]
+}
+
+func (c *connectSyncClientMock) Err() error {
+	return nil
+}
+
+func (c *clientConnectionMock) Sync(ctx context.Context, in *connect.Request[psdbconnect.SyncRequest]) (*connect.ServerStreamForClient[psdbconnect.SyncResponse], error) {
 	c.syncFnInvoked = true
 	c.syncFnInvokedCount += 1
-	return c.syncFn(ctx, in, opts...)
+	return c.syncFn(ctx, in)
 }
 
 type mysqlAccessMock struct {
