@@ -210,6 +210,16 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 			JSONSchemaType: "string",
 			AirbyteType:    "",
 		},
+		{
+			MysqlType:      "decimal(12,5)",
+			JSONSchemaType: "number",
+			AirbyteType:    "",
+		},
+		{
+			MysqlType:      "double",
+			JSONSchemaType: "number",
+			AirbyteType:    "",
+		},
 	}
 
 	for _, typeTest := range tests {
