@@ -117,7 +117,7 @@ func getJsonSchemaType(mysqlType string, treatTinyIntAsBoolean bool) PropertyTyp
 	}
 
 	if strings.HasPrefix(mysqlType, "datetime") {
-		return PropertyType{Type: "string", AirbyteType: "timestamp_with_timezone"}
+		return PropertyType{Type: "string", CustomFormat: "date-time", AirbyteType: "timestamp_with_timezone"}
 	}
 
 	if mysqlType == "tinyint(1)" {
