@@ -40,7 +40,7 @@ type PlanetScaleEdgeDatabase struct {
 }
 
 func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleSource) error {
-	if err := p.isEdgePassword(ctx, psc); err != nil {
+	if err := p.checkEdgePassword(ctx, psc); err != nil {
 		return errors.New("This password will not function with PlanetScale Connect. Please ensure that your organization is enrolled in the Connect beta. ")
 	}
 
