@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -39,7 +40,23 @@ type PlanetScaleEdgeDatabase struct {
 }
 
 func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleSource) error {
+	if err := p.checkEdgePassword(ctx, psc); err != nil {
+		return errors.New("This password will not function with PlanetScale Connect. Please ensure that your organization is enrolled in the Connect beta. ")
+	}
+
 	return p.Mysql.PingContext(ctx, psc)
+}
+
+func (p PlanetScaleEdgeDatabase) checkEdgePassword(ctx context.Context, psc PlanetScaleSource) error {
+	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, fmt.Sprintf("https://%v", psc.Host), nil)
+	if err != nil {
+		return err
+	}
+
+	_, err = http.DefaultClient.Do(req)
+	return err
 }
 
 func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetScaleSource) (Catalog, error) {
