@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"testing"
 
 	"github.com/planetscale/airbyte-source/cmd/internal"
@@ -33,10 +32,9 @@ func TestDiscoverInvalidSource(t *testing.T) {
 	discover.SetOut(b)
 	discover.Flag("config").Value.Set("catalog.json")
 	discover.Execute()
-	out, err := ioutil.ReadAll(b)
-	assert.NoError(t, err)
+
 	var amsg internal.AirbyteMessage
-	err = json.Unmarshal(out, &amsg)
+	err := json.NewDecoder(b).Decode(&amsg)
 	require.NoError(t, err)
 	assert.Equal(t, internal.CONNECTION_STATUS, amsg.Type)
 	assert.NotNil(t, amsg.ConnectionStatus)
@@ -67,10 +65,8 @@ func TestDiscoverFailed(t *testing.T) {
 	discover.SetOut(b)
 	discover.Flag("config").Value.Set("catalog.json")
 	discover.Execute()
-	out, err := ioutil.ReadAll(b)
-	assert.NoError(t, err)
 	var amsg internal.AirbyteMessage
-	err = json.Unmarshal(out, &amsg)
+	err := json.NewDecoder(b).Decode(&amsg)
 	require.NoError(t, err)
 	assert.Equal(t, internal.LOG, amsg.Type)
 	require.NotNil(t, amsg.Log)
