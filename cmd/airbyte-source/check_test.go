@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -20,9 +19,7 @@ func TestCheckFailsWithoutConfig(t *testing.T) {
 	b := bytes.NewBufferString("")
 	checkCommand.SetOut(b)
 	checkCommand.Execute()
-	out, err := ioutil.ReadAll(b)
-	assert.NoError(t, err)
-	assert.Equal(t, "Please provide path to a valid configuration file\n", string(out))
+	assert.Equal(t, "Please provide path to a valid configuration file\n", b.String())
 }
 
 func TestCheckInvalidCatalogJSON(t *testing.T) {
@@ -35,15 +32,13 @@ func TestCheckInvalidCatalogJSON(t *testing.T) {
 		Logger:     internal.NewLogger(os.Stdout),
 	})
 	b := bytes.NewBufferString("")
-
 	checkCommand.SetArgs([]string{"config source.json"})
 	checkCommand.SetOut(b)
 	checkCommand.Flag("config").Value.Set("catalog.json")
 	checkCommand.Execute()
-	out, err := ioutil.ReadAll(b)
-	assert.NoError(t, err)
+
 	var amsg internal.AirbyteMessage
-	err = json.Unmarshal(out, &amsg)
+	err := json.NewDecoder(b).Decode(&amsg)
 	assert.NoError(t, err)
 	assert.Equal(t, internal.CONNECTION_STATUS, amsg.Type)
 	require.NotNil(t, amsg.ConnectionStatus)
@@ -70,10 +65,9 @@ func TestCheckCredentialsInvalid(t *testing.T) {
 	checkCommand.SetOut(b)
 	checkCommand.Flag("config").Value.Set("catalog.json")
 	checkCommand.Execute()
-	out, err := ioutil.ReadAll(b)
-	assert.NoError(t, err)
+
 	var amsg internal.AirbyteMessage
-	err = json.Unmarshal(out, &amsg)
+	err := json.NewDecoder(b).Decode(&amsg)
 	require.NoError(t, err)
 	assert.Equal(t, internal.CONNECTION_STATUS, amsg.Type)
 	assert.NotNil(t, amsg.ConnectionStatus)
@@ -102,10 +96,9 @@ func TestCheckExecuteSuccessful(t *testing.T) {
 
 	checkCommand.Flag("config").Value.Set("catalog.json")
 	checkCommand.Execute()
-	out, err := ioutil.ReadAll(b)
-	assert.NoError(t, err)
+
 	var amsg internal.AirbyteMessage
-	err = json.Unmarshal(out, &amsg)
+	err := json.NewDecoder(b).Decode(&amsg)
 	require.NoError(t, err)
 	assert.Equal(t, internal.CONNECTION_STATUS, amsg.Type)
 	assert.NotNil(t, amsg.ConnectionStatus)

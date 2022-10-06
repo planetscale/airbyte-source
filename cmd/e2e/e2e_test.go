@@ -3,7 +3,6 @@ package e2e
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -25,10 +24,8 @@ func TestCheck(t *testing.T) {
 	b := bytes.NewBufferString("")
 	checkCommand.SetOut(b)
 	checkCommand.Execute()
-	out, err := ioutil.ReadAll(b)
-	assert.NoError(t, err)
 	var msg internal.AirbyteMessage
-	err = json.Unmarshal(out, &msg)
+	err := json.NewDecoder(b).Decode(&msg)
 	assert.NoError(t, err)
 	assert.Equal(t, internal.CONNECTION_STATUS, msg.Type)
 	require.NotNil(t, msg.ConnectionStatus)
@@ -46,16 +43,14 @@ func TestDiscover(t *testing.T) {
 	b := bytes.NewBufferString("")
 	discover.SetOut(b)
 	discover.Execute()
-	out, err := ioutil.ReadAll(b)
-	assert.NoError(t, err)
 	var msg internal.AirbyteMessage
-	err = json.Unmarshal(out, &msg)
+	err := json.NewDecoder(b).Decode(&msg)
 	assert.NoError(t, err)
 	assert.Equal(t, internal.CATALOG, msg.Type)
 	require.NotNil(t, msg.Catalog)
 	s, err := json.Marshal(msg.Catalog)
 	assert.NoError(t, err)
-	fullCatalog, err := ioutil.ReadFile("../../fixture/sakila-db/full_catalog.json")
+	fullCatalog, err := os.ReadFile("../../fixture/sakila-db/full_catalog.json")
 	assert.NoError(t, err)
 	assert.Equal(t, string(fullCatalog), string(s))
 }

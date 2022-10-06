@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG GO_VERSION=1.18rc1
+ARG GO_VERSION=1.19.2
 FROM golang:${GO_VERSION}-bullseye AS build
 
 WORKDIR /airbyte-source
@@ -16,4 +16,5 @@ RUN apt-get update && apt-get upgrade -y && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /connect /usr/local/bin/
+ENV AIRBYTE_ENTRYPOINT "/usr/local/bin/connect"
 ENTRYPOINT ["/usr/local/bin/connect"]
