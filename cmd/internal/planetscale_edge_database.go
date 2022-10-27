@@ -41,13 +41,16 @@ type PlanetScaleEdgeDatabase struct {
 
 func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleSource) error {
 	if err := p.checkEdgePassword(ctx, psc); err != nil {
-		return errors.New("This password will not function with PlanetScale Connect. Please ensure that your organization is enrolled in the Connect beta. ")
+		return errors.Wrap(err, "Unable to initialize Connect Session")
 	}
 
 	return p.Mysql.PingContext(ctx, psc)
 }
 
 func (p PlanetScaleEdgeDatabase) checkEdgePassword(ctx context.Context, psc PlanetScaleSource) error {
+	if !strings.HasSuffix(psc.Host, ".connect.psdb.cloud") {
+		return errors.New("This password is not connect-enabled, please ensure that your organization is enrolled in the Connect beta.")
+	}
 	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, fmt.Sprintf("https://%v", psc.Host), nil)
@@ -56,7 +59,11 @@ func (p PlanetScaleEdgeDatabase) checkEdgePassword(ctx context.Context, psc Plan
 	}
 
 	_, err = http.DefaultClient.Do(req)
-	return err
+	if err != nil {
+		return errors.New(fmt.Sprintf("The database %q, hosted at %q, is inaccessible from this process", psc.Database, psc.Host))
+	}
+
+	return nil
 }
 
 func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetScaleSource) (Catalog, error) {
