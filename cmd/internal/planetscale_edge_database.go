@@ -60,7 +60,7 @@ func (p PlanetScaleEdgeDatabase) checkEdgePassword(ctx context.Context, psc Plan
 
 	_, err = http.DefaultClient.Do(req)
 	if err != nil {
-		errors.New(fmt.Sprintf("The database %q, hosted at %q, is inaccessible from this process", psc.Database, psc.Host))
+		return errors.New(fmt.Sprintf("The database %q, hosted at %q, is inaccessible from this process", psc.Database, psc.Host))
 	}
 
 	return nil
