@@ -1,10 +1,9 @@
 package airbyte_source
 
 import (
-	"io"
-	"io/ioutil"
-
 	"github.com/planetscale/airbyte-source/cmd/internal"
+	"io"
+	"os"
 )
 
 type Helper struct {
@@ -20,7 +19,7 @@ type FileReader interface {
 type fileReader struct{}
 
 func (f fileReader) ReadFile(path string) ([]byte, error) {
-	return ioutil.ReadFile(path)
+	return os.ReadFile(path)
 }
 
 func DefaultHelper(w io.Writer) *Helper {
