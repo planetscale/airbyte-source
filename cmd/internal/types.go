@@ -189,6 +189,7 @@ type CustomOptionsSpecification struct {
 type CustomOptions struct {
 	Description string                  `json:"description"`
 	Title       string                  `json:"title"`
+	Required    []string                `json:"required"`
 	Type        string                  `json:"type"`
 	Order       int                     `json:"order"`
 	Properties  CustomOptionsProperties `json:"properties"`
@@ -196,6 +197,7 @@ type CustomOptions struct {
 
 type CustomOptionsProperties struct {
 	DoNotTreatTinyIntAsBoolean ConnectionProperty `json:"do_not_treat_tiny_int_as_boolean"`
+	TreatTinyIntAsBoolean      ConnectionProperty `json:"treat_tiny_int_as_boolean"`
 }
 
 type ConnectionProperties struct {
@@ -210,6 +212,7 @@ type ConnectionProperties struct {
 type ConnectionProperty struct {
 	Description string      `json:"description"`
 	Title       string      `json:"title"`
+	Const       string      `json:"const,omitempty"`
 	Type        string      `json:"type"`
 	Order       int         `json:"order"`
 	IsSecret    bool        `json:"airbyte_secret,omitempty"`
