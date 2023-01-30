@@ -42,9 +42,6 @@ func (a *airbyteLogger) Log(level, message string) {
 	})
 }
 
-func (a *airbyteLogger) Spec(spec Spec) {
-}
-
 func (a *airbyteLogger) Catalog(catalog Catalog) {
 	a.recordEncoder.Encode(AirbyteMessage{
 		Type:    CATALOG,
