@@ -193,7 +193,7 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 		{
 			MysqlType:      "datetime",
 			JSONSchemaType: "string",
-			AirbyteType:    "timestamp_with_timezone",
+			AirbyteType:    "timestamp_without_timezone",
 		},
 		{
 			MysqlType:      "date",
