@@ -1,13 +1,13 @@
 # syntax=docker/dockerfile:1
 
-ARG GO_VERSION=1.19.2
+ARG GO_VERSION=1.20.1
 FROM golang:${GO_VERSION}-bullseye AS build
 
 WORKDIR /airbyte-source
 COPY . .
 
 RUN go mod download
-RUN go build -o /connect
+RUN go build -trimpath -o /connect
 
 FROM debian:bullseye-slim
 
