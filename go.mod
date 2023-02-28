@@ -1,19 +1,19 @@
 module github.com/planetscale/airbyte-source
 
-go 1.19
+go 1.20
 
 require (
-	github.com/go-sql-driver/mysql v1.6.0
-	github.com/spf13/cobra v1.4.0
-	github.com/stretchr/testify v1.7.1
-	vitess.io/vitess v0.12.3
+	github.com/go-sql-driver/mysql v1.7.0
+	github.com/spf13/cobra v1.6.1
+	github.com/stretchr/testify v1.8.2
+	vitess.io/vitess v0.15.2
 )
 
 require (
 	github.com/pkg/errors v0.9.1
 	github.com/planetscale/psdb v0.0.0-20220429000526-e2a0e798aaf3
-	google.golang.org/grpc v1.46.0
-	google.golang.org/protobuf v1.28.0
+	google.golang.org/grpc v1.53.0
+	google.golang.org/protobuf v1.28.1
 )
 
 require (
@@ -24,7 +24,7 @@ require (
 	github.com/Microsoft/go-winio v0.5.2 // indirect
 	github.com/armon/go-metrics v0.3.10 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/cespare/xxhash/v2 v2.1.2 // indirect
+	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgraph-io/ristretto v0.1.0 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
@@ -33,15 +33,12 @@ require (
 	github.com/golang/glog v1.0.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
-	github.com/google/go-cmp v0.5.8 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/hashicorp/consul/api v1.11.0 // indirect
 	github.com/hashicorp/go-hclog v1.0.0 // indirect
-	github.com/hashicorp/serf v0.9.6 // indirect
-	github.com/imdario/mergo v0.3.12 // indirect
-	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
@@ -63,17 +60,15 @@ require (
 	github.com/uber/jaeger-client-go v2.30.0+incompatible // indirect
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	golang.org/x/net v0.0.0-20220722155237-a158d28d115b // indirect
-	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a // indirect
-	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4 // indirect
-	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f // indirect
-	golang.org/x/text v0.3.8 // indirect
+	golang.org/x/net v0.7.0 // indirect
+	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/text v0.7.0 // indirect
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306 // indirect
 	golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f // indirect
-	google.golang.org/genproto v0.0.0-20220502173005-c8bf987b8c21 // indirect
+	google.golang.org/genproto v0.0.0-20230227214838-9b19f0bdc514 // indirect
 	gopkg.in/DataDog/dd-trace-go.v1 v1.38.1 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apimachinery v0.23.6 // indirect
 	k8s.io/client-go v0.23.4 // indirect
 	k8s.io/klog/v2 v2.40.1 // indirect
