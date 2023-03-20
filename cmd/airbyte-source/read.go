@@ -112,7 +112,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 						os.Exit(1)
 					}
 
-					sc, err := ch.Database.Read(context.Background(), cmd.OutOrStdout(), psc, table, tc)
+					sc, err := ch.Database.Read(context.Background(), cmd.OutOrStdout(), psc, table.Stream.Namespace, table.Stream.Name, tc)
 					if err != nil {
 						ch.Logger.Error(err.Error())
 						os.Exit(1)

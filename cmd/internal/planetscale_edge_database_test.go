@@ -46,13 +46,7 @@ func TestRead_CanPeekBeforeRead(t *testing.T) {
 		return &cc, nil
 	}
 	ps := PlanetScaleSource{}
-	cs := ConfiguredStream{
-		Stream: Stream{
-			Name:      "customers",
-			Namespace: "connect-test",
-		},
-	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, "connect-test", "customers", tc)
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
@@ -90,13 +84,7 @@ func TestRead_CanEarlyExitIfNoNewVGtidInPeek(t *testing.T) {
 		return &cc, nil
 	}
 	ps := PlanetScaleSource{}
-	cs := ConfiguredStream{
-		Stream: Stream{
-			Name:      "customers",
-			Namespace: "connect-test",
-		},
-	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, "connect-test", "customers", tc)
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
@@ -135,13 +123,7 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	ps := PlanetScaleSource{
 		Database: "connect-test",
 	}
-	cs := ConfiguredStream{
-		Stream: Stream{
-			Name:      "customers",
-			Namespace: "connect-test",
-		},
-	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, "connect-test", "customers", tc)
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
@@ -264,13 +246,7 @@ func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 	ps := PlanetScaleSource{
 		Database: "connect-test",
 	}
-	cs := ConfiguredStream{
-		Stream: Stream{
-			Name:      "customers",
-			Namespace: "connect-test",
-		},
-	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, "connect-test", "customers", tc)
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
@@ -311,13 +287,7 @@ func TestRead_CanReturnOriginalCursorIfNoNewFound(t *testing.T) {
 	ps := PlanetScaleSource{
 		Database: "connect-test",
 	}
-	cs := ConfiguredStream{
-		Stream: Stream{
-			Name:      "customers",
-			Namespace: "connect-test",
-		},
-	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, "connect-test", "customers", tc)
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
@@ -362,13 +332,7 @@ func TestRead_CanReturnNewCursorIfNewFound(t *testing.T) {
 	ps := PlanetScaleSource{
 		Database: "connect-test",
 	}
-	cs := ConfiguredStream{
-		Stream: Stream{
-			Name:      "customers",
-			Namespace: "connect-test",
-		},
-	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, "connect-test", "customers", tc)
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(newTC)
 	assert.NoError(t, err)
@@ -445,14 +409,7 @@ func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
 	ps := PlanetScaleSource{
 		Database: "connect-test",
 	}
-	cs := ConfiguredStream{
-		Stream: Stream{
-			Name:      "customers",
-			Namespace: "connect-test",
-		},
-	}
-
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, responses[0].Cursor)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, "connect-test", "customers", responses[0].Cursor)
 	assert.NoError(t, err)
 	// sync should start at the first vgtid
 	esc, err := TableCursorToSerializedCursor(responses[nextVGtidPosition].Cursor)
@@ -512,13 +469,7 @@ func TestRead_CanLogResults(t *testing.T) {
 	ps := PlanetScaleSource{
 		Database: "connect-test",
 	}
-	cs := ConfiguredStream{
-		Stream: Stream{
-			Name:      "products",
-			Namespace: "connect-test",
-		},
-	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, "connect-test", "products", tc)
 	assert.NoError(t, err)
 	assert.NotNil(t, sc)
 	assert.Equal(t, 2, len(tal.records["connect-test.products"]))
