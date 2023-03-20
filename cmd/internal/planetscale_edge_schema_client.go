@@ -1,0 +1,113 @@
+package internal
+
+import (
+	"context"
+	"strings"
+
+	"github.com/pkg/errors"
+)
+
+type PlanetScaleDatabaseSchemaClient interface {
+	DiscoverSchema(ctx context.Context, ps PlanetScaleSource) (Catalog, error)
+}
+
+type PlanetScaleEdgeDatabaseSchema struct {
+	Logger AirbyteLogger
+	Mysql  PlanetScaleEdgeMysqlAccess
+}
+
+func (p PlanetScaleEdgeDatabaseSchema) DiscoverSchema(ctx context.Context, psc PlanetScaleSource) (Catalog, error) {
+	var c Catalog
+
+	tables, err := p.Mysql.GetTableNames(ctx, psc)
+	if err != nil {
+		return c, errors.Wrap(err, "Unable to query database for schema")
+	}
+
+	for _, tableName := range tables {
+		stream, err := p.getStreamForTable(ctx, psc, tableName)
+		if err != nil {
+			return c, errors.Wrapf(err, "unable to get stream for table %v", tableName)
+		}
+		c.Streams = append(c.Streams, stream)
+	}
+	return c, nil
+}
+
+func (p PlanetScaleEdgeDatabaseSchema) getStreamForTable(ctx context.Context, psc PlanetScaleSource, tableName string) (Stream, error) {
+	schema := StreamSchema{
+		Type:       "object",
+		Properties: map[string]PropertyType{},
+	}
+	stream := Stream{
+		Name:               tableName,
+		Schema:             schema,
+		SupportedSyncModes: []string{"full_refresh", "incremental"},
+		Namespace:          psc.Database,
+	}
+
+	var err error
+	stream.Schema.Properties, err = p.Mysql.GetTableSchema(ctx, psc, tableName)
+	if err != nil {
+		return stream, errors.Wrapf(err, "Unable to get column names & types for table %v", tableName)
+	}
+
+	// need this otherwise Airbyte will fail schema discovery for views
+	// without primary keys.
+	stream.PrimaryKeys = [][]string{}
+	stream.DefaultCursorFields = []string{}
+
+	primaryKeys, err := p.Mysql.GetTablePrimaryKeys(ctx, psc, tableName)
+	if err != nil {
+		return stream, errors.Wrapf(err, "unable to iterate primary keys for table %s", tableName)
+	}
+	for _, key := range primaryKeys {
+		stream.PrimaryKeys = append(stream.PrimaryKeys, []string{key})
+	}
+
+	// pick the last key field as the default cursor field.
+	if len(primaryKeys) > 0 {
+		stream.DefaultCursorFields = append(stream.DefaultCursorFields, primaryKeys[len(primaryKeys)-1])
+	}
+
+	stream.SourceDefinedCursor = true
+	return stream, nil
+}
+
+// Convert columnType to Airbyte type.
+func getJsonSchemaType(mysqlType string, treatTinyIntAsBoolean bool) PropertyType {
+	// Support custom airbyte types documented here :
+	// https://docs.airbyte.com/understanding-airbyte/supported-data-types/#the-types
+	if strings.HasPrefix(mysqlType, "int") {
+		return PropertyType{Type: "integer"}
+	}
+
+	if strings.HasPrefix(mysqlType, "decimal") || strings.HasPrefix(mysqlType, "double") {
+		return PropertyType{Type: "number"}
+	}
+
+	if strings.HasPrefix(mysqlType, "bigint") {
+		return PropertyType{Type: "string", AirbyteType: "big_integer"}
+	}
+
+	if strings.HasPrefix(mysqlType, "datetime") {
+		return PropertyType{Type: "string", CustomFormat: "date-time", AirbyteType: "timestamp_without_timezone"}
+	}
+
+	if mysqlType == "tinyint(1)" {
+		if treatTinyIntAsBoolean {
+			return PropertyType{Type: "boolean"}
+		}
+
+		return PropertyType{Type: "integer"}
+	}
+
+	switch mysqlType {
+	case "date":
+		return PropertyType{Type: "string", AirbyteType: "date"}
+	case "datetime":
+		return PropertyType{Type: "string", AirbyteType: "timestamp_without_timezone"}
+	default:
+		return PropertyType{Type: "string"}
+	}
+}
