@@ -44,6 +44,14 @@ lint:
 	@go install honnef.co/go/tools/cmd/staticcheck@latest
 	@staticcheck ./...
 
+.PHONY: bootstrap
+bootstrap:
+	@go install mvdan.cc/gofumpt@latest
+
+.PHONY: fmt
+fmt: bootstrap
+	$(GOBIN)/gofumpt -w .
+
 .PHONY: licensed
 licensed:
 	licensed cache

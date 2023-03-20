@@ -2,10 +2,11 @@ package internal
 
 import (
 	"fmt"
-	"github.com/go-sql-driver/mysql"
-	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"os"
 	"strings"
+
+	"github.com/go-sql-driver/mysql"
+	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 )
 
 // PlanetScaleSource defines a configured Airbyte Source for a PlanetScale database

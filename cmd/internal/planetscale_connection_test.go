@@ -1,9 +1,10 @@
 package internal
 
 import (
+	"testing"
+
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestCanGenerateSecureDSN(t *testing.T) {

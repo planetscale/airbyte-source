@@ -71,7 +71,6 @@ func parseSource(reader FileReader, configFilePath string) (internal.PlanetScale
 }
 
 func checkConnectionStatus(database internal.PlanetScaleDatabase, psc internal.PlanetScaleSource) (internal.ConnectionStatus, error) {
-
 	if err := database.CanConnect(context.Background(), psc); err != nil {
 		return internal.ConnectionStatus{
 			Status:  "FAILED",

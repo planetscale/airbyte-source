@@ -3,9 +3,10 @@ package internal
 import (
 	"context"
 	"database/sql"
+	"io"
+
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"google.golang.org/grpc"
-	"io"
 )
 
 type testAirbyteLogger struct {
@@ -21,12 +22,12 @@ func (tal *testAirbyteLogger) Log(level, message string) {
 }
 
 func (testAirbyteLogger) Catalog(catalog Catalog) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (testAirbyteLogger) ConnectionStatus(status ConnectionStatus) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
@@ -42,12 +43,12 @@ func (testAirbyteLogger) Flush() {
 }
 
 func (testAirbyteLogger) State(syncState SyncState) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (testAirbyteLogger) Error(error string) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
@@ -70,6 +71,7 @@ func (x *connectSyncClientMock) Recv() (*psdbconnect.SyncResponse, error) {
 	x.lastResponseSent += 1
 	return x.syncResponses[x.lastResponseSent-1], nil
 }
+
 func (c *clientConnectionMock) Sync(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
 	c.syncFnInvoked = true
 	c.syncFnInvokedCount += 1
@@ -89,22 +91,22 @@ func (tma *mysqlAccessMock) PingContext(ctx context.Context, source PlanetScaleS
 }
 
 func (mysqlAccessMock) GetTableNames(ctx context.Context, source PlanetScaleSource) ([]string, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (mysqlAccessMock) GetTableSchema(ctx context.Context, source PlanetScaleSource, s string) (map[string]PropertyType, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (mysqlAccessMock) GetTablePrimaryKeys(ctx context.Context, source PlanetScaleSource, s string) ([]string, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (mysqlAccessMock) QueryContext(ctx context.Context, psc PlanetScaleSource, query string, args ...interface{}) (*sql.Rows, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
@@ -114,7 +116,7 @@ func (tma *mysqlAccessMock) GetVitessTablets(ctx context.Context, psc PlanetScal
 }
 
 func (mysqlAccessMock) GetVitessShards(ctx context.Context, psc PlanetScaleSource) ([]string, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 func (mysqlAccessMock) Close() error { return nil }

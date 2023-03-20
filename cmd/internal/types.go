@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/base64"
+
 	"github.com/pkg/errors"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/planetscale/psdb/core/codec"
@@ -99,9 +100,7 @@ type SerializedCursor struct {
 }
 
 func (s SerializedCursor) SerializedCursorToTableCursor(table ConfiguredStream) (*psdbconnect.TableCursor, error) {
-	var (
-		tc psdbconnect.TableCursor
-	)
+	var tc psdbconnect.TableCursor
 	decoded, err := base64.StdEncoding.DecodeString(s.Cursor)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to decode table cursor")

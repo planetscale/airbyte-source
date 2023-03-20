@@ -6,6 +6,10 @@ import (
 	"fmt"
 	"os"
 
+	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
+
+	"vitess.io/vitess/go/sqltypes"
+
 	"github.com/planetscale/airbyte-source/cmd/internal"
 	"github.com/spf13/cobra"
 )
@@ -112,7 +116,20 @@ func ReadCommand(ch *Helper) *cobra.Command {
 						os.Exit(1)
 					}
 
-					sc, err := ch.Database.Read(context.Background(), cmd.OutOrStdout(), psc, table.Stream.Namespace, table.Stream.Name, tc)
+					onResult := func(keyspace string, table string, result *sqltypes.Result) error {
+						data := internal.QueryResultToRecords(result)
+						for _, record := range data {
+							ch.Logger.Record(keyspace, table, record)
+						}
+						return nil
+					}
+
+					onCursor := func(*psdbconnect.TableCursor) error {
+						// do nothing here since all state is captured at the end of the sync process.
+						return nil
+					}
+
+					sc, err := ch.Database.Read(context.Background(), psc, table.Stream.Namespace, table.Stream.Name, tc, onResult, onCursor)
 					if err != nil {
 						ch.Logger.Error(err.Error())
 						os.Exit(1)

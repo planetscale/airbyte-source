@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"testing"
+
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
-	"os"
-	"testing"
+
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/proto/query"
 )
@@ -46,7 +47,7 @@ func TestRead_CanPeekBeforeRead(t *testing.T) {
 		return &cc, nil
 	}
 	ps := PlanetScaleSource{}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, "connect-test", "customers", tc)
+	sc, err := ped.Read(context.Background(), ps, "connect-test", "customers", tc, nil, nil)
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
@@ -84,7 +85,7 @@ func TestRead_CanEarlyExitIfNoNewVGtidInPeek(t *testing.T) {
 		return &cc, nil
 	}
 	ps := PlanetScaleSource{}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, "connect-test", "customers", tc)
+	sc, err := ped.Read(context.Background(), ps, "connect-test", "customers", tc, nil, nil)
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
@@ -123,7 +124,7 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	ps := PlanetScaleSource{
 		Database: "connect-test",
 	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, "connect-test", "customers", tc)
+	sc, err := ped.Read(context.Background(), ps, "connect-test", "customers", tc, nil, nil)
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
@@ -134,7 +135,7 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 }
 
 func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		MysqlType             string
 		JSONSchemaType        string
 		AirbyteType           string
@@ -205,7 +206,6 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 	}
 
 	for _, typeTest := range tests {
-
 		t.Run(fmt.Sprintf("mysql_type_%v", typeTest.MysqlType), func(t *testing.T) {
 			p := getJsonSchemaType(typeTest.MysqlType, typeTest.TreatTinyIntAsBoolean)
 			assert.Equal(t, typeTest.AirbyteType, p.AirbyteType)
@@ -213,6 +213,7 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 		})
 	}
 }
+
 func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
@@ -246,7 +247,7 @@ func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 	ps := PlanetScaleSource{
 		Database: "connect-test",
 	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, "connect-test", "customers", tc)
+	sc, err := ped.Read(context.Background(), ps, "connect-test", "customers", tc, nil, nil)
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
@@ -287,7 +288,7 @@ func TestRead_CanReturnOriginalCursorIfNoNewFound(t *testing.T) {
 	ps := PlanetScaleSource{
 		Database: "connect-test",
 	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, "connect-test", "customers", tc)
+	sc, err := ped.Read(context.Background(), ps, "connect-test", "customers", tc, nil, nil)
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
@@ -332,7 +333,7 @@ func TestRead_CanReturnNewCursorIfNewFound(t *testing.T) {
 	ps := PlanetScaleSource{
 		Database: "connect-test",
 	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, "connect-test", "customers", tc)
+	sc, err := ped.Read(context.Background(), ps, "connect-test", "customers", tc, nil, nil)
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(newTC)
 	assert.NoError(t, err)
@@ -409,7 +410,14 @@ func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
 	ps := PlanetScaleSource{
 		Database: "connect-test",
 	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, "connect-test", "customers", responses[0].Cursor)
+
+	recordCount := 0
+	onResult := func(string, string, *sqltypes.Result) error {
+		recordCount++
+
+		return nil
+	}
+	sc, err := ped.Read(context.Background(), ps, "connect-test", "customers", responses[0].Cursor, onResult, nil)
 	assert.NoError(t, err)
 	// sync should start at the first vgtid
 	esc, err := TableCursorToSerializedCursor(responses[nextVGtidPosition].Cursor)
@@ -419,8 +427,8 @@ func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
 
 	logLines := tal.logMessages[LOGLEVEL_INFO]
 	assert.Equal(t, "[connect-test:customers shard : -] Finished reading all rows for table [customers]", logLines[len(logLines)-1])
-	records := tal.records["connect-test.customers"]
-	assert.Equal(t, 2*(nextVGtidPosition/3), len(records))
+	// records := tal.records["connect-test.customers"]
+	assert.Equal(t, 2*(nextVGtidPosition/3), recordCount)
 }
 
 func TestRead_CanLogResults(t *testing.T) {
@@ -469,28 +477,33 @@ func TestRead_CanLogResults(t *testing.T) {
 	ps := PlanetScaleSource{
 		Database: "connect-test",
 	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, "connect-test", "products", tc)
-	assert.NoError(t, err)
-	assert.NotNil(t, sc)
-	assert.Equal(t, 2, len(tal.records["connect-test.products"]))
-	records := tal.records["connect-test.products"]
+
 	keyboardFound := false
 	monitorFound := false
-	for _, r := range records {
-		id, err := r["pid"].(sqltypes.Value).ToInt64()
+	recordCount := 0
+	onResult := func(k string, table string, result *sqltypes.Result) error {
+		data := QueryResultToRecords(result)
+
+		id, err := data[0]["pid"].(sqltypes.Value).ToInt64()
 		assert.NoError(t, err)
 		if id == 1 {
 			assert.False(t, keyboardFound, "should not find keyboard twice")
 			keyboardFound = true
-			assert.Equal(t, "keyboard", r["description"].(sqltypes.Value).ToString())
+			assert.Equal(t, "keyboard", data[0]["description"].(sqltypes.Value).ToString())
 		}
 
 		if id == 2 {
 			assert.False(t, monitorFound, "should not find monitor twice")
 			monitorFound = true
-			assert.Equal(t, "monitor", r["description"].(sqltypes.Value).ToString())
+			assert.Equal(t, "monitor", data[0]["description"].(sqltypes.Value).ToString())
 		}
+		recordCount += 1
+		return nil
 	}
+	sc, err := ped.Read(context.Background(), ps, "connect-test", "products", tc, onResult, nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, sc)
+	assert.Equal(t, 2, recordCount)
 	assert.True(t, keyboardFound)
 	assert.True(t, monitorFound)
 }

@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
-	"github.com/planetscale/airbyte-source/cmd/airbyte-source"
 	"os"
 	"os/signal"
+
+	"github.com/planetscale/airbyte-source/cmd/airbyte-source"
 )
 
 var (

@@ -4,10 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/pkg/errors"
-	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
+	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 )
 
 type VitessTablet struct {
@@ -87,10 +88,10 @@ func (p planetScaleEdgeMySQLAccess) GetVitessTablets(ctx context.Context, psc Pl
 	for tabletsQR.Next() {
 		vt := VitessTablet{}
 		// output is of the form :
-		//aws_useast1c_5 connect-test - PRIMARY SERVING aws_useast1c_5-2797914161 10.200.131.217 2022-05-09T14:11:56Z
-		//aws_useast1c_5 connect-test - REPLICA SERVING aws_useast1c_5-1559247072 10.200.178.136
-		//aws_useast1c_5 connect-test - PRIMARY SERVING aws_useast1c_5-2797914161 10.200.131.217 2022-05-09T14:11:56Z
-		//aws_useast1c_5 connect-test - REPLICA SERVING aws_useast1c_5-1559247072 10.200.178.136
+		// aws_useast1c_5 connect-test - PRIMARY SERVING aws_useast1c_5-2797914161 10.200.131.217 2022-05-09T14:11:56Z
+		// aws_useast1c_5 connect-test - REPLICA SERVING aws_useast1c_5-1559247072 10.200.178.136
+		// aws_useast1c_5 connect-test - PRIMARY SERVING aws_useast1c_5-2797914161 10.200.131.217 2022-05-09T14:11:56Z
+		// aws_useast1c_5 connect-test - REPLICA SERVING aws_useast1c_5-1559247072 10.200.178.136
 		err := tabletsQR.Scan(&vt.Cell, &vt.Keyspace, &vt.Shard, &vt.TabletType, &vt.State, &vt.Alias, &vt.Hostname, &vt.PrimaryTermStartTime)
 		if err != nil {
 			return tablets, err
@@ -104,7 +105,6 @@ func (p planetScaleEdgeMySQLAccess) GetVitessTablets(ctx context.Context, psc Pl
 }
 
 func (p planetScaleEdgeMySQLAccess) PingContext(ctx context.Context, psc PlanetScaleSource) error {
-
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	return p.db.PingContext(ctx)
@@ -173,7 +173,6 @@ func (p planetScaleEdgeMySQLAccess) GetTablePrimaryKeys(ctx context.Context, psc
 		"select column_name from information_schema.columns where table_schema=? AND table_name=? AND column_key='PRI';",
 		psc.Database, tableName,
 	)
-
 	if err != nil {
 		return primaryKeys, errors.Wrapf(err, "Unable to scan row for primary keys of table %v", tableName)
 	}

@@ -2,7 +2,6 @@ package airbyte_source
 
 import (
 	"context"
-	"io"
 
 	"github.com/planetscale/airbyte-source/cmd/internal"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
@@ -43,7 +42,7 @@ func (td testDatabase) DiscoverSchema(ctx context.Context, ps internal.PlanetSca
 	return td.discoverSchemaResponse.catalog, td.discoverSchemaResponse.err
 }
 
-func (td testDatabase) Read(ctx context.Context, w io.Writer, ps internal.PlanetScaleSource, keyspaceName string, tableName string, tc *psdbconnect.TableCursor) (*internal.SerializedCursor, error) {
+func (td testDatabase) Read(ctx context.Context, ps internal.PlanetScaleSource, keyspaceName string, tableName string, lastKnownPosition *psdbconnect.TableCursor, onResult internal.OnResult, onCursor internal.OnCursor) (*internal.SerializedCursor, error) {
 	// TODO implement me
 	panic("implement me")
 }

@@ -21,7 +21,7 @@ import (
 )
 
 type (
-	OnResult func(*sqltypes.Result) error
+	OnResult func(string, string, *sqltypes.Result) error
 	OnCursor func(*psdbconnect.TableCursor) error
 )
 
@@ -31,7 +31,7 @@ type PlanetScaleDatabase interface {
 	CanConnect(ctx context.Context, ps PlanetScaleSource) error
 	DiscoverSchema(ctx context.Context, ps PlanetScaleSource) (Catalog, error)
 	ListShards(ctx context.Context, ps PlanetScaleSource) ([]string, error)
-	Read(ctx context.Context, w io.Writer, ps PlanetScaleSource, keyspaceName string, tableName string, tc *psdbconnect.TableCursor) (*SerializedCursor, error)
+	Read(ctx context.Context, ps PlanetScaleSource, keyspaceName string, tableName string, lastKnownPosition *psdbconnect.TableCursor, onResult OnResult, onCursor OnCursor) (*SerializedCursor, error)
 	Close() error
 }
 
@@ -181,7 +181,7 @@ func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScale
 // 3. Ask vstream to stream from the last known vgtid
 // 4. When we reach the stopping point, read all rows available at this vgtid
 // 5. End the stream when (a) a vgtid newer than latest vgtid is encountered or (b) the timeout kicks in.
-func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleSource, keyspaceName string, tableName string, lastKnownPosition *psdbconnect.TableCursor) (*SerializedCursor, error) {
+func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, ps PlanetScaleSource, keyspaceName string, tableName string, lastKnownPosition *psdbconnect.TableCursor, onResult OnResult, onCursor OnCursor) (*SerializedCursor, error) {
 	var (
 		err                     error
 		sErr                    error
@@ -207,7 +207,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("new rows found, syncing rows for %v", readDuration))
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf(preamble+"syncing rows with cursor [%v]", currentPosition))
 
-		currentPosition, err = p.sync(ctx, currentPosition, latestCursorPosition, keyspaceName, tableName, ps, tabletType, readDuration)
+		currentPosition, err = p.sync(ctx, currentPosition, latestCursorPosition, keyspaceName, tableName, ps, tabletType, readDuration, onResult, onCursor)
 		if currentPosition.Position != "" {
 			currentSerializedCursor, sErr = TableCursorToSerializedCursor(currentPosition)
 			if sErr != nil {
@@ -235,7 +235,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	}
 }
 
-func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, stopPosition, keyspaceName, tableName string, ps PlanetScaleSource, tabletType psdbconnect.TabletType, readDuration time.Duration) (*psdbconnect.TableCursor, error) {
+func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, stopPosition, keyspaceName, tableName string, ps PlanetScaleSource, tabletType psdbconnect.TabletType, readDuration time.Duration, onResult OnResult, onCursor OnCursor) (*psdbconnect.TableCursor, error) {
 	defer p.Logger.Flush()
 	ctx, cancel := context.WithTimeout(ctx, readDuration)
 	defer cancel()
@@ -283,11 +283,6 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		return tc, err
 	}
 
-	keyspaceOrDatabase := keyspaceName
-	if keyspaceOrDatabase == "" {
-		keyspaceOrDatabase = ps.Database
-	}
-
 	// stop when we've reached the well known stop position for this sync session.
 	watchForVgGtidChange := false
 
@@ -300,6 +295,12 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 
 		if res.Cursor != nil {
 			tc = res.Cursor
+
+			if onCursor != nil {
+				if err := onCursor(tc); err != nil {
+					return tc, errors.Wrap(err, "unable to print cursor to stdout")
+				}
+			}
 		}
 
 		// Because of the ordering of events in a vstream
@@ -318,7 +319,12 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 					}
 					sqlResult.Rows = append(sqlResult.Rows, row)
 					// print AirbyteRecord messages to stdout here.
-					p.printQueryResult(sqlResult, keyspaceOrDatabase, tableName)
+					if onResult != nil {
+						if err := onResult(keyspaceName, tableName, sqlResult); err != nil {
+							return tc, errors.Wrap(err, "unable to print result to stdout")
+						}
+					}
+					// p.printQueryResult(sqlResult, keyspaceOrDatabase, tableName)
 				}
 			}
 		}
@@ -384,15 +390,5 @@ func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, sh
 		if res.Cursor != nil {
 			return res.Cursor.Position, nil
 		}
-	}
-}
-
-// printQueryResult will pretty-print an AirbyteRecordMessage to the logger.
-// Copied from vtctl/query.go
-func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableNamespace, tableName string) {
-	data := QueryResultToRecords(qr)
-
-	for _, record := range data {
-		p.Logger.Record(tableNamespace, tableName, record)
 	}
 }
