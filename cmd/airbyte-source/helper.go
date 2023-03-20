@@ -8,9 +8,10 @@ import (
 )
 
 type Helper struct {
-	Database   internal.PlanetScaleDatabase
-	FileReader FileReader
-	Logger     internal.AirbyteLogger
+	Database     internal.PlanetScaleDatabase
+	SchemaClient internal.PlanetScaleDatabaseSchemaClient
+	FileReader   FileReader
+	Logger       internal.AirbyteLogger
 }
 
 type FileReader interface {
@@ -41,6 +42,11 @@ func (h *Helper) EnsureDB(psc internal.PlanetScaleSource) error {
 		return err
 	}
 	h.Database = internal.PlanetScaleEdgeDatabase{
+		Logger: h.Logger,
+		Mysql:  mysql,
+	}
+
+	h.SchemaClient = internal.PlanetScaleEdgeDatabaseSchema{
 		Logger: h.Logger,
 		Mysql:  mysql,
 	}

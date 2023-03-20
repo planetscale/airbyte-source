@@ -25,53 +25,16 @@ type (
 	OnCursor func(*psdbconnect.TableCursor) error
 )
 
-// PlanetScaleDatabase is a general purpose interface
-// that defines all the data access methods needed for the PlanetScale Airbyte source to function.
-type PlanetScaleDatabase interface {
-	CanConnect(ctx context.Context, ps PlanetScaleSource) error
+type PlanetScaleDatabaseSchemaClient interface {
 	DiscoverSchema(ctx context.Context, ps PlanetScaleSource) (Catalog, error)
-	ListShards(ctx context.Context, ps PlanetScaleSource) ([]string, error)
-	Read(ctx context.Context, ps PlanetScaleSource, keyspaceName string, tableName string, lastKnownPosition *psdbconnect.TableCursor, onResult OnResult, onCursor OnCursor) (*SerializedCursor, error)
-	Close() error
 }
 
-// PlanetScaleEdgeDatabase is an implementation of the PlanetScaleDatabase interface defined above.
-// It uses the mysql interface provided by PlanetScale for all schema/shard/tablet discovery and
-// the grpc API for incrementally syncing rows from PlanetScale.
-type PlanetScaleEdgeDatabase struct {
-	Logger   AirbyteLogger
-	Mysql    PlanetScaleEdgeMysqlAccess
-	clientFn func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error)
+type PlanetScaleEdgeDatabaseSchema struct {
+	Logger AirbyteLogger
+	Mysql  PlanetScaleEdgeMysqlAccess
 }
 
-func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleSource) error {
-	if err := p.checkEdgePassword(ctx, psc); err != nil {
-		return errors.Wrap(err, "Unable to initialize Connect Session")
-	}
-
-	return p.Mysql.PingContext(ctx, psc)
-}
-
-func (p PlanetScaleEdgeDatabase) checkEdgePassword(ctx context.Context, psc PlanetScaleSource) error {
-	if !strings.HasSuffix(psc.Host, ".connect.psdb.cloud") {
-		return errors.New("This password is not connect-enabled, please ensure that your organization is enrolled in the Connect beta.")
-	}
-	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, fmt.Sprintf("https://%v", psc.Host), nil)
-	if err != nil {
-		return err
-	}
-
-	_, err = http.DefaultClient.Do(req)
-	if err != nil {
-		return errors.New(fmt.Sprintf("The database %q, hosted at %q, is inaccessible from this process", psc.Database, psc.Host))
-	}
-
-	return nil
-}
-
-func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetScaleSource) (Catalog, error) {
+func (p PlanetScaleEdgeDatabaseSchema) DiscoverSchema(ctx context.Context, psc PlanetScaleSource) (Catalog, error) {
 	var c Catalog
 
 	tables, err := p.Mysql.GetTableNames(ctx, psc)
@@ -89,7 +52,7 @@ func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetS
 	return c, nil
 }
 
-func (p PlanetScaleEdgeDatabase) getStreamForTable(ctx context.Context, psc PlanetScaleSource, tableName string) (Stream, error) {
+func (p PlanetScaleEdgeDatabaseSchema) getStreamForTable(ctx context.Context, psc PlanetScaleSource, tableName string) (Stream, error) {
 	schema := StreamSchema{
 		Type:       "object",
 		Properties: map[string]PropertyType{},
@@ -165,6 +128,51 @@ func getJsonSchemaType(mysqlType string, treatTinyIntAsBoolean bool) PropertyTyp
 	default:
 		return PropertyType{Type: "string"}
 	}
+}
+
+// PlanetScaleDatabase is a general purpose interface
+// that defines all the data access methods needed for the PlanetScale Airbyte source to function.
+type PlanetScaleDatabase interface {
+	CanConnect(ctx context.Context, ps PlanetScaleSource) error
+	ListShards(ctx context.Context, ps PlanetScaleSource) ([]string, error)
+	Read(ctx context.Context, ps PlanetScaleSource, keyspaceName string, tableName string, lastKnownPosition *psdbconnect.TableCursor, onResult OnResult, onCursor OnCursor) (*SerializedCursor, error)
+	Close() error
+}
+
+// PlanetScaleEdgeDatabase is an implementation of the PlanetScaleDatabase interface defined above.
+// It uses the mysql interface provided by PlanetScale for all schema/shard/tablet discovery and
+// the grpc API for incrementally syncing rows from PlanetScale.
+type PlanetScaleEdgeDatabase struct {
+	Logger   AirbyteLogger
+	Mysql    PlanetScaleEdgeMysqlAccess
+	clientFn func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error)
+}
+
+func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleSource) error {
+	if err := p.checkEdgePassword(ctx, psc); err != nil {
+		return errors.Wrap(err, "Unable to initialize Connect Session")
+	}
+
+	return p.Mysql.PingContext(ctx, psc)
+}
+
+func (p PlanetScaleEdgeDatabase) checkEdgePassword(ctx context.Context, psc PlanetScaleSource) error {
+	if !strings.HasSuffix(psc.Host, ".connect.psdb.cloud") {
+		return errors.New("This password is not connect-enabled, please ensure that your organization is enrolled in the Connect beta.")
+	}
+	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, fmt.Sprintf("https://%v", psc.Host), nil)
+	if err != nil {
+		return err
+	}
+
+	_, err = http.DefaultClient.Do(req)
+	if err != nil {
+		return errors.New(fmt.Sprintf("The database %q, hosted at %q, is inaccessible from this process", psc.Database, psc.Host))
+	}
+
+	return nil
 }
 
 func (p PlanetScaleEdgeDatabase) Close() error {
@@ -324,7 +332,6 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 							return tc, errors.Wrap(err, "unable to print result to stdout")
 						}
 					}
-					// p.printQueryResult(sqlResult, keyspaceOrDatabase, tableName)
 				}
 			}
 		}

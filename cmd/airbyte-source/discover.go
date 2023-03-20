@@ -52,7 +52,7 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 				}
 			}()
 
-			c, err := ch.Database.DiscoverSchema(context.Background(), psc)
+			c, err := ch.SchemaClient.DiscoverSchema(context.Background(), psc)
 			if err != nil {
 				ch.Logger.Log(internal.LOGLEVEL_ERROR, fmt.Sprintf("Unable to discover database, failed with [%v]", err))
 				return

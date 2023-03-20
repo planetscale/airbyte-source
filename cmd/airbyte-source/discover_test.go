@@ -56,9 +56,10 @@ func TestDiscoverFailed(t *testing.T) {
 	}
 	b := bytes.NewBufferString("")
 	discover := DiscoverCommand(&Helper{
-		Database:   td,
-		FileReader: tfr,
-		Logger:     internal.NewLogger(b),
+		Database:     td,
+		SchemaClient: td,
+		FileReader:   tfr,
+		Logger:       internal.NewLogger(b),
 	})
 	discover.SetArgs([]string{"config source.json"})
 
