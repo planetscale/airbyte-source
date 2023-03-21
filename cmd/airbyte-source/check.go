@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+
 	"github.com/planetscale/airbyte-source/cmd/types"
 	"github.com/planetscale/airbyte-source/shared"
-	"os"
 
 	"github.com/spf13/cobra"
 )

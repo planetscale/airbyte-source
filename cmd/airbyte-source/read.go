@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/planetscale/airbyte-source/cmd/types"
 	"os"
+
+	"github.com/planetscale/airbyte-source/cmd/types"
 
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 

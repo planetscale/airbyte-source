@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/planetscale/airbyte-source/cmd/types"
 	"testing"
+
+	"github.com/planetscale/airbyte-source/cmd/types"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

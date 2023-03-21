@@ -3,9 +3,10 @@ package e2e
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/planetscale/airbyte-source/cmd/types"
 	"os"
 	"testing"
+
+	"github.com/planetscale/airbyte-source/cmd/types"
 
 	airbyte_source "github.com/planetscale/airbyte-source/cmd/airbyte-source"
 	"github.com/stretchr/testify/assert"

@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/planetscale/airbyte-source/cmd/types"
 	"testing"
+
+	"github.com/planetscale/airbyte-source/cmd/types"
 
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/stretchr/testify/assert"

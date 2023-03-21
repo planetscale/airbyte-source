@@ -1,10 +1,11 @@
 package airbyte_source
 
 import (
-	"github.com/planetscale/airbyte-source/cmd/types"
-	"github.com/planetscale/airbyte-source/shared"
 	"io"
 	"os"
+
+	"github.com/planetscale/airbyte-source/cmd/types"
+	"github.com/planetscale/airbyte-source/shared"
 )
 
 type Helper struct {

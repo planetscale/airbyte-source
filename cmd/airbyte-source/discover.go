@@ -3,8 +3,9 @@ package airbyte_source
 import (
 	"context"
 	"fmt"
-	"github.com/planetscale/airbyte-source/cmd/types"
 	"os"
+
+	"github.com/planetscale/airbyte-source/cmd/types"
 
 	"github.com/spf13/cobra"
 )

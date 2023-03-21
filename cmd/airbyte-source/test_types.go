@@ -2,6 +2,7 @@ package airbyte_source
 
 import (
 	"context"
+
 	"github.com/planetscale/airbyte-source/cmd/types"
 	"github.com/planetscale/airbyte-source/shared"
 

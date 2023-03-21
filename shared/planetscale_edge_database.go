@@ -3,11 +3,12 @@ package shared
 import (
 	"context"
 	"fmt"
-	"github.com/planetscale/airbyte-source/cmd/types"
 	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/planetscale/airbyte-source/cmd/types"
 
 	"github.com/pkg/errors"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"

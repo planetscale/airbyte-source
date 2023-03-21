@@ -3,8 +3,9 @@ package shared
 import (
 	"context"
 	"database/sql"
-	"github.com/planetscale/airbyte-source/cmd/types"
 	"io"
+
+	"github.com/planetscale/airbyte-source/cmd/types"
 
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"google.golang.org/grpc"

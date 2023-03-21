@@ -2,8 +2,9 @@ package shared
 
 import (
 	"context"
-	"github.com/planetscale/airbyte-source/cmd/types"
 	"strings"
+
+	"github.com/planetscale/airbyte-source/cmd/types"
 
 	"github.com/pkg/errors"
 )

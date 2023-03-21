@@ -4,9 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/planetscale/airbyte-source/cmd/types"
 	"strings"
 	"time"
+
+	"github.com/planetscale/airbyte-source/cmd/types"
 
 	"github.com/pkg/errors"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
