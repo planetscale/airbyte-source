@@ -171,12 +171,16 @@ type VitessTablet struct {
 	PrimaryTermStartTime string
 }
 
-type AirbyteLogger interface {
+type Logger interface {
 	Log(level, message string)
+	Flush()
+}
+
+type AirbyteLogger interface {
+	Logger
 	Catalog(catalog Catalog)
 	ConnectionStatus(status ConnectionStatus)
 	Record(tableNamespace, tableName string, data map[string]interface{})
-	Flush()
 	State(syncState SyncState)
 	Error(error string)
 }

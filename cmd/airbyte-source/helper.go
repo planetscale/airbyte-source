@@ -41,10 +41,7 @@ func (h *Helper) EnsureDB(psc types.PlanetScaleSource) error {
 	if err != nil {
 		return err
 	}
-	h.Database = shared.PlanetScaleEdgeDatabase{
-		Logger: h.Logger,
-		Mysql:  mysql,
-	}
+	h.Database = shared.NewPlanetScaleEdgeDatabase(mysql, h.Logger)
 
 	h.SchemaClient = shared.PlanetScaleEdgeDatabaseSchema{
 		Logger: h.Logger,

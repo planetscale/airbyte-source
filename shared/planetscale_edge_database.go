@@ -34,11 +34,18 @@ type PlanetScaleDatabase interface {
 	Close() error
 }
 
+func NewPlanetScaleEdgeDatabase(mysql PlanetScaleEdgeMysqlAccess, logger types.Logger) PlanetScaleDatabase {
+	return &PlanetScaleEdgeDatabase{
+		Mysql:  mysql,
+		Logger: logger,
+	}
+}
+
 // PlanetScaleEdgeDatabase is an implementation of the PlanetScaleDatabase interface defined above.
 // It uses the mysql interface provided by PlanetScale for all schema/shard/tablet discovery and
 // the grpc API for incrementally syncing rows from PlanetScale.
 type PlanetScaleEdgeDatabase struct {
-	Logger   types.AirbyteLogger
+	Logger   types.Logger
 	Mysql    PlanetScaleEdgeMysqlAccess
 	clientFn func(ctx context.Context, ps types.PlanetScaleAuthentication) (psdbconnect.ConnectClient, error)
 }
