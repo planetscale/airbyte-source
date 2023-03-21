@@ -5,9 +5,16 @@ import (
 	"os"
 	"strings"
 
+	"github.com/planetscale/psdb/auth"
+
 	"github.com/go-sql-driver/mysql"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 )
+
+type PlanetScaleAuthentication interface {
+	GetHostname() string
+	GetAuthorizationHeader() *auth.Authorization
+}
 
 // PlanetScaleSource defines a configured Airbyte Source for a PlanetScale database
 type PlanetScaleSource struct {
@@ -21,6 +28,14 @@ type PlanetScaleSource struct {
 
 type CustomSourceOptions struct {
 	DoNotTreatTinyIntAsBoolean bool `json:"do_not_treat_tiny_int_as_boolean"`
+}
+
+func (psc PlanetScaleSource) GetHostname() string {
+	return psc.Host
+}
+
+func (psc PlanetScaleSource) GetAuthorizationHeader() *auth.Authorization {
+	return auth.NewBasicAuth(psc.Username, psc.Password)
 }
 
 // DSN returns a DataSource that mysql libraries can use to connect to a PlanetScale database.

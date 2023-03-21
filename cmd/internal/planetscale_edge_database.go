@@ -10,7 +10,6 @@ import (
 
 	"github.com/pkg/errors"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
-	"github.com/planetscale/psdb/auth"
 	grpcclient "github.com/planetscale/psdb/core/pool"
 	clientoptions "github.com/planetscale/psdb/core/pool/options"
 	"google.golang.org/grpc/codes"
@@ -30,7 +29,7 @@ type (
 type PlanetScaleDatabase interface {
 	CanConnect(ctx context.Context, ps PlanetScaleSource) error
 	ListShards(ctx context.Context, ps PlanetScaleSource) ([]string, error)
-	Read(ctx context.Context, ps PlanetScaleSource, keyspaceName string, tableName string, lastKnownPosition *psdbconnect.TableCursor, onResult OnResult, onCursor OnCursor) (*SerializedCursor, error)
+	Read(ctx context.Context, ps PlanetScaleAuthentication, keyspaceName string, tableName string, lastKnownPosition *psdbconnect.TableCursor, onResult OnResult, onCursor OnCursor) (*SerializedCursor, error)
 	Close() error
 }
 
@@ -40,7 +39,7 @@ type PlanetScaleDatabase interface {
 type PlanetScaleEdgeDatabase struct {
 	Logger   AirbyteLogger
 	Mysql    PlanetScaleEdgeMysqlAccess
-	clientFn func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error)
+	clientFn func(ctx context.Context, ps PlanetScaleAuthentication) (psdbconnect.ConnectClient, error)
 }
 
 func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleSource) error {
@@ -84,7 +83,7 @@ func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScale
 // 3. Ask vstream to stream from the last known vgtid
 // 4. When we reach the stopping point, read all rows available at this vgtid
 // 5. End the stream when (a) a vgtid newer than latest vgtid is encountered or (b) the timeout kicks in.
-func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, ps PlanetScaleSource, keyspaceName string, tableName string, lastKnownPosition *psdbconnect.TableCursor, onResult OnResult, onCursor OnCursor) (*SerializedCursor, error) {
+func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, ps PlanetScaleAuthentication, keyspaceName string, tableName string, lastKnownPosition *psdbconnect.TableCursor, onResult OnResult, onCursor OnCursor) (*SerializedCursor, error) {
 	var (
 		err                     error
 		sErr                    error
@@ -138,7 +137,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, ps PlanetScaleSource,
 	}
 }
 
-func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, stopPosition, keyspaceName, tableName string, ps PlanetScaleSource, tabletType psdbconnect.TabletType, readDuration time.Duration, onResult OnResult, onCursor OnCursor) (*psdbconnect.TableCursor, error) {
+func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, stopPosition, keyspaceName, tableName string, ps PlanetScaleAuthentication, tabletType psdbconnect.TabletType, readDuration time.Duration, onResult OnResult, onCursor OnCursor) (*psdbconnect.TableCursor, error) {
 	defer p.Logger.Flush()
 	ctx, cancel := context.WithTimeout(ctx, readDuration)
 	defer cancel()
@@ -149,12 +148,12 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 	)
 
 	if p.clientFn == nil {
-		conn, err := grpcclient.Dial(ctx, ps.Host,
+		conn, err := grpcclient.Dial(ctx, ps.GetHostname(),
 			clientoptions.WithDefaultTLSConfig(),
 			clientoptions.WithCompression(true),
 			clientoptions.WithConnectionPool(1),
 			clientoptions.WithExtraCallOption(
-				auth.NewBasicAuth(ps.Username, ps.Password).CallOption(),
+				ps.GetAuthorizationHeader().CallOption(),
 			),
 		)
 		if err != nil {
@@ -237,7 +236,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 	}
 }
 
-func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, shard, keyspace string, tableName string, ps PlanetScaleSource, tabletType psdbconnect.TabletType) (string, error) {
+func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, shard, keyspace string, tableName string, ps PlanetScaleAuthentication, tabletType psdbconnect.TabletType) (string, error) {
 	defer p.Logger.Flush()
 	timeout := 45 * time.Second
 	ctx, cancel := context.WithTimeout(ctx, timeout)
@@ -248,12 +247,12 @@ func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, sh
 	)
 
 	if p.clientFn == nil {
-		conn, err := grpcclient.Dial(ctx, ps.Host,
+		conn, err := grpcclient.Dial(ctx, ps.GetHostname(),
 			clientoptions.WithDefaultTLSConfig(),
 			clientoptions.WithCompression(true),
 			clientoptions.WithConnectionPool(1),
 			clientoptions.WithExtraCallOption(
-				auth.NewBasicAuth(ps.Username, ps.Password).CallOption(),
+				ps.GetAuthorizationHeader().CallOption(),
 			),
 		)
 		if err != nil {

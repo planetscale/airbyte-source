@@ -43,7 +43,7 @@ func TestRead_CanPeekBeforeRead(t *testing.T) {
 			return syncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
+	ped.clientFn = func(ctx context.Context, ps PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
 		return &cc, nil
 	}
 	ps := PlanetScaleSource{}
@@ -81,7 +81,7 @@ func TestRead_CanEarlyExitIfNoNewVGtidInPeek(t *testing.T) {
 			return syncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
+	ped.clientFn = func(ctx context.Context, ps PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
 		return &cc, nil
 	}
 	ps := PlanetScaleSource{}
@@ -118,7 +118,7 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 			return syncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
+	ped.clientFn = func(ctx context.Context, ps PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
 		return &cc, nil
 	}
 	ps := PlanetScaleSource{
@@ -241,7 +241,7 @@ func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 			return syncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
+	ped.clientFn = func(ctx context.Context, ps PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
 		return &cc, nil
 	}
 	ps := PlanetScaleSource{
@@ -282,7 +282,7 @@ func TestRead_CanReturnOriginalCursorIfNoNewFound(t *testing.T) {
 			return syncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
+	ped.clientFn = func(ctx context.Context, ps PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
 		return &cc, nil
 	}
 	ps := PlanetScaleSource{
@@ -327,7 +327,7 @@ func TestRead_CanReturnNewCursorIfNewFound(t *testing.T) {
 			return syncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
+	ped.clientFn = func(ctx context.Context, ps PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
 		return &cc, nil
 	}
 	ps := PlanetScaleSource{
@@ -404,7 +404,7 @@ func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
 		},
 	}
 
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
+	ped.clientFn = func(ctx context.Context, ps PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
 		return &cc, nil
 	}
 	ps := PlanetScaleSource{
@@ -470,7 +470,7 @@ func TestRead_CanLogResults(t *testing.T) {
 			return syncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
+	ped.clientFn = func(ctx context.Context, ps PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
 		return &cc, nil
 	}
 	ps := PlanetScaleSource{
