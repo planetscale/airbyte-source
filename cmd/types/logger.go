@@ -1,20 +1,10 @@
-package internal
+package types
 
 import (
 	"encoding/json"
 	"io"
 	"time"
 )
-
-type AirbyteLogger interface {
-	Log(level, message string)
-	Catalog(catalog Catalog)
-	ConnectionStatus(status ConnectionStatus)
-	Record(tableNamespace, tableName string, data map[string]interface{})
-	Flush()
-	State(syncState SyncState)
-	Error(error string)
-}
 
 const MaxBatchSize = 10000
 

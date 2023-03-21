@@ -1,8 +1,9 @@
-package internal
+package shared
 
 import (
 	"context"
 	"database/sql"
+	"github.com/planetscale/airbyte-source/cmd/types"
 	"io"
 
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
@@ -21,12 +22,12 @@ func (tal *testAirbyteLogger) Log(level, message string) {
 	tal.logMessages[level] = append(tal.logMessages[level], message)
 }
 
-func (testAirbyteLogger) Catalog(catalog Catalog) {
+func (testAirbyteLogger) Catalog(catalog types.Catalog) {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (testAirbyteLogger) ConnectionStatus(status ConnectionStatus) {
+func (testAirbyteLogger) ConnectionStatus(status types.ConnectionStatus) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -42,7 +43,7 @@ func (tal *testAirbyteLogger) Record(tableNamespace, tableName string, data map[
 func (testAirbyteLogger) Flush() {
 }
 
-func (testAirbyteLogger) State(syncState SyncState) {
+func (testAirbyteLogger) State(syncState types.SyncState) {
 	// TODO implement me
 	panic("implement me")
 }
@@ -79,43 +80,43 @@ func (c *clientConnectionMock) Sync(ctx context.Context, in *psdbconnect.SyncReq
 }
 
 type mysqlAccessMock struct {
-	PingContextFn             func(ctx context.Context, source PlanetScaleSource) error
+	PingContextFn             func(ctx context.Context, source types.PlanetScaleSource) error
 	PingContextFnInvoked      bool
-	GetVitessTabletsFn        func(ctx context.Context, psc PlanetScaleSource) ([]VitessTablet, error)
+	GetVitessTabletsFn        func(ctx context.Context, psc types.PlanetScaleSource) ([]types.VitessTablet, error)
 	GetVitessTabletsFnInvoked bool
 }
 
-func (tma *mysqlAccessMock) PingContext(ctx context.Context, source PlanetScaleSource) error {
+func (tma *mysqlAccessMock) PingContext(ctx context.Context, source types.PlanetScaleSource) error {
 	tma.PingContextFnInvoked = true
 	return tma.PingContextFn(ctx, source)
 }
 
-func (mysqlAccessMock) GetTableNames(ctx context.Context, source PlanetScaleSource) ([]string, error) {
+func (mysqlAccessMock) GetTableNames(ctx context.Context, source types.PlanetScaleSource) ([]string, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (mysqlAccessMock) GetTableSchema(ctx context.Context, source PlanetScaleSource, s string) (map[string]PropertyType, error) {
+func (mysqlAccessMock) GetTableSchema(ctx context.Context, source types.PlanetScaleSource, s string) (map[string]types.PropertyType, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (mysqlAccessMock) GetTablePrimaryKeys(ctx context.Context, source PlanetScaleSource, s string) ([]string, error) {
+func (mysqlAccessMock) GetTablePrimaryKeys(ctx context.Context, source types.PlanetScaleSource, s string) ([]string, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (mysqlAccessMock) QueryContext(ctx context.Context, psc PlanetScaleSource, query string, args ...interface{}) (*sql.Rows, error) {
+func (mysqlAccessMock) QueryContext(ctx context.Context, psc types.PlanetScaleSource, query string, args ...interface{}) (*sql.Rows, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (tma *mysqlAccessMock) GetVitessTablets(ctx context.Context, psc PlanetScaleSource) ([]VitessTablet, error) {
+func (tma *mysqlAccessMock) GetVitessTablets(ctx context.Context, psc types.PlanetScaleSource) ([]types.VitessTablet, error) {
 	tma.GetVitessTabletsFnInvoked = true
 	return tma.GetVitessTabletsFn(ctx, psc)
 }
 
-func (mysqlAccessMock) GetVitessShards(ctx context.Context, psc PlanetScaleSource) ([]string, error) {
+func (mysqlAccessMock) GetVitessShards(ctx context.Context, psc types.PlanetScaleSource) ([]string, error) {
 	// TODO implement me
 	panic("implement me")
 }

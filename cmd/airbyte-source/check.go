@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/planetscale/airbyte-source/cmd/types"
+	"github.com/planetscale/airbyte-source/shared"
 	"os"
 
-	"github.com/planetscale/airbyte-source/cmd/internal"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +22,7 @@ func CheckCommand(ch *Helper) *cobra.Command {
 		Use:   "check",
 		Short: "Validates the credentials to connect to a PlanetScale database",
 		Run: func(cmd *cobra.Command, args []string) {
-			ch.Logger = internal.NewLogger(cmd.OutOrStdout())
+			ch.Logger = types.NewLogger(cmd.OutOrStdout())
 
 			if configFilePath == "" {
 				fmt.Fprintln(cmd.OutOrStdout(), "Please provide path to a valid configuration file")
@@ -30,7 +31,7 @@ func CheckCommand(ch *Helper) *cobra.Command {
 
 			psc, err := parseSource(ch.FileReader, configFilePath)
 			if err != nil {
-				cs := internal.ConnectionStatus{
+				cs := types.ConnectionStatus{
 					Status:  "FAILED",
 					Message: fmt.Sprintf("Configuration for PlanetScale database is invalid, unable to read source configuration : %v", err),
 				}
@@ -57,8 +58,8 @@ func CheckCommand(ch *Helper) *cobra.Command {
 	return checkCmd
 }
 
-func parseSource(reader FileReader, configFilePath string) (internal.PlanetScaleSource, error) {
-	var psc internal.PlanetScaleSource
+func parseSource(reader FileReader, configFilePath string) (types.PlanetScaleSource, error) {
+	var psc types.PlanetScaleSource
 	contents, err := reader.ReadFile(configFilePath)
 	if err != nil {
 		return psc, err
@@ -70,15 +71,15 @@ func parseSource(reader FileReader, configFilePath string) (internal.PlanetScale
 	return psc, nil
 }
 
-func checkConnectionStatus(database internal.PlanetScaleDatabase, psc internal.PlanetScaleSource) (internal.ConnectionStatus, error) {
+func checkConnectionStatus(database shared.PlanetScaleDatabase, psc types.PlanetScaleSource) (types.ConnectionStatus, error) {
 	if err := database.CanConnect(context.Background(), psc); err != nil {
-		return internal.ConnectionStatus{
+		return types.ConnectionStatus{
 			Status:  "FAILED",
 			Message: fmt.Sprintf("Unable to connect to PlanetScale database %v at host %v with username %v. Failed with \n %v", psc.Database, psc.Host, psc.Username, err),
 		}, err
 	}
 
-	return internal.ConnectionStatus{
+	return types.ConnectionStatus{
 		Status:  "SUCCEEDED",
 		Message: fmt.Sprintf("Successfully connected to database %v at host %v with username %v", psc.Database, psc.Host, psc.Username),
 	}, nil

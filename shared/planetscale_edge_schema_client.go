@@ -1,23 +1,24 @@
-package internal
+package shared
 
 import (
 	"context"
+	"github.com/planetscale/airbyte-source/cmd/types"
 	"strings"
 
 	"github.com/pkg/errors"
 )
 
 type PlanetScaleDatabaseSchemaClient interface {
-	DiscoverSchema(ctx context.Context, ps PlanetScaleSource) (Catalog, error)
+	DiscoverSchema(ctx context.Context, ps types.PlanetScaleSource) (types.Catalog, error)
 }
 
 type PlanetScaleEdgeDatabaseSchema struct {
-	Logger AirbyteLogger
+	Logger types.AirbyteLogger
 	Mysql  PlanetScaleEdgeMysqlAccess
 }
 
-func (p PlanetScaleEdgeDatabaseSchema) DiscoverSchema(ctx context.Context, psc PlanetScaleSource) (Catalog, error) {
-	var c Catalog
+func (p PlanetScaleEdgeDatabaseSchema) DiscoverSchema(ctx context.Context, psc types.PlanetScaleSource) (types.Catalog, error) {
+	var c types.Catalog
 
 	tables, err := p.Mysql.GetTableNames(ctx, psc)
 	if err != nil {
@@ -34,12 +35,12 @@ func (p PlanetScaleEdgeDatabaseSchema) DiscoverSchema(ctx context.Context, psc P
 	return c, nil
 }
 
-func (p PlanetScaleEdgeDatabaseSchema) getStreamForTable(ctx context.Context, psc PlanetScaleSource, tableName string) (Stream, error) {
-	schema := StreamSchema{
+func (p PlanetScaleEdgeDatabaseSchema) getStreamForTable(ctx context.Context, psc types.PlanetScaleSource, tableName string) (types.Stream, error) {
+	schema := types.StreamSchema{
 		Type:       "object",
-		Properties: map[string]PropertyType{},
+		Properties: map[string]types.PropertyType{},
 	}
-	stream := Stream{
+	stream := types.Stream{
 		Name:               tableName,
 		Schema:             schema,
 		SupportedSyncModes: []string{"full_refresh", "incremental"},
@@ -75,39 +76,39 @@ func (p PlanetScaleEdgeDatabaseSchema) getStreamForTable(ctx context.Context, ps
 }
 
 // Convert columnType to Airbyte type.
-func getJsonSchemaType(mysqlType string, treatTinyIntAsBoolean bool) PropertyType {
+func getJsonSchemaType(mysqlType string, treatTinyIntAsBoolean bool) types.PropertyType {
 	// Support custom airbyte types documented here :
 	// https://docs.airbyte.com/understanding-airbyte/supported-data-types/#the-types
 	if strings.HasPrefix(mysqlType, "int") {
-		return PropertyType{Type: "integer"}
+		return types.PropertyType{Type: "integer"}
 	}
 
 	if strings.HasPrefix(mysqlType, "decimal") || strings.HasPrefix(mysqlType, "double") {
-		return PropertyType{Type: "number"}
+		return types.PropertyType{Type: "number"}
 	}
 
 	if strings.HasPrefix(mysqlType, "bigint") {
-		return PropertyType{Type: "string", AirbyteType: "big_integer"}
+		return types.PropertyType{Type: "string", AirbyteType: "big_integer"}
 	}
 
 	if strings.HasPrefix(mysqlType, "datetime") {
-		return PropertyType{Type: "string", CustomFormat: "date-time", AirbyteType: "timestamp_without_timezone"}
+		return types.PropertyType{Type: "string", CustomFormat: "date-time", AirbyteType: "timestamp_without_timezone"}
 	}
 
 	if mysqlType == "tinyint(1)" {
 		if treatTinyIntAsBoolean {
-			return PropertyType{Type: "boolean"}
+			return types.PropertyType{Type: "boolean"}
 		}
 
-		return PropertyType{Type: "integer"}
+		return types.PropertyType{Type: "integer"}
 	}
 
 	switch mysqlType {
 	case "date":
-		return PropertyType{Type: "string", AirbyteType: "date"}
+		return types.PropertyType{Type: "string", AirbyteType: "date"}
 	case "datetime":
-		return PropertyType{Type: "string", AirbyteType: "timestamp_without_timezone"}
+		return types.PropertyType{Type: "string", AirbyteType: "timestamp_without_timezone"}
 	default:
-		return PropertyType{Type: "string"}
+		return types.PropertyType{Type: "string"}
 	}
 }

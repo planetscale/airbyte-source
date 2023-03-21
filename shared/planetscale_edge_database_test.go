@@ -1,9 +1,10 @@
-package internal
+package shared
 
 import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/planetscale/airbyte-source/cmd/types"
 	"testing"
 
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
@@ -18,7 +19,7 @@ func TestRead_CanPeekBeforeRead(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
 	ped := PlanetScaleEdgeDatabase{
-		Logger: NewLogger(b),
+		Logger: types.NewLogger(b),
 		Mysql:  tma,
 	}
 	tc := &psdbconnect.TableCursor{
@@ -43,13 +44,13 @@ func TestRead_CanPeekBeforeRead(t *testing.T) {
 			return syncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
+	ped.clientFn = func(ctx context.Context, ps types.PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
 		return &cc, nil
 	}
-	ps := PlanetScaleSource{}
+	ps := types.PlanetScaleSource{}
 	sc, err := ped.Read(context.Background(), ps, "connect-test", "customers", tc, nil, nil)
 	assert.NoError(t, err)
-	esc, err := TableCursorToSerializedCursor(tc)
+	esc, err := types.TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
@@ -61,7 +62,7 @@ func TestRead_CanEarlyExitIfNoNewVGtidInPeek(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
 	ped := PlanetScaleEdgeDatabase{
-		Logger: NewLogger(b),
+		Logger: types.NewLogger(b),
 		Mysql:  tma,
 	}
 	tc := &psdbconnect.TableCursor{
@@ -81,13 +82,13 @@ func TestRead_CanEarlyExitIfNoNewVGtidInPeek(t *testing.T) {
 			return syncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
+	ped.clientFn = func(ctx context.Context, ps types.PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
 		return &cc, nil
 	}
-	ps := PlanetScaleSource{}
+	ps := types.PlanetScaleSource{}
 	sc, err := ped.Read(context.Background(), ps, "connect-test", "customers", tc, nil, nil)
 	assert.NoError(t, err)
-	esc, err := TableCursorToSerializedCursor(tc)
+	esc, err := types.TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
@@ -97,7 +98,7 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
 	ped := PlanetScaleEdgeDatabase{
-		Logger: NewLogger(b),
+		Logger: types.NewLogger(b),
 		Mysql:  tma,
 	}
 	tc := &psdbconnect.TableCursor{
@@ -118,15 +119,15 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 			return syncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
+	ped.clientFn = func(ctx context.Context, ps types.PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
 		return &cc, nil
 	}
-	ps := PlanetScaleSource{
+	ps := types.PlanetScaleSource{
 		Database: "connect-test",
 	}
 	sc, err := ped.Read(context.Background(), ps, "connect-test", "customers", tc, nil, nil)
 	assert.NoError(t, err)
-	esc, err := TableCursorToSerializedCursor(tc)
+	esc, err := types.TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
@@ -218,7 +219,7 @@ func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
 	ped := PlanetScaleEdgeDatabase{
-		Logger: NewLogger(b),
+		Logger: types.NewLogger(b),
 		Mysql:  tma,
 	}
 	tc := &psdbconnect.TableCursor{
@@ -241,15 +242,15 @@ func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 			return syncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
+	ped.clientFn = func(ctx context.Context, ps types.PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
 		return &cc, nil
 	}
-	ps := PlanetScaleSource{
+	ps := types.PlanetScaleSource{
 		Database: "connect-test",
 	}
 	sc, err := ped.Read(context.Background(), ps, "connect-test", "customers", tc, nil, nil)
 	assert.NoError(t, err)
-	esc, err := TableCursorToSerializedCursor(tc)
+	esc, err := types.TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
@@ -261,7 +262,7 @@ func TestRead_CanReturnOriginalCursorIfNoNewFound(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
 	ped := PlanetScaleEdgeDatabase{
-		Logger: NewLogger(b),
+		Logger: types.NewLogger(b),
 		Mysql:  tma,
 	}
 	tc := &psdbconnect.TableCursor{
@@ -282,15 +283,15 @@ func TestRead_CanReturnOriginalCursorIfNoNewFound(t *testing.T) {
 			return syncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
+	ped.clientFn = func(ctx context.Context, ps types.PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
 		return &cc, nil
 	}
-	ps := PlanetScaleSource{
+	ps := types.PlanetScaleSource{
 		Database: "connect-test",
 	}
 	sc, err := ped.Read(context.Background(), ps, "connect-test", "customers", tc, nil, nil)
 	assert.NoError(t, err)
-	esc, err := TableCursorToSerializedCursor(tc)
+	esc, err := types.TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
@@ -300,7 +301,7 @@ func TestRead_CanReturnNewCursorIfNewFound(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
 	ped := PlanetScaleEdgeDatabase{
-		Logger: NewLogger(b),
+		Logger: types.NewLogger(b),
 		Mysql:  tma,
 	}
 	tc := &psdbconnect.TableCursor{
@@ -327,15 +328,15 @@ func TestRead_CanReturnNewCursorIfNewFound(t *testing.T) {
 			return syncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
+	ped.clientFn = func(ctx context.Context, ps types.PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
 		return &cc, nil
 	}
-	ps := PlanetScaleSource{
+	ps := types.PlanetScaleSource{
 		Database: "connect-test",
 	}
 	sc, err := ped.Read(context.Background(), ps, "connect-test", "customers", tc, nil, nil)
 	assert.NoError(t, err)
-	esc, err := TableCursorToSerializedCursor(newTC)
+	esc, err := types.TableCursorToSerializedCursor(newTC)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 2, cc.syncFnInvokedCount)
@@ -404,10 +405,10 @@ func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
 		},
 	}
 
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
+	ped.clientFn = func(ctx context.Context, ps types.PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
 		return &cc, nil
 	}
-	ps := PlanetScaleSource{
+	ps := types.PlanetScaleSource{
 		Database: "connect-test",
 	}
 
@@ -420,12 +421,12 @@ func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
 	sc, err := ped.Read(context.Background(), ps, "connect-test", "customers", responses[0].Cursor, onResult, nil)
 	assert.NoError(t, err)
 	// sync should start at the first vgtid
-	esc, err := TableCursorToSerializedCursor(responses[nextVGtidPosition].Cursor)
+	esc, err := types.TableCursorToSerializedCursor(responses[nextVGtidPosition].Cursor)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 2, cc.syncFnInvokedCount)
 
-	logLines := tal.logMessages[LOGLEVEL_INFO]
+	logLines := tal.logMessages[types.LOGLEVEL_INFO]
 	assert.Equal(t, "[connect-test:customers shard : -] Finished reading all rows for table [customers]", logLines[len(logLines)-1])
 	assert.Equal(t, 2*(nextVGtidPosition/3), recordCount)
 }
@@ -470,10 +471,10 @@ func TestRead_CanLogResults(t *testing.T) {
 			return syncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
+	ped.clientFn = func(ctx context.Context, ps types.PlanetScaleAuthentication) (psdbconnect.ConnectClient, error) {
 		return &cc, nil
 	}
-	ps := PlanetScaleSource{
+	ps := types.PlanetScaleSource{
 		Database: "connect-test",
 	}
 
@@ -481,7 +482,7 @@ func TestRead_CanLogResults(t *testing.T) {
 	monitorFound := false
 	recordCount := 0
 	onResult := func(k string, table string, result *sqltypes.Result) error {
-		data := QueryResultToRecords(result)
+		data := types.QueryResultToRecords(result)
 
 		id, err := data[0]["pid"].(sqltypes.Value).ToInt64()
 		assert.NoError(t, err)
@@ -509,19 +510,19 @@ func TestRead_CanLogResults(t *testing.T) {
 
 func getTestMysqlAccess() *mysqlAccessMock {
 	tma := mysqlAccessMock{
-		PingContextFn: func(ctx context.Context, source PlanetScaleSource) error {
+		PingContextFn: func(ctx context.Context, source types.PlanetScaleSource) error {
 			return nil
 		},
-		GetVitessTabletsFn: func(ctx context.Context, psc PlanetScaleSource) ([]VitessTablet, error) {
-			return []VitessTablet{
+		GetVitessTabletsFn: func(ctx context.Context, psc types.PlanetScaleSource) ([]types.VitessTablet, error) {
+			return []types.VitessTablet{
 				{
 					Keyspace:   "connect-test",
-					TabletType: TabletTypeToString(psdbconnect.TabletType_primary),
+					TabletType: types.TabletTypeToString(psdbconnect.TabletType_primary),
 					State:      "SERVING",
 				},
 				{
 					Keyspace:   "connect-test",
-					TabletType: TabletTypeToString(psdbconnect.TabletType_replica),
+					TabletType: types.TabletTypeToString(psdbconnect.TabletType_replica),
 					State:      "SERVING",
 				},
 			}, nil

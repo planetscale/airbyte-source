@@ -1,4 +1,4 @@
-package internal
+package types
 
 import (
 	"encoding/base64"
@@ -158,4 +158,25 @@ type AirbyteMessage struct {
 	Catalog          *Catalog           `json:"catalog,omitempty"`
 	Record           *AirbyteRecord     `json:"record,omitempty"`
 	State            *AirbyteState      `json:"state,omitempty"`
+}
+
+type VitessTablet struct {
+	Cell                 string
+	Keyspace             string
+	Shard                string
+	TabletType           string
+	State                string
+	Alias                string
+	Hostname             string
+	PrimaryTermStartTime string
+}
+
+type AirbyteLogger interface {
+	Log(level, message string)
+	Catalog(catalog Catalog)
+	ConnectionStatus(status ConnectionStatus)
+	Record(tableNamespace, tableName string, data map[string]interface{})
+	Flush()
+	State(syncState SyncState)
+	Error(error string)
 }

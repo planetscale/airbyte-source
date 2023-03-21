@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/planetscale/airbyte-source/cmd/types"
 	"os"
 
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 
 	"vitess.io/vitess/go/sqltypes"
 
-	"github.com/planetscale/airbyte-source/cmd/internal"
 	"github.com/spf13/cobra"
 )
 
@@ -29,7 +29,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 		Use:   "read",
 		Short: "Converts rows from a PlanetScale database into AirbyteRecordMessages",
 		Run: func(cmd *cobra.Command, args []string) {
-			ch.Logger = internal.NewLogger(cmd.OutOrStdout())
+			ch.Logger = types.NewLogger(cmd.OutOrStdout())
 			if readSourceConfigFilePath == "" {
 				fmt.Fprintf(cmd.ErrOrStderr(), "Please pass path to a valid source config file via the [%v] argument", "config")
 				os.Exit(1)
@@ -40,7 +40,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				os.Exit(1)
 			}
 
-			ch.Logger.Log(internal.LOGLEVEL_INFO, "Checking connection")
+			ch.Logger.Log(types.LOGLEVEL_INFO, "Checking connection")
 
 			psc, err := parseSource(ch.FileReader, readSourceConfigFilePath)
 			if err != nil {
@@ -72,7 +72,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 			}
 
 			if len(catalog.Streams) == 0 {
-				ch.Logger.Log(internal.LOGLEVEL_ERROR, "catalog has no streams")
+				ch.Logger.Log(types.LOGLEVEL_ERROR, "catalog has no streams")
 				return
 			}
 
@@ -117,7 +117,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					}
 
 					onResult := func(keyspace string, table string, result *sqltypes.Result) error {
-						data := internal.QueryResultToRecords(result)
+						data := types.QueryResultToRecords(result)
 						for _, record := range data {
 							ch.Logger.Record(keyspace, table, record)
 						}
@@ -155,9 +155,9 @@ type State struct {
 	Shards map[string]map[string]interface{} `json:"shards"`
 }
 
-func readState(state string, psc internal.PlanetScaleSource, streams []internal.ConfiguredStream, shards []string) (internal.SyncState, error) {
-	syncState := internal.SyncState{
-		Streams: map[string]internal.ShardStates{},
+func readState(state string, psc types.PlanetScaleSource, streams []types.ConfiguredStream, shards []string) (types.SyncState, error) {
+	syncState := types.SyncState{
+		Streams: map[string]types.ShardStates{},
 	}
 	if state != "" {
 		err := json.Unmarshal([]byte(state), &syncState)
@@ -188,7 +188,7 @@ func readState(state string, psc internal.PlanetScaleSource, streams []internal.
 	return syncState, nil
 }
 
-func readCatalog(path string) (c internal.ConfiguredCatalog, err error) {
+func readCatalog(path string) (c types.ConfiguredCatalog, err error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return c, err

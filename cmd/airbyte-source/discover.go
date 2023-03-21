@@ -3,9 +3,9 @@ package airbyte_source
 import (
 	"context"
 	"fmt"
+	"github.com/planetscale/airbyte-source/cmd/types"
 	"os"
 
-	"github.com/planetscale/airbyte-source/cmd/internal"
 	"github.com/spf13/cobra"
 )
 
@@ -27,7 +27,7 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 
 			psc, err := parseSource(ch.FileReader, sourceConfigFilePath)
 			if err != nil {
-				cs := internal.ConnectionStatus{
+				cs := types.ConnectionStatus{
 					Status:  "FAILED",
 					Message: fmt.Sprintf("Configuration for PlanetScale database is invalid, unable to read source configuration : %v", err),
 				}
@@ -54,7 +54,7 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 
 			c, err := ch.SchemaClient.DiscoverSchema(context.Background(), psc)
 			if err != nil {
-				ch.Logger.Log(internal.LOGLEVEL_ERROR, fmt.Sprintf("Unable to discover database, failed with [%v]", err))
+				ch.Logger.Log(types.LOGLEVEL_ERROR, fmt.Sprintf("Unable to discover database, failed with [%v]", err))
 				return
 			}
 
