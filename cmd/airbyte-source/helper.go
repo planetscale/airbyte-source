@@ -12,7 +12,7 @@ type Helper struct {
 	Connect    lib.ConnectClient
 	Mysql      lib.MysqlClient
 	FileReader FileReader
-	Logger     internal.AirbyteSerializer
+	Serializer internal.AirbyteSerializer
 }
 
 type FileReader interface {
@@ -26,10 +26,10 @@ func (f fileReader) ReadFile(path string) ([]byte, error) {
 }
 
 func DefaultHelper(w io.Writer) *Helper {
-	logger := internal.NewSerializer(w)
+	serializer := internal.NewSerializer(w)
 	return &Helper{
 		FileReader: fileReader{},
-		Logger:     logger,
+		Serializer: serializer,
 	}
 }
 

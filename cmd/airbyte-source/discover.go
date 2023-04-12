@@ -31,7 +31,7 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 					Status:  "FAILED",
 					Message: fmt.Sprintf("Configuration for PlanetScale database is invalid, unable to read source configuration : %v", err),
 				}
-				ch.Logger.ConnectionStatus(cs)
+				ch.Serializer.ConnectionStatus(cs)
 				return
 			}
 
@@ -42,7 +42,7 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 
 			cs, err := checkConnectionStatus(ch.Connect, psc)
 			if err != nil {
-				ch.Logger.ConnectionStatus(cs)
+				ch.Serializer.ConnectionStatus(cs)
 				return
 			}
 
@@ -56,12 +56,12 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 
 			sb := internal.NewSchemaBuilder(psc.TreatTinyIntAsBoolean)
 			if err := ch.Mysql.BuildSchema(context.Background(), *psc, sb); err != nil {
-				ch.Logger.Log(internal.LOGLEVEL_ERROR, fmt.Sprintf("Unable to discover database, failed with [%v]", err))
+				ch.Serializer.Log(internal.LOGLEVEL_ERROR, fmt.Sprintf("Unable to discover database, failed with [%v]", err))
 				return
 			}
 
 			c := sb.(*internal.AirbyteSchemaBuilder).BuildCatalog()
-			ch.Logger.Catalog(*c)
+			ch.Serializer.Catalog(*c)
 		},
 	}
 

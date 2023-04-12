@@ -39,7 +39,7 @@ func TestReadInvalidSource(t *testing.T) {
 	read := ReadCommand(&Helper{
 		Connect:    tcc,
 		FileReader: tfr,
-		Logger:     internal.NewSerializer(b),
+		Serializer: internal.NewSerializer(b),
 	})
 	read.SetArgs([]string{"config source.json"})
 
@@ -81,7 +81,7 @@ func TestReadInvalidCatalog(t *testing.T) {
 	read := ReadCommand(&Helper{
 		Connect:    tcc,
 		FileReader: tfr,
-		Logger:     internal.NewSerializer(b),
+		Serializer: internal.NewSerializer(b),
 	})
 	read.SetArgs([]string{"config source.json"})
 
@@ -137,7 +137,7 @@ func TestReadCanOutputRows(t *testing.T) {
 	read := ReadCommand(&Helper{
 		Connect:    tcc,
 		FileReader: tfr,
-		Logger:     internal.NewSerializer(tw),
+		Serializer: internal.NewSerializer(tw),
 	})
 	read.SetArgs([]string{"config source.json"})
 	read.SetOut(tw)

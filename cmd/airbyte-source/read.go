@@ -30,7 +30,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 		Use:   "read",
 		Short: "Converts rows from a PlanetScale database into AirbyteRecordMessages",
 		Run: func(cmd *cobra.Command, args []string) {
-			ch.Logger = internal.NewSerializer(cmd.OutOrStdout())
+			ch.Serializer = internal.NewSerializer(cmd.OutOrStdout())
 			if readSourceConfigFilePath == "" {
 				fmt.Fprintf(cmd.ErrOrStderr(), "Please pass path to a valid source config file via the [%v] argument", "config")
 				return
@@ -62,18 +62,18 @@ func ReadCommand(ch *Helper) *cobra.Command {
 
 			cs, err := checkConnectionStatus(ch.Connect, psc)
 			if err != nil {
-				ch.Logger.ConnectionStatus(cs)
+				ch.Serializer.ConnectionStatus(cs)
 				return
 			}
 
 			catalog, err := readCatalog(ch.FileReader, readSourceCatalogPath)
 			if err != nil {
-				ch.Logger.Error(fmt.Sprintf("Unable to read catalog: %v", err))
+				ch.Serializer.Error(fmt.Sprintf("Unable to read catalog: %v", err))
 				return
 			}
 
 			if len(catalog.Streams) == 0 {
-				ch.Logger.Log(internal.LOGLEVEL_ERROR, "catalog has no streams")
+				ch.Serializer.Log(internal.LOGLEVEL_ERROR, "catalog has no streams")
 				return
 			}
 
@@ -81,7 +81,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 			if stateFilePath != "" {
 				b, err := os.ReadFile(stateFilePath)
 				if err != nil {
-					ch.Logger.Error(fmt.Sprintf("Unable to read state : %v", err))
+					ch.Serializer.Error(fmt.Sprintf("Unable to read state : %v", err))
 					return
 				}
 				state = string(b)
@@ -89,13 +89,13 @@ func ReadCommand(ch *Helper) *cobra.Command {
 
 			shards, err := ch.Connect.ListShards(context.Background(), *psc)
 			if err != nil {
-				ch.Logger.Error(fmt.Sprintf("Unable to list shards : %v", err))
+				ch.Serializer.Error(fmt.Sprintf("Unable to list shards : %v", err))
 				return
 			}
 
 			syncState, err := readState(state, psc, catalog.Streams, shards)
 			if err != nil {
-				ch.Logger.Error(fmt.Sprintf("Unable to read state : %v", err))
+				ch.Serializer.Error(fmt.Sprintf("Unable to read state : %v", err))
 				return
 			}
 
@@ -108,21 +108,21 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				streamStateKey := keyspaceOrDatabase + ":" + table.Stream.Name
 				streamState, ok := syncState.Keyspaces[keyspaceOrDatabase].Streams[streamStateKey]
 				if !ok {
-					ch.Logger.Error(fmt.Sprintf("Unable to read state for stream %v", streamStateKey))
+					ch.Serializer.Error(fmt.Sprintf("Unable to read state for stream %v", streamStateKey))
 					return
 				}
 
 				for shardName, shardState := range streamState.Shards {
 					tc, err := shardState.SerializedCursorToTableCursor()
 					if err != nil {
-						ch.Logger.Error(fmt.Sprintf("invalid cursor for stream %v, failed with [%v]", streamStateKey, err))
+						ch.Serializer.Error(fmt.Sprintf("invalid cursor for stream %v, failed with [%v]", streamStateKey, err))
 						return
 					}
 
 					onResult := func(data *sqltypes.Result) error {
 						rows := internal.QueryResultToRecords(data)
 						for _, row := range rows {
-							ch.Logger.Record(keyspaceOrDatabase, table.Stream.Name, row)
+							ch.Serializer.Record(keyspaceOrDatabase, table.Stream.Name, row)
 						}
 						return nil
 					}
@@ -138,10 +138,10 @@ func ReadCommand(ch *Helper) *cobra.Command {
 
 					lps := lib.PlanetScaleSource{}
 
-					sc, err := ch.Connect.Read(context.Background(), ch.Logger, lps, table.Stream.Name, tc, onResult, onCursor)
+					sc, err := ch.Connect.Read(context.Background(), ch.Serializer, lps, table.Stream.Name, tc, onResult, onCursor)
 					// ch.Database.Read(context.Background(), cmd.OutOrStdout(), psc, table, tc)
 					if err != nil {
-						ch.Logger.Error(err.Error())
+						ch.Serializer.Error(err.Error())
 						return
 					}
 
@@ -150,8 +150,8 @@ func ReadCommand(ch *Helper) *cobra.Command {
 						// otherwise, the older state is round-tripped back to Airbyte.
 						syncState.Keyspaces[keyspaceOrDatabase].Streams[streamStateKey].Shards[shardName] = sc
 					}
-					ch.Logger.State(syncState)
-					ch.Logger.Flush()
+					ch.Serializer.State(syncState)
+					ch.Serializer.Flush()
 				}
 			}
 		},

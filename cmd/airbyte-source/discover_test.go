@@ -29,7 +29,7 @@ func TestDiscoverInvalidSource(t *testing.T) {
 	discover := DiscoverCommand(&Helper{
 		Connect:    tcc,
 		FileReader: tfr,
-		Logger:     internal.NewSerializer(b),
+		Serializer: internal.NewSerializer(b),
 	})
 	discover.SetArgs([]string{"config source.json"})
 
@@ -68,7 +68,7 @@ func TestDiscoverFailed(t *testing.T) {
 		Connect:    tcc,
 		Mysql:      tmysql,
 		FileReader: tfr,
-		Logger:     internal.NewSerializer(b),
+		Serializer: internal.NewSerializer(b),
 	})
 	discover.SetArgs([]string{"config source.json"})
 

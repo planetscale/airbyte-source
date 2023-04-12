@@ -17,7 +17,7 @@ import (
 
 func TestCheckFailsWithoutConfig(t *testing.T) {
 	checkCommand := CheckCommand(&Helper{
-		Logger: internal.NewSerializer(os.Stdout),
+		Serializer: internal.NewSerializer(os.Stdout),
 	})
 	b := bytes.NewBufferString("")
 	checkCommand.SetOut(b)
@@ -31,7 +31,7 @@ func TestCheckInvalidCatalogJSON(t *testing.T) {
 	}
 	checkCommand := CheckCommand(&Helper{
 		FileReader: tfr,
-		Logger:     internal.NewSerializer(os.Stdout),
+		Serializer: internal.NewSerializer(os.Stdout),
 	})
 	b := bytes.NewBufferString("")
 	checkCommand.SetArgs([]string{"config source.json"})
@@ -61,7 +61,7 @@ func TestCheckCredentialsInvalid(t *testing.T) {
 	checkCommand := CheckCommand(&Helper{
 		Connect:    tcc,
 		FileReader: tfr,
-		Logger:     internal.NewSerializer(os.Stdout),
+		Serializer: internal.NewSerializer(os.Stdout),
 	})
 	b := bytes.NewBufferString("")
 	checkCommand.SetOut(b)
@@ -91,7 +91,7 @@ func TestCheckExecuteSuccessful(t *testing.T) {
 	checkCommand := CheckCommand(&Helper{
 		Connect:    tcc,
 		FileReader: tfr,
-		Logger:     internal.NewSerializer(os.Stdout),
+		Serializer: internal.NewSerializer(os.Stdout),
 	})
 	b := bytes.NewBufferString("")
 	checkCommand.SetOut(b)

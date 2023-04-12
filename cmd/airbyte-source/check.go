@@ -23,7 +23,7 @@ func CheckCommand(ch *Helper) *cobra.Command {
 		Use:   "check",
 		Short: "Validates the credentials to connect to a PlanetScale database",
 		Run: func(cmd *cobra.Command, args []string) {
-			ch.Logger = internal.NewSerializer(cmd.OutOrStdout())
+			ch.Serializer = internal.NewSerializer(cmd.OutOrStdout())
 
 			if configFilePath == "" {
 				fmt.Fprintln(cmd.OutOrStdout(), "Please provide path to a valid configuration file")
@@ -36,7 +36,7 @@ func CheckCommand(ch *Helper) *cobra.Command {
 					Status:  "FAILED",
 					Message: fmt.Sprintf("Configuration for PlanetScale database is invalid, unable to read source configuration : %v", err),
 				}
-				ch.Logger.ConnectionStatus(cs)
+				ch.Serializer.ConnectionStatus(cs)
 				return
 			}
 
@@ -54,7 +54,7 @@ func CheckCommand(ch *Helper) *cobra.Command {
 			}()
 
 			cs, _ := checkConnectionStatus(ch.Connect, psc)
-			ch.Logger.ConnectionStatus(cs)
+			ch.Serializer.ConnectionStatus(cs)
 		},
 	}
 	checkCmd.Flags().StringVar(&configFilePath, "config", "", "Path to the PlanetScale source configuration")
