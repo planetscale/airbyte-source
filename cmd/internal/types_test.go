@@ -2,18 +2,21 @@ package internal
 
 import (
 	"encoding/base64"
+	"github.com/planetscale/airbyte-source/lib"
+	"testing"
+
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/planetscale/psdb/core/codec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
+
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/proto/query"
 )
 
 func TestCanSerializeLastKnownState(t *testing.T) {
 	emp_no := "49999"
-	sc, err := TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+	sc, err := lib.TableCursorToSerializedCursor(&psdbconnect.TableCursor{
 		Shard:    "40-80",
 		Keyspace: "connect",
 		Position: "THIS_IS_A_GTID",
@@ -62,14 +65,14 @@ func TestCanUnmarshalLastKnownState(t *testing.T) {
 			},
 		},
 	}
-	sc, err := TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+	sc, err := lib.TableCursorToSerializedCursor(&psdbconnect.TableCursor{
 		Shard:       "40-80",
 		Keyspace:    "connect",
 		Position:    "THIS_IS_A_GTID",
 		LastKnownPk: lastKnownPK,
 	})
 	require.NoError(t, err)
-	tc, err := sc.SerializedCursorToTableCursor(ConfiguredStream{})
+	tc, err := sc.SerializedCursorToTableCursor()
 	require.NoError(t, err)
 	assert.Equal(t, "connect", tc.Keyspace)
 	assert.Equal(t, "40-80", tc.Shard)

@@ -20,7 +20,6 @@ func SpecCommand() *cobra.Command {
 		Short: "Describes inputs needed for connecting to PlanetScale databases",
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Fprintf(cmd.OutOrStdout(), "%s\n", staticSpec)
-
 		},
 	}
 }

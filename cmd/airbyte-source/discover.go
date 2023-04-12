@@ -35,30 +35,33 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 				return
 			}
 
-			if err := ch.EnsureDB(psc); err != nil {
+			if err := ch.EnsureConnect(*psc); err != nil {
 				fmt.Fprintln(cmd.OutOrStdout(), "Unable to connect to PlanetScale Database")
 				return
 			}
 
-			cs, err := checkConnectionStatus(ch.Database, psc)
+			cs, err := checkConnectionStatus(ch.Connect, psc)
 			if err != nil {
 				ch.Logger.ConnectionStatus(cs)
 				return
 			}
 
 			defer func() {
-				if err := ch.Database.Close(); err != nil {
-					fmt.Fprintf(cmd.OutOrStdout(), "Unable to close connection to PlanetScale Database, failed with %v", err)
+				if ch.Mysql != nil {
+					if err := ch.Mysql.Close(); err != nil {
+						fmt.Fprintf(cmd.OutOrStdout(), "Unable to close connection to PlanetScale Database, failed with %v", err)
+					}
 				}
 			}()
 
-			c, err := ch.Database.DiscoverSchema(context.Background(), psc)
-			if err != nil {
+			sb := internal.NewSchemaBuilder(psc.TreatTinyIntAsBoolean)
+			if err := ch.Mysql.BuildSchema(context.Background(), *psc, sb); err != nil {
 				ch.Logger.Log(internal.LOGLEVEL_ERROR, fmt.Sprintf("Unable to discover database, failed with [%v]", err))
 				return
 			}
 
-			ch.Logger.Catalog(c)
+			c := sb.(*internal.AirbyteSchemaBuilder).BuildCatalog()
+			ch.Logger.Catalog(*c)
 		},
 	}
 

@@ -2,10 +2,13 @@ package airbyte_source
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
+
+	"github.com/planetscale/airbyte-source/lib"
 
 	"github.com/planetscale/airbyte-source/cmd/internal"
 	"github.com/stretchr/testify/assert"
@@ -14,7 +17,7 @@ import (
 
 func TestCheckFailsWithoutConfig(t *testing.T) {
 	checkCommand := CheckCommand(&Helper{
-		Logger: internal.NewLogger(os.Stdout),
+		Logger: internal.NewSerializer(os.Stdout),
 	})
 	b := bytes.NewBufferString("")
 	checkCommand.SetOut(b)
@@ -27,9 +30,8 @@ func TestCheckInvalidCatalogJSON(t *testing.T) {
 		content: []byte("i am not json"),
 	}
 	checkCommand := CheckCommand(&Helper{
-		Database:   internal.PlanetScaleEdgeDatabase{},
 		FileReader: tfr,
-		Logger:     internal.NewLogger(os.Stdout),
+		Logger:     internal.NewSerializer(os.Stdout),
 	})
 	b := bytes.NewBufferString("")
 	checkCommand.SetArgs([]string{"config source.json"})
@@ -50,16 +52,16 @@ func TestCheckCredentialsInvalid(t *testing.T) {
 		content: []byte("{\"host\": \"something.us-east-3.psdb.cloud\",\"database\":\"database\",\"username\":\"username\",\"password\":\"password\"}"),
 	}
 
-	td := testDatabase{
-		connectResponse: canConnectResponse{
-			err: fmt.Errorf("[%v] is invalid", "username"),
+	tcc := &lib.TestConnectClient{
+		CanConnectFn: func(ctx context.Context, ps lib.PlanetScaleSource) error {
+			return fmt.Errorf("[%v] is invalid", "username")
 		},
 	}
 
 	checkCommand := CheckCommand(&Helper{
-		Database:   td,
+		Connect:    tcc,
 		FileReader: tfr,
-		Logger:     internal.NewLogger(os.Stdout),
+		Logger:     internal.NewSerializer(os.Stdout),
 	})
 	b := bytes.NewBufferString("")
 	checkCommand.SetOut(b)
@@ -80,16 +82,16 @@ func TestCheckExecuteSuccessful(t *testing.T) {
 		content: []byte("{\"host\": \"something.us-east-3.psdb.cloud\",\"database\":\"database\",\"username\":\"username\",\"password\":\"password\"}"),
 	}
 
-	td := testDatabase{
-		connectResponse: canConnectResponse{
-			err: nil,
+	tcc := &lib.TestConnectClient{
+		CanConnectFn: func(ctx context.Context, ps lib.PlanetScaleSource) error {
+			return nil
 		},
 	}
 
 	checkCommand := CheckCommand(&Helper{
-		Database:   td,
+		Connect:    tcc,
 		FileReader: tfr,
-		Logger:     internal.NewLogger(os.Stdout),
+		Logger:     internal.NewSerializer(os.Stdout),
 	})
 	b := bytes.NewBufferString("")
 	checkCommand.SetOut(b)

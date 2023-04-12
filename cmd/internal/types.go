@@ -2,10 +2,11 @@ package internal
 
 import (
 	"encoding/base64"
+
 	"github.com/pkg/errors"
+	"github.com/planetscale/airbyte-source/lib"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/planetscale/psdb/core/codec"
-	"vitess.io/vitess/go/sqltypes"
 )
 
 const (
@@ -59,7 +60,7 @@ type StreamSchema struct {
 }
 
 type Catalog struct {
-	Streams []Stream `json:"streams"`
+	Streams []*Stream `json:"streams"`
 }
 
 type ConfiguredStream struct {
@@ -86,22 +87,12 @@ type AirbyteRecord struct {
 	Data      map[string]interface{} `json:"data"`
 }
 
-type SyncState struct {
-	Streams map[string]ShardStates `json:"streams"`
-}
-
-type ShardStates struct {
-	Shards map[string]*SerializedCursor `json:"shards"`
-}
-
 type SerializedCursor struct {
 	Cursor string `json:"cursor"`
 }
 
 func (s SerializedCursor) SerializedCursorToTableCursor(table ConfiguredStream) (*psdbconnect.TableCursor, error) {
-	var (
-		tc psdbconnect.TableCursor
-	)
+	var tc psdbconnect.TableCursor
 	decoded, err := base64.StdEncoding.DecodeString(s.Cursor)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to decode table cursor")
@@ -127,29 +118,8 @@ func TableCursorToSerializedCursor(cursor *psdbconnect.TableCursor) (*Serialized
 	return sc, nil
 }
 
-func QueryResultToRecords(qr *sqltypes.Result) []map[string]interface{} {
-	data := make([]map[string]interface{}, 0, len(qr.Rows))
-
-	columns := make([]string, 0, len(qr.Fields))
-	for _, field := range qr.Fields {
-		columns = append(columns, field.Name)
-	}
-
-	for _, row := range qr.Rows {
-		record := make(map[string]interface{})
-		for idx, val := range row {
-			if idx < len(columns) {
-				record[columns[idx]] = val
-			}
-		}
-		data = append(data, record)
-	}
-
-	return data
-}
-
 type AirbyteState struct {
-	Data SyncState `json:"data"`
+	Data lib.SyncState `json:"data"`
 }
 
 type AirbyteMessage struct {

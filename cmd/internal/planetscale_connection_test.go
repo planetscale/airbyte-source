@@ -1,9 +1,11 @@
 package internal
 
 import (
+	"testing"
+
+	"github.com/planetscale/airbyte-source/lib"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestCanGenerateSecureDSN(t *testing.T) {
@@ -44,12 +46,12 @@ func TestCanGenerateInitialState_Sharded(t *testing.T) {
 	}
 	shardStates, err := psc.GetInitialState("connect-test", shards)
 	assert.NoError(t, err)
-	expectedShardStates := ShardStates{
-		Shards: map[string]*SerializedCursor{},
+	expectedShardStates := lib.ShardStates{
+		Shards: map[string]*lib.SerializedCursor{},
 	}
 
 	for _, shard := range shards {
-		expectedShardStates.Shards[shard], err = TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+		expectedShardStates.Shards[shard], err = lib.TableCursorToSerializedCursor(&psdbconnect.TableCursor{
 			Shard:    shard,
 			Keyspace: "connect-test",
 			Position: "",
@@ -81,12 +83,12 @@ func TestCanGenerateInitialState_CustomShards(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, len(configuredShards), len(shardStates.Shards))
 
-	expectedShardStates := ShardStates{
-		Shards: map[string]*SerializedCursor{},
+	expectedShardStates := lib.ShardStates{
+		Shards: map[string]*lib.SerializedCursor{},
 	}
 
 	for _, shard := range configuredShards {
-		expectedShardStates.Shards[shard], err = TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+		expectedShardStates.Shards[shard], err = lib.TableCursorToSerializedCursor(&psdbconnect.TableCursor{
 			Shard:    shard,
 			Keyspace: "connect-test",
 			Position: "",
@@ -111,12 +113,12 @@ func TestCanGenerateInitialState_Unsharded(t *testing.T) {
 	}
 	shardStates, err := psc.GetInitialState("connect-test", shards)
 	assert.NoError(t, err)
-	expectedShardStates := ShardStates{
-		Shards: map[string]*SerializedCursor{},
+	expectedShardStates := lib.ShardStates{
+		Shards: map[string]*lib.SerializedCursor{},
 	}
 
 	for _, shard := range shards {
-		expectedShardStates.Shards[shard], err = TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+		expectedShardStates.Shards[shard], err = lib.TableCursorToSerializedCursor(&psdbconnect.TableCursor{
 			Shard:    shard,
 			Keyspace: "connect-test",
 			Position: "",

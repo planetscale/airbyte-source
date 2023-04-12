@@ -1,4 +1,4 @@
-package internal
+package lib
 
 import (
 	"fmt"
@@ -6,22 +6,18 @@ import (
 	"strings"
 
 	"github.com/go-sql-driver/mysql"
-	"github.com/planetscale/airbyte-source/lib"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 )
 
-// PlanetScaleSource defines a configured Airbyte Source for a PlanetScale database
+// PlanetScaleSource defines a configured FiveTran Source for a PlanetScale database
+// Consider this a connection string to a PlanetScale database.
 type PlanetScaleSource struct {
-	Host     string              `json:"host"`
-	Database string              `json:"database"`
-	Username string              `json:"username"`
-	Password string              `json:"password"`
-	Shards   string              `json:"shards"`
-	Options  CustomSourceOptions `json:"options"`
-}
-
-type CustomSourceOptions struct {
-	DoNotTreatTinyIntAsBoolean bool `json:"do_not_treat_tiny_int_as_boolean"`
+	Host                  string `json:"host"`
+	Database              string `json:"database"`
+	Username              string `json:"username"`
+	Password              string `json:"password"`
+	Shards                string `json:"shards"`
+	TreatTinyIntAsBoolean bool   `json:"treat_tiny_int_as_boolean"`
 }
 
 // DSN returns a DataSource that mysql libraries can use to connect to a PlanetScale database.
@@ -35,18 +31,38 @@ func (psc PlanetScaleSource) DSN(tt psdbconnect.TabletType) string {
 
 	if useSecureConnection() {
 		config.TLSConfig = "true"
-		config.DBName = fmt.Sprintf("%v@%v", psc.Database, TabletTypeToString(tt))
+		config.DBName = fmt.Sprintf("%v@%v", psc.Database, tabletTypeToString(tt))
 	} else {
 		config.TLSConfig = "skip-verify"
 	}
 	return config.FormatDSN()
 }
 
+func tabletTypeToString(t psdbconnect.TabletType) string {
+	if t == psdbconnect.TabletType_replica {
+		return "replica"
+	}
+
+	return "primary"
+}
+
+func useSecureConnection() bool {
+	e2eTestRun, found := os.LookupEnv("PS_END_TO_END_TEST_RUN")
+	if found && (e2eTestRun == "yes" ||
+		e2eTestRun == "y" ||
+		e2eTestRun == "true" ||
+		e2eTestRun == "1") {
+		return false
+	}
+
+	return true
+}
+
 // GetInitialState will return the initial/blank state for a given keyspace in all of its shards.
-// This state can be round-tripped safely with Airbyte.
-func (psc PlanetScaleSource) GetInitialState(keyspaceOrDatabase string, shards []string) (lib.ShardStates, error) {
-	shardCursors := lib.ShardStates{
-		Shards: map[string]*lib.SerializedCursor{},
+// This state can be round-tripped safely with FiveTran.
+func (psc PlanetScaleSource) GetInitialState(keyspaceOrDatabase string, shards []string) (ShardStates, error) {
+	shardCursors := ShardStates{
+		Shards: map[string]*SerializedCursor{},
 	}
 
 	if len(psc.Shards) > 0 {
@@ -69,7 +85,7 @@ func (psc PlanetScaleSource) GetInitialState(keyspaceOrDatabase string, shards [
 	}
 
 	for _, shard := range shards {
-		shardCursors.Shards[shard], _ = lib.TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+		shardCursors.Shards[shard], _ = TableCursorToSerializedCursor(&psdbconnect.TableCursor{
 			Shard:    shard,
 			Keyspace: keyspaceOrDatabase,
 			Position: "",
@@ -77,24 +93,4 @@ func (psc PlanetScaleSource) GetInitialState(keyspaceOrDatabase string, shards [
 	}
 
 	return shardCursors, nil
-}
-
-func useSecureConnection() bool {
-	e2eTestRun, found := os.LookupEnv("PS_END_TO_END_TEST_RUN")
-	if found && (e2eTestRun == "yes" ||
-		e2eTestRun == "y" ||
-		e2eTestRun == "true" ||
-		e2eTestRun == "1") {
-		return false
-	}
-
-	return true
-}
-
-func TabletTypeToString(t psdbconnect.TabletType) string {
-	if t == psdbconnect.TabletType_replica {
-		return "replica"
-	}
-
-	return "primary"
 }

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/planetscale/airbyte-source/lib"
+
 	"github.com/planetscale/airbyte-source/cmd/internal"
 	"github.com/spf13/cobra"
 )
@@ -21,7 +23,7 @@ func CheckCommand(ch *Helper) *cobra.Command {
 		Use:   "check",
 		Short: "Validates the credentials to connect to a PlanetScale database",
 		Run: func(cmd *cobra.Command, args []string) {
-			ch.Logger = internal.NewLogger(cmd.OutOrStdout())
+			ch.Logger = internal.NewSerializer(cmd.OutOrStdout())
 
 			if configFilePath == "" {
 				fmt.Fprintln(cmd.OutOrStdout(), "Please provide path to a valid configuration file")
@@ -38,18 +40,20 @@ func CheckCommand(ch *Helper) *cobra.Command {
 				return
 			}
 
-			if err := ch.EnsureDB(psc); err != nil {
+			if err := ch.EnsureConnect(*psc); err != nil {
 				fmt.Fprintln(cmd.OutOrStdout(), "Unable to connect to PlanetScale Database")
 				return
 			}
 
 			defer func() {
-				if err := ch.Database.Close(); err != nil {
-					fmt.Fprintf(cmd.OutOrStdout(), "Unable to close connection to PlanetScale Database, failed with %v", err)
+				if ch.Mysql != nil {
+					if err := ch.Mysql.Close(); err != nil {
+						fmt.Fprintf(cmd.OutOrStdout(), "Unable to close connection to PlanetScale Database, failed with %v", err)
+					}
 				}
 			}()
 
-			cs, _ := checkConnectionStatus(ch.Database, psc)
+			cs, _ := checkConnectionStatus(ch.Connect, psc)
 			ch.Logger.ConnectionStatus(cs)
 		},
 	}
@@ -57,22 +61,28 @@ func CheckCommand(ch *Helper) *cobra.Command {
 	return checkCmd
 }
 
-func parseSource(reader FileReader, configFilePath string) (internal.PlanetScaleSource, error) {
+func parseSource(reader FileReader, configFilePath string) (*lib.PlanetScaleSource, error) {
 	var psc internal.PlanetScaleSource
 	contents, err := reader.ReadFile(configFilePath)
 	if err != nil {
-		return psc, err
+		return nil, err
 	}
 	if err = json.Unmarshal(contents, &psc); err != nil {
-		return psc, err
+		return nil, err
 	}
 
-	return psc, nil
+	return &lib.PlanetScaleSource{
+		Host:                  psc.Host,
+		Database:              psc.Database,
+		Shards:                psc.Shards,
+		Username:              psc.Username,
+		Password:              psc.Password,
+		TreatTinyIntAsBoolean: !psc.Options.DoNotTreatTinyIntAsBoolean,
+	}, nil
 }
 
-func checkConnectionStatus(database internal.PlanetScaleDatabase, psc internal.PlanetScaleSource) (internal.ConnectionStatus, error) {
-
-	if err := database.CanConnect(context.Background(), psc); err != nil {
+func checkConnectionStatus(database lib.ConnectClient, psc *lib.PlanetScaleSource) (internal.ConnectionStatus, error) {
+	if err := database.CanConnect(context.Background(), *psc); err != nil {
 		return internal.ConnectionStatus{
 			Status:  "FAILED",
 			Message: fmt.Sprintf("Unable to connect to PlanetScale database %v at host %v with username %v. Failed with \n %v", psc.Database, psc.Host, psc.Username, err),

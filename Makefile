@@ -35,6 +35,14 @@ all: build test lint
 test:
 	@go test ./...
 
+.PHONY: bootstrap
+bootstrap:
+	@go install mvdan.cc/gofumpt@latest
+
+.PHONY: fmt
+fmt: bootstrap
+	$(GOBIN)/gofumpt -w .
+
 .PHONY: build
 build:
 	@go build -trimpath ./...

@@ -6,6 +6,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/planetscale/airbyte-source/lib"
+	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
+
+	"vitess.io/vitess/go/sqltypes"
+
 	"github.com/planetscale/airbyte-source/cmd/internal"
 	"github.com/spf13/cobra"
 )
@@ -25,7 +30,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 		Use:   "read",
 		Short: "Converts rows from a PlanetScale database into AirbyteRecordMessages",
 		Run: func(cmd *cobra.Command, args []string) {
-			ch.Logger = internal.NewLogger(cmd.OutOrStdout())
+			ch.Logger = internal.NewSerializer(cmd.OutOrStdout())
 			if readSourceConfigFilePath == "" {
 				fmt.Fprintf(cmd.ErrOrStderr(), "Please pass path to a valid source config file via the [%v] argument", "config")
 				os.Exit(1)
@@ -44,18 +49,20 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				return
 			}
 
-			if err := ch.EnsureDB(psc); err != nil {
+			if err := ch.EnsureConnect(*psc); err != nil {
 				fmt.Fprintln(cmd.OutOrStdout(), "Unable to connect to PlanetScale Database")
 				return
 			}
 
 			defer func() {
-				if err := ch.Database.Close(); err != nil {
-					fmt.Fprintf(cmd.OutOrStdout(), "Unable to close connection to PlanetScale Database, failed with %v", err)
+				if ch.Mysql != nil {
+					if err := ch.Mysql.Close(); err != nil {
+						fmt.Fprintf(cmd.OutOrStdout(), "Unable to close connection to PlanetScale Database, failed with %v", err)
+					}
 				}
 			}()
 
-			cs, err := checkConnectionStatus(ch.Database, psc)
+			cs, err := checkConnectionStatus(ch.Connect, psc)
 			if err != nil {
 				ch.Logger.ConnectionStatus(cs)
 				return
@@ -81,7 +88,8 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				}
 				state = string(b)
 			}
-			shards, err := ch.Database.ListShards(context.Background(), psc)
+
+			shards, err := ch.Connect.ListShards(context.Background(), *psc)
 			if err != nil {
 				ch.Logger.Error(fmt.Sprintf("Unable to list shards : %v", err))
 				os.Exit(1)
@@ -99,20 +107,31 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					keyspaceOrDatabase = psc.Database
 				}
 				streamStateKey := keyspaceOrDatabase + ":" + table.Stream.Name
-				streamState, ok := syncState.Streams[streamStateKey]
+				streamState, ok := syncState.Keyspaces[keyspaceOrDatabase].Streams[streamStateKey]
 				if !ok {
 					ch.Logger.Error(fmt.Sprintf("Unable to read state for stream %v", streamStateKey))
 					os.Exit(1)
 				}
 
 				for shardName, shardState := range streamState.Shards {
-					tc, err := shardState.SerializedCursorToTableCursor(table)
+					tc, err := shardState.SerializedCursorToTableCursor()
 					if err != nil {
 						ch.Logger.Error(fmt.Sprintf("invalid cursor for stream %v, failed with [%v]", streamStateKey, err))
 						os.Exit(1)
 					}
 
-					sc, err := ch.Database.Read(context.Background(), cmd.OutOrStdout(), psc, table, tc)
+					onResult := func(*sqltypes.Result) error {
+						return nil
+					}
+
+					onCursor := func(*psdbconnect.TableCursor) error {
+						return nil
+					}
+
+					lps := lib.PlanetScaleSource{}
+
+					sc, err := ch.Connect.Read(context.Background(), ch.Logger, lps, table.Stream.Name, tc, onResult, onCursor)
+					// ch.Database.Read(context.Background(), cmd.OutOrStdout(), psc, table, tc)
 					if err != nil {
 						ch.Logger.Error(err.Error())
 						os.Exit(1)
@@ -121,7 +140,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					if sc != nil {
 						// if we get any new state, we assign it here.
 						// otherwise, the older state is round-tripped back to Airbyte.
-						syncState.Streams[streamStateKey].Shards[shardName] = sc
+						syncState.Keyspaces[keyspaceOrDatabase].Streams[streamStateKey].Shards[shardName] = sc
 					}
 					ch.Logger.State(syncState)
 				}
@@ -138,9 +157,13 @@ type State struct {
 	Shards map[string]map[string]interface{} `json:"shards"`
 }
 
-func readState(state string, psc internal.PlanetScaleSource, streams []internal.ConfiguredStream, shards []string) (internal.SyncState, error) {
-	syncState := internal.SyncState{
-		Streams: map[string]internal.ShardStates{},
+func readState(state string, psc *lib.PlanetScaleSource, streams []internal.ConfiguredStream, shards []string) (lib.SyncState, error) {
+	syncState := lib.SyncState{
+		Keyspaces: map[string]lib.KeyspaceState{
+			psc.Database: {
+				Streams: map[string]lib.ShardStates{},
+			},
+		},
 	}
 	if state != "" {
 		err := json.Unmarshal([]byte(state), &syncState)
@@ -159,12 +182,12 @@ func readState(state string, psc internal.PlanetScaleSource, streams []internal.
 
 		// if no table cursor was found in the state, or we want to ignore the current cursor,
 		// Send along an empty cursor for each shard.
-		if _, ok := syncState.Streams[stateKey]; !ok || ignoreCurrentCursor {
+		if _, ok := syncState.Keyspaces[psc.Database].Streams[stateKey]; !ok || ignoreCurrentCursor {
 			initialState, err := psc.GetInitialState(keyspaceOrDatabase, shards)
 			if err != nil {
 				return syncState, err
 			}
-			syncState.Streams[stateKey] = initialState
+			syncState.Keyspaces[psc.Database].Streams[stateKey] = initialState
 		}
 	}
 
