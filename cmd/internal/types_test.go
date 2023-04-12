@@ -2,8 +2,9 @@ package internal
 
 import (
 	"encoding/base64"
-	"github.com/planetscale/airbyte-source/lib"
 	"testing"
+
+	"github.com/planetscale/airbyte-source/lib"
 
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/planetscale/psdb/core/codec"

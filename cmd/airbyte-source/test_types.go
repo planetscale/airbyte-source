@@ -9,11 +9,15 @@ import (
 )
 
 type testFileReader struct {
+	Readfn  func(path string) ([]byte, error)
 	content []byte
 	err     error
 }
 
 func (tfr testFileReader) ReadFile(path string) ([]byte, error) {
+	if tfr.Readfn != nil {
+		return tfr.Readfn(path)
+	}
 	return tfr.content, tfr.err
 }
 
@@ -27,7 +31,8 @@ type discoverSchemaResponse struct {
 }
 
 type testDatabase struct {
-	connectResponse        canConnectResponse
+	connectResponse canConnectResponse
+
 	discoverSchemaResponse discoverSchemaResponse
 }
 
@@ -54,4 +59,13 @@ func (td testDatabase) Close() error {
 
 func (td testDatabase) ListShards(ctx context.Context, ps internal.PlanetScaleSource) ([]string, error) {
 	panic("implement me")
+}
+
+type testWriter struct {
+	lines []string
+}
+
+func (t *testWriter) Write(p []byte) (n int, err error) {
+	t.lines = append(t.lines, string(p))
+	return len(p), nil
 }

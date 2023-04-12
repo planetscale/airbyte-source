@@ -3,6 +3,8 @@ package internal
 import (
 	"encoding/base64"
 
+	"vitess.io/vitess/go/sqltypes"
+
 	"github.com/pkg/errors"
 	"github.com/planetscale/airbyte-source/lib"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
@@ -129,4 +131,25 @@ type AirbyteMessage struct {
 	Catalog          *Catalog           `json:"catalog,omitempty"`
 	Record           *AirbyteRecord     `json:"record,omitempty"`
 	State            *AirbyteState      `json:"state,omitempty"`
+}
+
+func QueryResultToRecords(qr *sqltypes.Result) []map[string]interface{} {
+	data := make([]map[string]interface{}, 0, len(qr.Rows))
+
+	columns := make([]string, 0, len(qr.Fields))
+	for _, field := range qr.Fields {
+		columns = append(columns, field.Name)
+	}
+
+	for _, row := range qr.Rows {
+		record := make(map[string]interface{})
+		for idx, val := range row {
+			if idx < len(columns) {
+				record[columns[idx]] = val
+			}
+		}
+		data = append(data, record)
+	}
+
+	return data
 }

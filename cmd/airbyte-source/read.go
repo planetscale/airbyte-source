@@ -33,15 +33,13 @@ func ReadCommand(ch *Helper) *cobra.Command {
 			ch.Logger = internal.NewSerializer(cmd.OutOrStdout())
 			if readSourceConfigFilePath == "" {
 				fmt.Fprintf(cmd.ErrOrStderr(), "Please pass path to a valid source config file via the [%v] argument", "config")
-				os.Exit(1)
+				return
 			}
 
 			if readSourceCatalogPath == "" {
-				fmt.Fprintf(cmd.OutOrStdout(), "Please pass path to a valid source catalog file via the [%v] argument", "config")
-				os.Exit(1)
+				fmt.Fprintf(cmd.OutOrStdout(), "Please pass path to a valid source catalog file via the [%v] argument", "catalog")
+				return
 			}
-
-			ch.Logger.Log(internal.LOGLEVEL_INFO, "Checking connection")
 
 			psc, err := parseSource(ch.FileReader, readSourceConfigFilePath)
 			if err != nil {
@@ -68,10 +66,10 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				return
 			}
 
-			catalog, err := readCatalog(readSourceCatalogPath)
+			catalog, err := readCatalog(ch.FileReader, readSourceCatalogPath)
 			if err != nil {
-				ch.Logger.Error("Unable to read catalog")
-				os.Exit(1)
+				ch.Logger.Error(fmt.Sprintf("Unable to read catalog: %v", err))
+				return
 			}
 
 			if len(catalog.Streams) == 0 {
@@ -84,7 +82,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				b, err := os.ReadFile(stateFilePath)
 				if err != nil {
 					ch.Logger.Error(fmt.Sprintf("Unable to read state : %v", err))
-					os.Exit(1)
+					return
 				}
 				state = string(b)
 			}
@@ -92,13 +90,13 @@ func ReadCommand(ch *Helper) *cobra.Command {
 			shards, err := ch.Connect.ListShards(context.Background(), *psc)
 			if err != nil {
 				ch.Logger.Error(fmt.Sprintf("Unable to list shards : %v", err))
-				os.Exit(1)
+				return
 			}
 
 			syncState, err := readState(state, psc, catalog.Streams, shards)
 			if err != nil {
 				ch.Logger.Error(fmt.Sprintf("Unable to read state : %v", err))
-				os.Exit(1)
+				return
 			}
 
 			for _, table := range catalog.Streams {
@@ -106,25 +104,35 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				if keyspaceOrDatabase == "" {
 					keyspaceOrDatabase = psc.Database
 				}
+
 				streamStateKey := keyspaceOrDatabase + ":" + table.Stream.Name
 				streamState, ok := syncState.Keyspaces[keyspaceOrDatabase].Streams[streamStateKey]
 				if !ok {
 					ch.Logger.Error(fmt.Sprintf("Unable to read state for stream %v", streamStateKey))
-					os.Exit(1)
+					return
 				}
 
 				for shardName, shardState := range streamState.Shards {
 					tc, err := shardState.SerializedCursorToTableCursor()
 					if err != nil {
 						ch.Logger.Error(fmt.Sprintf("invalid cursor for stream %v, failed with [%v]", streamStateKey, err))
-						os.Exit(1)
+						return
 					}
 
-					onResult := func(*sqltypes.Result) error {
+					onResult := func(data *sqltypes.Result) error {
+						rows := internal.QueryResultToRecords(data)
+						for _, row := range rows {
+							ch.Logger.Record(keyspaceOrDatabase, table.Stream.Name, row)
+						}
 						return nil
 					}
 
-					onCursor := func(*psdbconnect.TableCursor) error {
+					onCursor := func(tc *psdbconnect.TableCursor) error {
+						sc, err := lib.TableCursorToSerializedCursor(tc)
+						if err != nil {
+							return err
+						}
+						syncState.Keyspaces[keyspaceOrDatabase].Streams[streamStateKey].Shards[shardName] = sc
 						return nil
 					}
 
@@ -134,7 +142,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					// ch.Database.Read(context.Background(), cmd.OutOrStdout(), psc, table, tc)
 					if err != nil {
 						ch.Logger.Error(err.Error())
-						os.Exit(1)
+						return
 					}
 
 					if sc != nil {
@@ -143,6 +151,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 						syncState.Keyspaces[keyspaceOrDatabase].Streams[streamStateKey].Shards[shardName] = sc
 					}
 					ch.Logger.State(syncState)
+					ch.Logger.Flush()
 				}
 			}
 		},
@@ -194,8 +203,8 @@ func readState(state string, psc *lib.PlanetScaleSource, streams []internal.Conf
 	return syncState, nil
 }
 
-func readCatalog(path string) (c internal.ConfiguredCatalog, err error) {
-	b, err := os.ReadFile(path)
+func readCatalog(fr FileReader, path string) (c internal.ConfiguredCatalog, err error) {
+	b, err := fr.ReadFile(path)
 	if err != nil {
 		return c, err
 	}
