@@ -50,7 +50,7 @@ test:
 
 .PHONY: build
 build:
-	@go build ./...
+	@go build -trimpath ./...
 
 .PHONY: lint
 lint:

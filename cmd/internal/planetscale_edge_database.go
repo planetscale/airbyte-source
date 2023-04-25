@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -40,7 +41,30 @@ type PlanetScaleEdgeDatabase struct {
 }
 
 func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleSource) error {
+	if err := p.checkEdgePassword(ctx, psc); err != nil {
+		return errors.Wrap(err, "Unable to initialize Connect Session")
+	}
+
 	return p.Mysql.PingContext(ctx, psc)
+}
+
+func (p PlanetScaleEdgeDatabase) checkEdgePassword(ctx context.Context, psc PlanetScaleSource) error {
+	if !strings.HasSuffix(psc.Host, ".connect.psdb.cloud") {
+		return errors.New("This password is not connect-enabled, please ensure that your organization is enrolled in the Connect beta.")
+	}
+	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, fmt.Sprintf("https://%v", psc.Host), nil)
+	if err != nil {
+		return err
+	}
+
+	_, err = http.DefaultClient.Do(req)
+	if err != nil {
+		return errors.New(fmt.Sprintf("The database %q, hosted at %q, is inaccessible from this process", psc.Database, psc.Host))
+	}
+
+	return nil
 }
 
 func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetScaleSource) (Catalog, error) {
@@ -109,12 +133,16 @@ func getJsonSchemaType(mysqlType string, treatTinyIntAsBoolean bool) PropertyTyp
 		return PropertyType{Type: "integer"}
 	}
 
+	if strings.HasPrefix(mysqlType, "decimal") || strings.HasPrefix(mysqlType, "double") {
+		return PropertyType{Type: "number"}
+	}
+
 	if strings.HasPrefix(mysqlType, "bigint") {
 		return PropertyType{Type: "string", AirbyteType: "big_integer"}
 	}
 
 	if strings.HasPrefix(mysqlType, "datetime") {
-		return PropertyType{Type: "string", AirbyteType: "timestamp_with_timezone"}
+		return PropertyType{Type: "string", CustomFormat: "date-time", AirbyteType: "timestamp_without_timezone"}
 	}
 
 	if mysqlType == "tinyint(1)" {
@@ -129,7 +157,7 @@ func getJsonSchemaType(mysqlType string, treatTinyIntAsBoolean bool) PropertyTyp
 	case "date":
 		return PropertyType{Type: "string", AirbyteType: "date"}
 	case "datetime":
-		return PropertyType{Type: "string", AirbyteType: "timestamp_with_timezone"}
+		return PropertyType{Type: "string", AirbyteType: "timestamp_without_timezone"}
 	default:
 		return PropertyType{Type: "string"}
 	}

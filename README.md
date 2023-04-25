@@ -2,15 +2,15 @@
 
 This repository builds a docker container that is used a [Source Connector](https://docs.airbyte.com/understanding-airbyte/airbyte-specification#source) in [Airbyte](https://airbyte.com/).
 
-Official documentation of connecting to PlanetScale databases from your Airbyte installation is available [here](https://docs.planetscale.com/integrations/airbyte)
+Official documentation of connecting to PlanetScale databases from your Airbyte installation is available [here](https://planetscale.com/docs/integrations/airbyte)
 
 ## Self-hosting
 
 Click [here](docs/airbyte.md) for docs to self-host this docker image.
 
 ### How the container will be called:
-The first argument passed to the image must be the command (e.g. spec, check, discover, read). 
-Additional arguments can be passed after the command. 
+The first argument passed to the image must be the command (e.g. spec, check, discover, read).
+Additional arguments can be passed after the command.
 Note: The system running the container will handle mounting the appropriate paths so that the config files are available to the container.
 ```
 docker run --rm -i <source-image-name> spec
@@ -23,17 +23,17 @@ docker run --rm -i <source-image-name> read --config <config-file-path> \
  --catalog <catalog-file-path> [--state <state-file-path>] > message_stream.json
 ```
 
-``` 
+```
 Interface Pseudocode:
 spec() -> ConnectorSpecification
 check(Config) -> AirbyteConnectionStatus
 discover(Config) -> AirbyteCatalog
 read(Config, ConfiguredAirbyteCatalog, State) -> Stream<AirbyteMessage>
-``` 
+```
 
 ### Features supported.
 1. Connection check for a given set of credentials.
-2. Schema fetch for a given database 
+2. Schema fetch for a given database
 3. Reading all records for a given table.
 4. Incremental data fetch, based on VGTID.
 5. Support for sharded databases.
@@ -41,8 +41,8 @@ read(Config, ConfiguredAirbyteCatalog, State) -> Stream<AirbyteMessage>
 
 ## Running the application locally.
 
-### 1. Check command: 
-Create a json file that has connection variables for the PlanetScale database, which looks like this: 
+### 1. Check command:
+Create a json file that has connection variables for the PlanetScale database, which looks like this:
 
 
 ``` json
@@ -56,7 +56,7 @@ Create a json file that has connection variables for the PlanetScale database, w
 
 save it as `source.json` in this directory
 
-Now, you can run `go run main.go check --config source.json` and should see an output like this : 
+Now, you can run `go run main.go check --config source.json` and should see an output like this :
 
 
 ``` bash
@@ -70,7 +70,7 @@ Now, you can run `go run main.go check --config source.json` and should see an o
 }
 ```
 
-### 2. Discover command: 
+### 2. Discover command:
 
 We need the same file as we do for `read` command above.
 

@@ -10,11 +10,11 @@ require (
 )
 
 require (
-	github.com/bufbuild/connect-go v0.2.0
+	github.com/bufbuild/connect-go v1.5.1
 	github.com/pkg/errors v0.9.1
-	github.com/planetscale/psdb v0.0.0-20220726233456-0cde790cdd14
+	github.com/planetscale/psdb v0.0.0-20230227172245-06f7cdd8db02
 	google.golang.org/grpc v1.48.0
-	google.golang.org/protobuf v1.28.0
+	google.golang.org/protobuf v1.28.1
 )
 
 require (
@@ -42,8 +42,8 @@ require (
 	github.com/hashicorp/serf v0.9.6 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
-	github.com/klauspost/compress v1.15.9 // indirect
-	github.com/klauspost/connect-compress v0.1.1 // indirect
+	github.com/klauspost/compress v1.15.15 // indirect
+	github.com/klauspost/connect-compress v1.0.0 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
@@ -66,7 +66,7 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	golang.org/x/net v0.0.0-20220725212005-46097bf591d3 // indirect
 	golang.org/x/oauth2 v0.0.0-20220309155454-6242fa91716a // indirect
-	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f // indirect
+	golang.org/x/sys v0.5.0 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306 // indirect
 	golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f // indirect

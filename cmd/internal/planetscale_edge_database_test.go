@@ -194,7 +194,7 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 		{
 			MysqlType:      "datetime",
 			JSONSchemaType: "string",
-			AirbyteType:    "timestamp_with_timezone",
+			AirbyteType:    "timestamp_without_timezone",
 		},
 		{
 			MysqlType:      "date",
@@ -209,6 +209,16 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 		{
 			MysqlType:      "varchar(256)",
 			JSONSchemaType: "string",
+			AirbyteType:    "",
+		},
+		{
+			MysqlType:      "decimal(12,5)",
+			JSONSchemaType: "number",
+			AirbyteType:    "",
+		},
+		{
+			MysqlType:      "double",
+			JSONSchemaType: "number",
 			AirbyteType:    "",
 		},
 	}

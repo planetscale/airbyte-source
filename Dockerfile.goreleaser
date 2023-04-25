@@ -6,4 +6,5 @@ RUN apt-get update && apt-get upgrade -y && \
     rm -rf /var/lib/apt/lists/*
 
 COPY connect /usr/local/bin/
+ENV AIRBYTE_ENTRYPOINT "/usr/local/bin/connect"
 ENTRYPOINT ["/usr/local/bin/connect"]

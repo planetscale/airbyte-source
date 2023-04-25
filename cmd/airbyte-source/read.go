@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/planetscale/airbyte-source/cmd/internal"
@@ -75,7 +74,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 
 			state := ""
 			if stateFilePath != "" {
-				b, err := ioutil.ReadFile(stateFilePath)
+				b, err := os.ReadFile(stateFilePath)
 				if err != nil {
 					ch.Logger.Error(fmt.Sprintf("Unable to read state : %v", err))
 					os.Exit(1)
@@ -173,7 +172,7 @@ func readState(state string, psc internal.PlanetScaleSource, streams []internal.
 }
 
 func readCatalog(path string) (c internal.ConfiguredCatalog, err error) {
-	b, err := ioutil.ReadFile(path)
+	b, err := os.ReadFile(path)
 	if err != nil {
 		return c, err
 	}

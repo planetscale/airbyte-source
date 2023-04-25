@@ -8,9 +8,9 @@
 
 Run `make push REPO=<Your Dockerhub organization name>`
 
-example : `make push REPO=phanatic` 
+example : `make push REPO=phanatic`
 
-When the command finishes, you should seen an output that shows your pointer to the docker image on Docker Hub. 
+When the command finishes, you should seen an output that shows your pointer to the docker image on Docker Hub.
 
 ```
 Your image is now available at phanatic/airbyte-source:0.1.0
@@ -77,9 +77,9 @@ f64c71a2c1b6: Layer already exists
 Connector display name: PlanetScale
 Docker repository name: <name of the docker repository in the output>
 Docker image tag : <tag name in the output>
-Connector Documentation URL : https://docs.planetscale.com 
+Connector Documentation URL : https://planetscale.com/docs
 ```
 
 ![Connector Input](img/connector-input.png)
- 
+
 4. Now you're ready to connect Airbyte to your PlanetScale database! :tada:
