@@ -17,12 +17,27 @@ message SyncRequest {
   string table_name = 1;
   TableCursor cursor = 2;
   TabletType tablet_type = 3;
+  bool include_inserts  = 4;
+  bool include_updates  = 5;
+  bool include_deletes = 6;
+  repeated string columns = 7;
+}
+
+message DeletedRow {
+  query.QueryResult result = 1;
+}
+
+message UpdatedRow {
+  query.QueryResult before = 1;
+  query.QueryResult after = 2;
 }
 
 message SyncResponse {
   repeated query.QueryResult result = 1;
   TableCursor cursor = 2;
   vtrpc.RPCError error = 3;
+  repeated DeletedRow deletes = 4;
+  repeated UpdatedRow updates = 5;
 }
 
 message TableCursor {
@@ -35,3 +50,4 @@ message TableCursor {
 service Connect {
   rpc Sync(SyncRequest) returns (stream SyncResponse) {}
 }
+
