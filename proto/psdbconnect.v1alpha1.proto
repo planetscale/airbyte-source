@@ -9,8 +9,20 @@ option go_package = "github.com/planetscale/airbyte-source/proto/psdbconnect/v1a
 
 //enumcheck:exhaustive
 enum TabletType {
+  option allow_alias = true; // so we can have read_only and batch co-exist
+
+  // REPLICA replicates from primary. It is used to serve live traffic.
+  // A REPLICA can be promoted to PRIMARY. A demoted PRIMARY will go to REPLICA.
   replica = 0;
+  // PRIMARY is the primary server for the shard. Only PRIMARY allows DMLs.
   primary = 1;
+
+  // RDONLY (old name) / BATCH (new name) is used to serve traffic for
+  // long-running jobs. It is a separate type from REPLICA so
+  // long-running queries don't affect web-like traffic.
+  read_only = 2;
+  batch = 2;
+
 }
 
 message SyncRequest {
@@ -21,6 +33,9 @@ message SyncRequest {
   bool include_updates  = 5;
   bool include_deletes = 6;
   repeated string columns = 7;
+  // if specified, these cells are used to pick source tablets from.
+  // defaults to the cell of the vtgate serving the VStream API.
+  repeated string cells = 8;
 }
 
 message DeletedRow {
