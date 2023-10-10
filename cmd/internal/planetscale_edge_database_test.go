@@ -151,6 +151,54 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
 
+func TestRead_CanPickReplicaForShardedKeyspaces(t *testing.T) {
+	tma := getTestMysqlAccess()
+	b := bytes.NewBufferString("")
+	ped := PlanetScaleEdgeDatabase{
+		Logger: NewLogger(b),
+		Mysql:  tma,
+	}
+	tc := &psdbconnect.TableCursor{
+		Shard:    "40-80",
+		Position: "THIS_IS_A_SHARD_GTID",
+		Keyspace: "connect-test",
+	}
+
+	syncClient := &connectSyncClientMock{
+		syncResponses: []*psdbconnect.SyncResponse{
+			{Cursor: tc},
+		},
+	}
+
+	cc := clientConnectionMock{
+		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
+			assert.Equal(t, psdbconnect.TabletType_replica, in.TabletType)
+			return syncClient, nil
+		},
+	}
+	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
+		return &cc, nil
+	}
+	ps := PlanetScaleSource{
+		Database:   "connect-test",
+		UseReplica: true,
+	}
+	cs := ConfiguredStream{
+		Stream: Stream{
+			Name:      "customers",
+			Namespace: "connect-test",
+		},
+	}
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	assert.NoError(t, err)
+	esc, err := TableCursorToSerializedCursor(tc)
+	assert.NoError(t, err)
+	assert.Equal(t, esc, sc)
+	assert.Equal(t, 1, cc.syncFnInvokedCount)
+	assert.False(t, tma.PingContextFnInvoked)
+	assert.False(t, tma.GetVitessTabletsFnInvoked)
+}
+
 func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 	var tests = []struct {
 		MysqlType             string
@@ -461,7 +509,7 @@ func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
 	assert.Equal(t, 2, cc.syncFnInvokedCount)
 
 	logLines := tal.logMessages[LOGLEVEL_INFO]
-	assert.Equal(t, "[connect-test:customers shard : -] Finished reading all rows for table [customers]", logLines[len(logLines)-1])
+	assert.Equal(t, "[connect-test:primary:customers shard : -] Finished reading all rows for table [customers]", logLines[len(logLines)-1])
 	records := tal.records["connect-test.customers"]
 	assert.Equal(t, 2*(nextVGtidPosition/3), len(records))
 }
