@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/pkg/errors"
-	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"strings"
 	"time"
 )
@@ -31,7 +30,7 @@ type PlanetScaleEdgeMysqlAccess interface {
 }
 
 func NewMySQL(psc *PlanetScaleSource) (PlanetScaleEdgeMysqlAccess, error) {
-	db, err := sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
+	db, err := sql.Open("mysql", psc.DSN())
 	if err != nil {
 		return nil, err
 	}
