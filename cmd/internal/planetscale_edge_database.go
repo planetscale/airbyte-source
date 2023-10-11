@@ -213,6 +213,8 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		return currentSerializedCursor, err
 	}
 
+	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Syncing from tabletType \"%v\", from cells: %v", TabletTypeToString(tabletType), cells))
+
 	currentPosition := lastKnownPosition
 	table := s.Stream
 	readDuration := 1 * time.Minute
@@ -303,7 +305,6 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		TabletType: tabletType,
 		Cells:      cells,
 	}
-	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("DEBUG: SyncRequest.Cells = %v", sReq.GetCells()))
 
 	c, err := client.Sync(ctx, sReq)
 	if err != nil {
