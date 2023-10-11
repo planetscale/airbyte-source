@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG GO_VERSION=1.20.1
+ARG GO_VERSION=1.21.3
 FROM golang:${GO_VERSION}-bullseye AS build
 
 WORKDIR /airbyte-source
