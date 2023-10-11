@@ -59,7 +59,7 @@ func TestRead_CanPeekBeforeRead(t *testing.T) {
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
-	assert.False(t, tma.GetVitessTabletsFnInvoked)
+	assert.True(t, tma.GetVitessTabletsFnInvoked)
 }
 
 func TestRead_CanEarlyExitIfNoNewVGtidInPeek(t *testing.T) {
@@ -126,6 +126,8 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	cc := clientConnectionMock{
 		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
 			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
+			assert.Contains(t, in.Cells, "test_cell_a")
+			assert.Contains(t, in.Cells, "test_cell_b")
 			return syncClient, nil
 		},
 	}
@@ -148,7 +150,7 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
-	assert.False(t, tma.GetVitessTabletsFnInvoked)
+	assert.True(t, tma.GetVitessTabletsFnInvoked)
 }
 
 func TestRead_CanPickReplicaForShardedKeyspaces(t *testing.T) {
@@ -173,6 +175,8 @@ func TestRead_CanPickReplicaForShardedKeyspaces(t *testing.T) {
 	cc := clientConnectionMock{
 		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
 			assert.Equal(t, psdbconnect.TabletType_replica, in.TabletType)
+			assert.Contains(t, in.Cells, "test_cell_a")
+			assert.Contains(t, in.Cells, "test_cell_b")
 			return syncClient, nil
 		},
 	}
@@ -196,7 +200,7 @@ func TestRead_CanPickReplicaForShardedKeyspaces(t *testing.T) {
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
-	assert.False(t, tma.GetVitessTabletsFnInvoked)
+	assert.True(t, tma.GetVitessTabletsFnInvoked)
 }
 
 func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
@@ -303,6 +307,8 @@ func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 	cc := clientConnectionMock{
 		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
 			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
+			assert.Contains(t, in.Cells, "test_cell_a")
+			assert.Contains(t, in.Cells, "test_cell_b")
 			return syncClient, nil
 		},
 	}
@@ -325,7 +331,59 @@ func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
-	assert.False(t, tma.GetVitessTabletsFnInvoked)
+	assert.True(t, tma.GetVitessTabletsFnInvoked)
+}
+
+func TestRead_CanPickReplicaForUnshardedKeyspaces(t *testing.T) {
+	tma := getTestMysqlAccess()
+	b := bytes.NewBufferString("")
+	ped := PlanetScaleEdgeDatabase{
+		Logger: NewLogger(b),
+		Mysql:  tma,
+	}
+	tc := &psdbconnect.TableCursor{
+		Shard:    "-",
+		Position: "THIS_IS_A_SHARD_GTID",
+		Keyspace: "connect-test",
+	}
+
+	syncClient := &connectSyncClientMock{
+		syncResponses: []*psdbconnect.SyncResponse{
+			{
+				Cursor: tc,
+			},
+		},
+	}
+
+	cc := clientConnectionMock{
+		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
+			assert.Equal(t, psdbconnect.TabletType_replica, in.TabletType)
+			assert.Contains(t, in.Cells, "test_cell_a")
+			assert.Contains(t, in.Cells, "test_cell_b")
+			return syncClient, nil
+		},
+	}
+	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
+		return &cc, nil
+	}
+	ps := PlanetScaleSource{
+		Database:   "connect-test",
+		UseReplica: true,
+	}
+	cs := ConfiguredStream{
+		Stream: Stream{
+			Name:      "customers",
+			Namespace: "connect-test",
+		},
+	}
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	assert.NoError(t, err)
+	esc, err := TableCursorToSerializedCursor(tc)
+	assert.NoError(t, err)
+	assert.Equal(t, esc, sc)
+	assert.Equal(t, 1, cc.syncFnInvokedCount)
+	assert.False(t, tma.PingContextFnInvoked)
+	assert.True(t, tma.GetVitessTabletsFnInvoked)
 }
 
 func TestRead_CanReturnOriginalCursorIfNoNewFound(t *testing.T) {
@@ -600,11 +658,13 @@ func getTestMysqlAccess() *mysqlAccessMock {
 		GetVitessTabletsFn: func(ctx context.Context, psc PlanetScaleSource) ([]VitessTablet, error) {
 			return []VitessTablet{
 				{
+					Cell:       "test_cell_a",
 					Keyspace:   "connect-test",
 					TabletType: TabletTypeToString(psdbconnect.TabletType_primary),
 					State:      "SERVING",
 				},
 				{
+					Cell:       "test_cell_b",
 					Keyspace:   "connect-test",
 					TabletType: TabletTypeToString(psdbconnect.TabletType_replica),
 					State:      "SERVING",
