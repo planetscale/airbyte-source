@@ -12,7 +12,6 @@ require (
 require (
 	github.com/pkg/errors v0.9.1
 	github.com/planetscale/psdb v0.0.0-20220429000526-e2a0e798aaf3
-	golang.org/x/exp v0.0.0-20230131160201-f062dba9d201
 	google.golang.org/grpc v1.58.3
 	google.golang.org/protobuf v1.31.0
 )
