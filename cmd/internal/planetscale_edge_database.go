@@ -305,6 +305,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		TabletType: tabletType,
 		Cells:      cells,
 	}
+	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("DEBUG: SyncRequest.Cells = %v", sReq.GetCells()))
 
 	c, err := client.Sync(ctx, sReq)
 	if err != nil {
