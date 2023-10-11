@@ -3,9 +3,9 @@ package internal
 import (
 	"context"
 	"fmt"
-	"golang.org/x/exp/slices"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
