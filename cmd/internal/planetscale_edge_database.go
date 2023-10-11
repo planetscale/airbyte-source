@@ -171,7 +171,7 @@ func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScale
 	return p.Mysql.GetVitessShards(ctx, psc)
 }
 
-func (p PlanetScaleEdgeDatabase) ListCells(ctx context.Context, psc PlanetScaleSource, tabletType psdbconnect.TabletType) ([]string, error) {
+func (p PlanetScaleEdgeDatabase) ListCells(ctx context.Context, psc PlanetScaleSource) ([]string, error) {
 	var cells []string
 	tablets, err := p.Mysql.GetVitessTablets(ctx, psc)
 
@@ -180,7 +180,7 @@ func (p PlanetScaleEdgeDatabase) ListCells(ctx context.Context, psc PlanetScaleS
 	}
 
 	for _, vttablet := range tablets {
-		if strings.EqualFold(vttablet.TabletType, TabletTypeToString(tabletType)) && strings.EqualFold(vttablet.Keyspace, psc.Database) {
+		if strings.EqualFold(vttablet.Keyspace, psc.Database) {
 			if !slices.Contains(cells, vttablet.Cell) {
 				cells = append(cells, vttablet.Cell)
 			}
@@ -208,7 +208,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		tabletType = psdbconnect.TabletType_replica
 	}
 
-	cells, err := p.ListCells(ctx, ps, tabletType)
+	cells, err := p.ListCells(ctx, ps)
 	if err != nil {
 		return currentSerializedCursor, err
 	}
@@ -219,7 +219,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	preamble := fmt.Sprintf("[%v:%v:%v shard : %v] ", table.Namespace, TabletTypeToString(tabletType), table.Name, currentPosition.Shard)
 	for {
 		p.Logger.Log(LOGLEVEL_INFO, preamble+"peeking to see if there's any new rows")
-		latestCursorPosition, lcErr := p.getLatestCursorPosition(ctx, currentPosition.Shard, currentPosition.Keyspace, table, ps, tabletType)
+		latestCursorPosition, lcErr := p.getLatestCursorPosition(ctx, currentPosition.Shard, currentPosition.Keyspace, table, ps, tabletType, cells)
 		if lcErr != nil {
 			return currentSerializedCursor, errors.Wrap(err, "Unable to get latest cursor position")
 		}
@@ -356,7 +356,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 	}
 }
 
-func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, shard, keyspace string, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType) (string, error) {
+func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, shard, keyspace string, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType, cells []string) (string, error) {
 	defer p.Logger.Flush()
 	timeout := 45 * time.Second
 	ctx, cancel := context.WithTimeout(ctx, timeout)
@@ -395,6 +395,7 @@ func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, sh
 			Position: "current",
 		},
 		TabletType: tabletType,
+		Cells:      cells,
 	}
 
 	c, err := client.Sync(ctx, sReq)
