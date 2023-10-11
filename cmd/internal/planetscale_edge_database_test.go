@@ -126,8 +126,7 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	cc := clientConnectionMock{
 		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
 			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
-			assert.Contains(t, in.Cells, "test_cell_a")
-			assert.Contains(t, in.Cells, "test_cell_b")
+			assert.Contains(t, in.Cells, "test_cell_primary")
 			return syncClient, nil
 		},
 	}
@@ -175,8 +174,7 @@ func TestRead_CanPickReplicaForShardedKeyspaces(t *testing.T) {
 	cc := clientConnectionMock{
 		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
 			assert.Equal(t, psdbconnect.TabletType_replica, in.TabletType)
-			assert.Contains(t, in.Cells, "test_cell_a")
-			assert.Contains(t, in.Cells, "test_cell_b")
+			assert.Contains(t, in.Cells, "test_cell_replica")
 			return syncClient, nil
 		},
 	}
@@ -307,8 +305,7 @@ func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 	cc := clientConnectionMock{
 		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
 			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
-			assert.Contains(t, in.Cells, "test_cell_a")
-			assert.Contains(t, in.Cells, "test_cell_b")
+			assert.Contains(t, in.Cells, "test_cell_primary")
 			return syncClient, nil
 		},
 	}
@@ -358,8 +355,7 @@ func TestRead_CanPickReplicaForUnshardedKeyspaces(t *testing.T) {
 	cc := clientConnectionMock{
 		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
 			assert.Equal(t, psdbconnect.TabletType_replica, in.TabletType)
-			assert.Contains(t, in.Cells, "test_cell_a")
-			assert.Contains(t, in.Cells, "test_cell_b")
+			assert.Contains(t, in.Cells, "test_cell_replica")
 			return syncClient, nil
 		},
 	}
@@ -658,13 +654,13 @@ func getTestMysqlAccess() *mysqlAccessMock {
 		GetVitessTabletsFn: func(ctx context.Context, psc PlanetScaleSource) ([]VitessTablet, error) {
 			return []VitessTablet{
 				{
-					Cell:       "test_cell_a",
+					Cell:       "test_cell_primary",
 					Keyspace:   "connect-test",
 					TabletType: TabletTypeToString(psdbconnect.TabletType_primary),
 					State:      "SERVING",
 				},
 				{
-					Cell:       "test_cell_b",
+					Cell:       "test_cell_replica",
 					Keyspace:   "connect-test",
 					TabletType: TabletTypeToString(psdbconnect.TabletType_replica),
 					State:      "SERVING",
