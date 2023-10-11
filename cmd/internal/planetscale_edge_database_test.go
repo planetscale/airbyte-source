@@ -59,7 +59,7 @@ func TestRead_CanPeekBeforeRead(t *testing.T) {
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
-	assert.True(t, tma.GetVitessTabletsFnInvoked)
+	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
 
 func TestRead_CanEarlyExitIfNoNewVGtidInPeek(t *testing.T) {
@@ -126,7 +126,7 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	cc := clientConnectionMock{
 		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
 			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
-			assert.Contains(t, in.Cells, "test_cell_primary")
+			assert.Contains(t, in.Cells, "planetscale_operator_default")
 			return syncClient, nil
 		},
 	}
@@ -149,7 +149,7 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
-	assert.True(t, tma.GetVitessTabletsFnInvoked)
+	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
 
 func TestRead_CanPickReplicaForShardedKeyspaces(t *testing.T) {
@@ -174,7 +174,7 @@ func TestRead_CanPickReplicaForShardedKeyspaces(t *testing.T) {
 	cc := clientConnectionMock{
 		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
 			assert.Equal(t, psdbconnect.TabletType_replica, in.TabletType)
-			assert.Contains(t, in.Cells, "test_cell_replica")
+			assert.Contains(t, in.Cells, "planetscale_operator_default")
 			return syncClient, nil
 		},
 	}
@@ -198,7 +198,7 @@ func TestRead_CanPickReplicaForShardedKeyspaces(t *testing.T) {
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
-	assert.True(t, tma.GetVitessTabletsFnInvoked)
+	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
 
 func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
@@ -305,7 +305,7 @@ func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 	cc := clientConnectionMock{
 		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
 			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
-			assert.Contains(t, in.Cells, "test_cell_primary")
+			assert.Contains(t, in.Cells, "planetscale_operator_default")
 			return syncClient, nil
 		},
 	}
@@ -328,7 +328,7 @@ func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
-	assert.True(t, tma.GetVitessTabletsFnInvoked)
+	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
 
 func TestRead_CanPickReplicaForUnshardedKeyspaces(t *testing.T) {
@@ -355,7 +355,7 @@ func TestRead_CanPickReplicaForUnshardedKeyspaces(t *testing.T) {
 	cc := clientConnectionMock{
 		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
 			assert.Equal(t, psdbconnect.TabletType_replica, in.TabletType)
-			assert.Contains(t, in.Cells, "test_cell_replica")
+			assert.Contains(t, in.Cells, "planetscale_operator_default")
 			return syncClient, nil
 		},
 	}
@@ -379,7 +379,7 @@ func TestRead_CanPickReplicaForUnshardedKeyspaces(t *testing.T) {
 	assert.Equal(t, esc, sc)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
-	assert.True(t, tma.GetVitessTabletsFnInvoked)
+	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
 
 func TestRead_CanReturnOriginalCursorIfNoNewFound(t *testing.T) {
