@@ -60,7 +60,7 @@ steps:
     command: script/release.sh
     plugins:
       - docker#v3.8.0:
-          image: "golang:1.18"
+          image: "golang:1.21.3"
           propagate-environment: true
           environment:
             - "GITHUB_TOKEN"
