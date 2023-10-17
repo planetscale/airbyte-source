@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
+	"testing"
+
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
-	"os"
-	"testing"
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/proto/query"
 )
@@ -209,9 +210,19 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 		TreatTinyIntAsBoolean bool
 	}{
 		{
-			MysqlType:      "int(32)",
-			JSONSchemaType: "integer",
-			AirbyteType:    "",
+			MysqlType:      "int(11)",
+			JSONSchemaType: "number",
+			AirbyteType:    "integer",
+		},
+		{
+			MysqlType:      "smallint(4)",
+			JSONSchemaType: "number",
+			AirbyteType:    "integer",
+		},
+		{
+			MysqlType:      "mediumint(8)",
+			JSONSchemaType: "number",
+			AirbyteType:    "integer",
 		},
 		{
 			MysqlType:             "tinyint(1)",
@@ -227,35 +238,50 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 		},
 		{
 			MysqlType:             "tinyint(1)",
-			JSONSchemaType:        "integer",
-			AirbyteType:           "",
+			JSONSchemaType:        "number",
+			AirbyteType:           "integer",
 			TreatTinyIntAsBoolean: false,
 		},
 		{
 			MysqlType:             "tinyint(1) unsigned",
-			JSONSchemaType:        "integer",
-			AirbyteType:           "",
+			JSONSchemaType:        "number",
+			AirbyteType:           "integer",
 			TreatTinyIntAsBoolean: false,
 		},
 		{
 			MysqlType:      "bigint(16)",
-			JSONSchemaType: "string",
-			AirbyteType:    "big_integer",
+			JSONSchemaType: "number",
+			AirbyteType:    "integer",
 		},
 		{
 			MysqlType:      "bigint unsigned",
-			JSONSchemaType: "string",
-			AirbyteType:    "big_integer",
+			JSONSchemaType: "number",
+			AirbyteType:    "integer",
 		},
 		{
 			MysqlType:      "bigint zerofill",
-			JSONSchemaType: "string",
-			AirbyteType:    "big_integer",
+			JSONSchemaType: "number",
+			AirbyteType:    "integer",
 		},
 		{
 			MysqlType:      "datetime",
 			JSONSchemaType: "string",
 			AirbyteType:    "timestamp_without_timezone",
+		},
+		{
+			MysqlType:      "datetime(6)",
+			JSONSchemaType: "string",
+			AirbyteType:    "timestamp_without_timezone",
+		},
+		{
+			MysqlType:      "time",
+			JSONSchemaType: "string",
+			AirbyteType:    "time_without_timezone",
+		},
+		{
+			MysqlType:      "time(6)",
+			JSONSchemaType: "string",
+			AirbyteType:    "time_without_timezone",
 		},
 		{
 			MysqlType:      "date",
@@ -279,6 +305,11 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 		},
 		{
 			MysqlType:      "double",
+			JSONSchemaType: "number",
+			AirbyteType:    "",
+		},
+		{
+			MysqlType:      "float(30)",
 			JSONSchemaType: "number",
 			AirbyteType:    "",
 		},
