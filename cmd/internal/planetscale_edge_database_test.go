@@ -239,17 +239,17 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 		},
 		{
 			MysqlType:      "bigint(16)",
-			JSONSchemaType: "integer",
+			JSONSchemaType: "string",
 			AirbyteType:    "big_integer",
 		},
 		{
 			MysqlType:      "bigint unsigned",
-			JSONSchemaType: "integer",
+			JSONSchemaType: "string",
 			AirbyteType:    "big_integer",
 		},
 		{
 			MysqlType:      "bigint zerofill",
-			JSONSchemaType: "integer",
+			JSONSchemaType: "string",
 			AirbyteType:    "big_integer",
 		},
 		{

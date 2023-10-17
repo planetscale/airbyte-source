@@ -138,7 +138,7 @@ func getJsonSchemaType(mysqlType string, treatTinyIntAsBoolean bool) PropertyTyp
 	}
 
 	if strings.HasPrefix(mysqlType, "bigint") {
-		return PropertyType{Type: "integer", AirbyteType: "big_integer"}
+		return PropertyType{Type: "string", AirbyteType: "big_integer"}
 	}
 
 	if strings.HasPrefix(mysqlType, "datetime") {
