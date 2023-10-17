@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/pkg/errors"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/planetscale/psdb/auth"
@@ -137,14 +138,14 @@ func getJsonSchemaType(mysqlType string, treatTinyIntAsBoolean bool) PropertyTyp
 	}
 
 	if strings.HasPrefix(mysqlType, "bigint") {
-		return PropertyType{Type: "string", AirbyteType: "big_integer"}
+		return PropertyType{Type: "integer", AirbyteType: "big_integer"}
 	}
 
 	if strings.HasPrefix(mysqlType, "datetime") {
 		return PropertyType{Type: "string", CustomFormat: "date-time", AirbyteType: "timestamp_without_timezone"}
 	}
 
-	if mysqlType == "tinyint(1)" {
+	if strings.HasPrefix(mysqlType, "tinyint(1)") {
 		if treatTinyIntAsBoolean {
 			return PropertyType{Type: "boolean"}
 		}
