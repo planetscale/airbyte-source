@@ -128,28 +128,23 @@ func (p PlanetScaleEdgeDatabase) getStreamForTable(ctx context.Context, psc Plan
 func getJsonSchemaType(mysqlType string, treatTinyIntAsBoolean bool) PropertyType {
 	// Support custom airbyte types documented here :
 	// https://docs.airbyte.com/understanding-airbyte/supported-data-types/#the-types
-	if strings.HasPrefix(mysqlType, "int") {
-		return PropertyType{Type: "integer"}
-	}
-
-	if strings.HasPrefix(mysqlType, "decimal") || strings.HasPrefix(mysqlType, "double") {
-		return PropertyType{Type: "number"}
-	}
-
-	if strings.HasPrefix(mysqlType, "bigint") {
-		return PropertyType{Type: "string", AirbyteType: "big_integer"}
-	}
-
-	if strings.HasPrefix(mysqlType, "datetime") {
-		return PropertyType{Type: "string", CustomFormat: "date-time", AirbyteType: "timestamp_without_timezone"}
-	}
-
 	if strings.HasPrefix(mysqlType, "tinyint(1)") {
 		if treatTinyIntAsBoolean {
 			return PropertyType{Type: "boolean"}
 		}
+		return PropertyType{Type: "number"}
+	}
 
-		return PropertyType{Type: "integer"}
+	if strings.HasPrefix(mysqlType, "int") || strings.HasPrefix(mysqlType, "tinyint") || strings.HasPrefix(mysqlType, "smallint") || strings.HasPrefix(mysqlType, "mediumint") || strings.HasPrefix(mysqlType, "bigint") {
+		return PropertyType{Type: "number"}
+	}
+
+	if strings.HasPrefix(mysqlType, "decimal") || strings.HasPrefix(mysqlType, "double") || strings.HasPrefix(mysqlType, "float") {
+		return PropertyType{Type: "number"}
+	}
+
+	if strings.HasPrefix(mysqlType, "datetime") {
+		return PropertyType{Type: "string", CustomFormat: "date-time", AirbyteType: "timestamp_without_timezone"}
 	}
 
 	switch mysqlType {
