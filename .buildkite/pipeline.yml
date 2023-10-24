@@ -29,7 +29,7 @@ steps:
 
   - name: "staticcheck"
     label: "Tests"
-    command: "go install honnef.co/go/tools/cmd/staticcheck@latest && staticcheck ./..."
+    command: "go install honnef.co/go/tools/cmd/staticcheck@latest && $(go env GOPATH)/bin/staticcheck ./..."
     env:
       DOCKER_BUILDKIT: 1
     plugins:
