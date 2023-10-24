@@ -3,3 +3,4 @@
 sources/**
 fixture/*.json
 dist/
+.idea
