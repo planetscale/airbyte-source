@@ -225,6 +225,12 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 			AirbyteType:    "integer",
 		},
 		{
+			MysqlType:             "tinyint",
+			JSONSchemaType:        "number",
+			AirbyteType:           "integer",
+			TreatTinyIntAsBoolean: true,
+		},
+		{
 			MysqlType:             "tinyint(1)",
 			JSONSchemaType:        "boolean",
 			AirbyteType:           "",
