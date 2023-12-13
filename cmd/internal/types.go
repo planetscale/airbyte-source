@@ -2,6 +2,10 @@ package internal
 
 import (
 	"encoding/base64"
+	"regexp"
+	"strconv"
+	"strings"
+
 	"github.com/pkg/errors"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/planetscale/psdb/core/codec"
@@ -129,7 +133,6 @@ func TableCursorToSerializedCursor(cursor *psdbconnect.TableCursor) (*Serialized
 
 func QueryResultToRecords(qr *sqltypes.Result) []map[string]interface{} {
 	data := make([]map[string]interface{}, 0, len(qr.Rows))
-
 	columns := make([]string, 0, len(qr.Fields))
 	for _, field := range qr.Fields {
 		columns = append(columns, field.Name)
@@ -139,13 +142,97 @@ func QueryResultToRecords(qr *sqltypes.Result) []map[string]interface{} {
 		record := make(map[string]interface{})
 		for idx, val := range row {
 			if idx < len(columns) {
-				record[columns[idx]] = val
+				record[columns[idx]] = parseValue(val, qr.Fields[idx].GetColumnType())
 			}
 		}
 		data = append(data, record)
 	}
 
 	return data
+}
+
+// After the initial COPY phase, enum and set values may appear as an index instead of a value.
+// For example, a value might look like a "1" instead of "apple" in an enum('apple','banana','orange') column)
+func parseValue(val sqltypes.Value, columnType string) sqltypes.Value {
+	if strings.HasPrefix(columnType, "enum") {
+		values := parseEnumOrSetValues(columnType)
+		return mapEnumValue(val, values)
+	} else if strings.HasPrefix(columnType, "set") {
+		values := parseEnumOrSetValues(columnType)
+		return mapSetValue(val, values)
+	}
+
+	return val
+}
+
+// Takes enum or set column type like ENUM('a','b','c') or SET('a','b','c')
+// and returns a slice of values []string{'a', 'b', 'c'}
+func parseEnumOrSetValues(columnType string) []string {
+	values := []string{}
+
+	re := regexp.MustCompile(`\((.+)\)`)
+	res := re.FindString(columnType)
+	res = strings.Trim(res, "(")
+	res = strings.Trim(res, ")")
+	for _, r := range strings.Split(res, ",") {
+		values = append(values, strings.Trim(r, "'"))
+	}
+
+	return values
+}
+
+func mapSetValue(value sqltypes.Value, values []string) sqltypes.Value {
+	parsedValue := value.ToString()
+	parsedInt, err := strconv.ParseInt(parsedValue, 10, 64)
+	if err != nil {
+		// if value is not an integer, we just return the original value
+		return value
+	}
+	mappedValues := []string{}
+	// SET mapping is stored as a binary value, i.e. 1001
+	bytes := strconv.FormatInt(parsedInt, 2)
+	numValues := len(bytes)
+	// if the bit is ON, that means the value at that index is included in the SET
+	for i, char := range bytes {
+		if char == '1' {
+			// bytes are in reverse order, the first bit represents the last value in the SET
+			mappedValue := values[numValues-(i+1)]
+			mappedValues = append([]string{mappedValue}, mappedValues...)
+		}
+	}
+
+	// If we can't find the values, just return the original value
+	if len(mappedValues) == 0 {
+		return value
+	}
+
+	mappedValue, _ := sqltypes.NewValue(value.Type(), []byte(strings.Join(mappedValues, ",")))
+	return mappedValue
+}
+
+func mapEnumValue(value sqltypes.Value, values []string) sqltypes.Value {
+	parsedValue := value.ToString()
+	index, err := strconv.ParseInt(parsedValue, 10, 64)
+	if err != nil {
+		// If value is not an integer (index), we just return the original value
+		return value
+	}
+
+	// The index value of the empty string error value is 0
+	if index == 0 {
+		emptyValue, _ := sqltypes.NewValue(value.Type(), []byte(""))
+		return emptyValue
+	}
+
+	for i, v := range values {
+		if int(index-1) == i {
+			mappedValue, _ := sqltypes.NewValue(value.Type(), []byte(v))
+			return mappedValue
+		}
+	}
+
+	// Just return the original value if we can't find the enum value
+	return value
 }
 
 type AirbyteState struct {
