@@ -37,7 +37,7 @@ Full output
  => [stage-1 1/3] FROM docker.io/library/debian:bullseye-slim@sha256:4c25ffa6ef572cf0d57da8c634769a08ae94529f7de5be5587ec8ce7b9b50f9c                                                                       0.0s
  => CACHED [build 2/4] WORKDIR /airbyte-source                                                                                                                                                              0.0s
  => [build 3/4] COPY . .                                                                                                                                                                                    0.1s
- => [build 4/4] RUN go build -o /connect                                                                                                                                                                   18.7s
+ => [build 4/4] RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /connect                                                                                                                          18.7s
  => CACHED [stage-1 2/3] RUN apt-get update && apt-get upgrade -y &&     apt-get install -y default-mysql-client ca-certificates &&     rm -rf /var/lib/apt/lists/*                                         0.0s
  => CACHED [stage-1 3/3] COPY --from=build /connect /usr/local/bin/                                                                                                                                         0.0s
  => exporting to image                                                                                                                                                                                      0.0s

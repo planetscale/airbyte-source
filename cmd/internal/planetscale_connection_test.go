@@ -13,7 +13,7 @@ func TestCanGenerateSecureDSN(t *testing.T) {
 		Password: "pscale_password",
 		Database: "connect-test",
 	}
-	dsn := psc.DSN(psdbconnect.TabletType_primary)
+	dsn := psc.DSN()
 	assert.Equal(t, "usernameus-east-4:pscale_password@tcp(useast.psdb.connect)/connect-test@primary?tls=true", dsn)
 }
 
@@ -25,7 +25,7 @@ func TestCanGenerateInsecureDSN(t *testing.T) {
 		Database: "connect-test",
 	}
 	t.Setenv("PS_END_TO_END_TEST_RUN", "true")
-	dsn := psc.DSN(psdbconnect.TabletType_primary)
+	dsn := psc.DSN()
 	assert.Equal(t, "usernameus-east-4:pscale_password@tcp(useast.psdb.connect)/connect-test?tls=skip-verify", dsn)
 }
 

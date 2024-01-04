@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
+	"testing"
+
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
-	"os"
-	"testing"
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/proto/query"
 )
@@ -126,6 +127,7 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	cc := clientConnectionMock{
 		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
 			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
+			assert.Contains(t, in.Cells, "planetscale_operator_default")
 			return syncClient, nil
 		},
 	}
@@ -151,6 +153,55 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
 
+func TestRead_CanPickReplicaForShardedKeyspaces(t *testing.T) {
+	tma := getTestMysqlAccess()
+	b := bytes.NewBufferString("")
+	ped := PlanetScaleEdgeDatabase{
+		Logger: NewLogger(b),
+		Mysql:  tma,
+	}
+	tc := &psdbconnect.TableCursor{
+		Shard:    "40-80",
+		Position: "THIS_IS_A_SHARD_GTID",
+		Keyspace: "connect-test",
+	}
+
+	syncClient := &connectSyncClientMock{
+		syncResponses: []*psdbconnect.SyncResponse{
+			{Cursor: tc},
+		},
+	}
+
+	cc := clientConnectionMock{
+		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
+			assert.Equal(t, psdbconnect.TabletType_replica, in.TabletType)
+			assert.Contains(t, in.Cells, "planetscale_operator_default")
+			return syncClient, nil
+		},
+	}
+	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
+		return &cc, nil
+	}
+	ps := PlanetScaleSource{
+		Database:   "connect-test",
+		UseReplica: true,
+	}
+	cs := ConfiguredStream{
+		Stream: Stream{
+			Name:      "customers",
+			Namespace: "connect-test",
+		},
+	}
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	assert.NoError(t, err)
+	esc, err := TableCursorToSerializedCursor(tc)
+	assert.NoError(t, err)
+	assert.Equal(t, esc, sc)
+	assert.Equal(t, 1, cc.syncFnInvokedCount)
+	assert.False(t, tma.PingContextFnInvoked)
+	assert.False(t, tma.GetVitessTabletsFnInvoked)
+}
+
 func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 	var tests = []struct {
 		MysqlType             string
@@ -159,9 +210,25 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 		TreatTinyIntAsBoolean bool
 	}{
 		{
-			MysqlType:      "int(32)",
-			JSONSchemaType: "integer",
-			AirbyteType:    "",
+			MysqlType:      "int(11)",
+			JSONSchemaType: "number",
+			AirbyteType:    "integer",
+		},
+		{
+			MysqlType:      "smallint(4)",
+			JSONSchemaType: "number",
+			AirbyteType:    "integer",
+		},
+		{
+			MysqlType:      "mediumint(8)",
+			JSONSchemaType: "number",
+			AirbyteType:    "integer",
+		},
+		{
+			MysqlType:             "tinyint",
+			JSONSchemaType:        "number",
+			AirbyteType:           "integer",
+			TreatTinyIntAsBoolean: true,
 		},
 		{
 			MysqlType:             "tinyint(1)",
@@ -170,30 +237,57 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 			TreatTinyIntAsBoolean: true,
 		},
 		{
-			MysqlType:             "tinyint(1)",
-			JSONSchemaType:        "integer",
+			MysqlType:             "tinyint(1) unsigned",
+			JSONSchemaType:        "boolean",
 			AirbyteType:           "",
+			TreatTinyIntAsBoolean: true,
+		},
+		{
+			MysqlType:             "tinyint(1)",
+			JSONSchemaType:        "number",
+			AirbyteType:           "integer",
+			TreatTinyIntAsBoolean: false,
+		},
+		{
+			MysqlType:             "tinyint(1) unsigned",
+			JSONSchemaType:        "number",
+			AirbyteType:           "integer",
 			TreatTinyIntAsBoolean: false,
 		},
 		{
 			MysqlType:      "bigint(16)",
-			JSONSchemaType: "string",
-			AirbyteType:    "big_integer",
+			JSONSchemaType: "number",
+			AirbyteType:    "integer",
 		},
 		{
 			MysqlType:      "bigint unsigned",
-			JSONSchemaType: "string",
-			AirbyteType:    "big_integer",
+			JSONSchemaType: "number",
+			AirbyteType:    "integer",
 		},
 		{
 			MysqlType:      "bigint zerofill",
-			JSONSchemaType: "string",
-			AirbyteType:    "big_integer",
+			JSONSchemaType: "number",
+			AirbyteType:    "integer",
 		},
 		{
 			MysqlType:      "datetime",
 			JSONSchemaType: "string",
 			AirbyteType:    "timestamp_without_timezone",
+		},
+		{
+			MysqlType:      "datetime(6)",
+			JSONSchemaType: "string",
+			AirbyteType:    "timestamp_without_timezone",
+		},
+		{
+			MysqlType:      "time",
+			JSONSchemaType: "string",
+			AirbyteType:    "time_without_timezone",
+		},
+		{
+			MysqlType:      "time(6)",
+			JSONSchemaType: "string",
+			AirbyteType:    "time_without_timezone",
 		},
 		{
 			MysqlType:      "date",
@@ -217,6 +311,11 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 		},
 		{
 			MysqlType:      "double",
+			JSONSchemaType: "number",
+			AirbyteType:    "",
+		},
+		{
+			MysqlType:      "float(30)",
 			JSONSchemaType: "number",
 			AirbyteType:    "",
 		},
@@ -255,6 +354,7 @@ func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 	cc := clientConnectionMock{
 		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
 			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
+			assert.Contains(t, in.Cells, "planetscale_operator_default")
 			return syncClient, nil
 		},
 	}
@@ -263,6 +363,57 @@ func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 	}
 	ps := PlanetScaleSource{
 		Database: "connect-test",
+	}
+	cs := ConfiguredStream{
+		Stream: Stream{
+			Name:      "customers",
+			Namespace: "connect-test",
+		},
+	}
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	assert.NoError(t, err)
+	esc, err := TableCursorToSerializedCursor(tc)
+	assert.NoError(t, err)
+	assert.Equal(t, esc, sc)
+	assert.Equal(t, 1, cc.syncFnInvokedCount)
+	assert.False(t, tma.PingContextFnInvoked)
+	assert.False(t, tma.GetVitessTabletsFnInvoked)
+}
+
+func TestRead_CanPickReplicaForUnshardedKeyspaces(t *testing.T) {
+	tma := getTestMysqlAccess()
+	b := bytes.NewBufferString("")
+	ped := PlanetScaleEdgeDatabase{
+		Logger: NewLogger(b),
+		Mysql:  tma,
+	}
+	tc := &psdbconnect.TableCursor{
+		Shard:    "-",
+		Position: "THIS_IS_A_SHARD_GTID",
+		Keyspace: "connect-test",
+	}
+
+	syncClient := &connectSyncClientMock{
+		syncResponses: []*psdbconnect.SyncResponse{
+			{
+				Cursor: tc,
+			},
+		},
+	}
+
+	cc := clientConnectionMock{
+		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
+			assert.Equal(t, psdbconnect.TabletType_replica, in.TabletType)
+			assert.Contains(t, in.Cells, "planetscale_operator_default")
+			return syncClient, nil
+		},
+	}
+	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
+		return &cc, nil
+	}
+	ps := PlanetScaleSource{
+		Database:   "connect-test",
+		UseReplica: true,
 	}
 	cs := ConfiguredStream{
 		Stream: Stream{
@@ -461,7 +612,7 @@ func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
 	assert.Equal(t, 2, cc.syncFnInvokedCount)
 
 	logLines := tal.logMessages[LOGLEVEL_INFO]
-	assert.Equal(t, "[connect-test:customers shard : -] Finished reading all rows for table [customers]", logLines[len(logLines)-1])
+	assert.Equal(t, "[connect-test:primary:customers shard : -] Finished reading all rows for table [customers]", logLines[len(logLines)-1])
 	records := tal.records["connect-test.customers"]
 	assert.Equal(t, 2*(nextVGtidPosition/3), len(records))
 }
@@ -552,11 +703,13 @@ func getTestMysqlAccess() *mysqlAccessMock {
 		GetVitessTabletsFn: func(ctx context.Context, psc PlanetScaleSource) ([]VitessTablet, error) {
 			return []VitessTablet{
 				{
+					Cell:       "test_cell_primary",
 					Keyspace:   "connect-test",
 					TabletType: TabletTypeToString(psdbconnect.TabletType_primary),
 					State:      "SERVING",
 				},
 				{
+					Cell:       "test_cell_replica",
 					Keyspace:   "connect-test",
 					TabletType: TabletTypeToString(psdbconnect.TabletType_replica),
 					State:      "SERVING",
