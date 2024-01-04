@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"strings"
 	"time"
 
@@ -36,33 +35,6 @@ type PlanetScaleEdgeDatabase struct {
 	Logger   AirbyteLogger
 	Mysql    PlanetScaleEdgeMysqlAccess
 	clientFn func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error)
-}
-
-func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleSource) error {
-	if err := p.checkEdgePassword(ctx, psc); err != nil {
-		return errors.Wrap(err, "Unable to initialize Connect Session")
-	}
-
-	return p.Mysql.PingContext(ctx, psc)
-}
-
-func (p PlanetScaleEdgeDatabase) checkEdgePassword(ctx context.Context, psc PlanetScaleSource) error {
-	if !strings.HasSuffix(psc.Host, ".connect.psdb.cloud") {
-		return errors.New("This password is not connect-enabled, please ensure that your organization is enrolled in the Connect beta.")
-	}
-	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, fmt.Sprintf("https://%v", psc.Host), nil)
-	if err != nil {
-		return err
-	}
-
-	_, err = http.DefaultClient.Do(req)
-	if err != nil {
-		return errors.New(fmt.Sprintf("The database %q, hosted at %q, is inaccessible from this process", psc.Database, psc.Host))
-	}
-
-	return nil
 }
 
 // Convert columnType to Airbyte type.
