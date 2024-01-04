@@ -105,6 +105,10 @@ func (p connectClient) Read(ctx context.Context, logger DatabaseLogger, ps Plane
 	)
 
 	tabletType := psdbconnect.TabletType_primary
+	if ps.UseReplica {
+		tabletType = psdbconnect.TabletType_replica
+	}
+
 	currentPosition := lastKnownPosition
 	readDuration := 1 * time.Minute
 	preamble := fmt.Sprintf("[%v:%v shard : %v] ", ps.Database, tableName, currentPosition.Shard)
@@ -195,6 +199,7 @@ func (p connectClient) sync(ctx context.Context, logger DatabaseLogger, tableNam
 		IncludeUpdates: true,
 		IncludeInserts: true,
 		IncludeDeletes: true,
+		Cells:          []string{"planetscale_operator_default"},
 	}
 
 	c, err := client.Sync(ctx, sReq)
@@ -321,6 +326,7 @@ func (p connectClient) getLatestCursorPosition(ctx context.Context, shard, keysp
 			Position: "current",
 		},
 		TabletType: tabletType,
+		Cells:      []string{"planetscale_operator_default"},
 	}
 
 	c, err := client.Sync(ctx, sReq)

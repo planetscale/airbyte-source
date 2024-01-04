@@ -18,6 +18,7 @@ type PlanetScaleSource struct {
 	Password              string `json:"password"`
 	Shards                string `json:"shards"`
 	TreatTinyIntAsBoolean bool   `json:"treat_tiny_int_as_boolean"`
+	UseReplica            bool   `json:"use_replica"`
 }
 
 // DSN returns a DataSource that mysql libraries can use to connect to a PlanetScale database.

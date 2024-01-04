@@ -163,6 +163,7 @@ func (p mysqlClient) getKeyspaceTableNames(ctx context.Context, keyspaceName str
 			tables = append(tables, name)
 		}
 
+		tables = append(tables, name)
 	}
 
 	if err := tableNamesQR.Err(); err != nil {

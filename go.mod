@@ -7,12 +7,15 @@ require (
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.4
 	vitess.io/vitess v0.17.3
+//github.com/planetscale/vtprotobuf v0.5.0 //indirect
 )
 
 require (
 	github.com/pkg/errors v0.9.1
 	github.com/planetscale/psdb v0.0.0-20220429000526-e2a0e798aaf3
+	github.com/twitchtv/twirp v8.1.2+incompatible
 	google.golang.org/grpc v1.59.0
+	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.2.0
 	google.golang.org/protobuf v1.31.0
 )
 
