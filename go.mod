@@ -1,9 +1,10 @@
 module github.com/planetscale/airbyte-source
 
-go 1.21
+go 1.21.3
 
 require (
 	github.com/go-sql-driver/mysql v1.7.1
+	github.com/planetscale/connectsdk v0.0.0-00010101000000-000000000000
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.4
 	vitess.io/vitess v0.17.3
@@ -82,3 +83,5 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	inet.af/netaddr v0.0.0-20220811202034-502d2d690317 // indirect
 )
+
+replace github.com/planetscale/connectsdk => /Users/phaniraj/ps/connectsdk
