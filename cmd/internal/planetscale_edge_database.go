@@ -22,7 +22,6 @@ import (
 // PlanetScaleDatabase is a general purpose interface
 // that defines all the data access methods needed for the PlanetScale Airbyte source to function.
 type PlanetScaleDatabase interface {
-	CanConnect(ctx context.Context, ps PlanetScaleSource) error
 	ListShards(ctx context.Context, ps PlanetScaleSource) ([]string, error)
 	Read(ctx context.Context, w io.Writer, ps PlanetScaleSource, s ConfiguredStream, tc *psdbconnect.TableCursor) (*SerializedCursor, error)
 	Close() error
