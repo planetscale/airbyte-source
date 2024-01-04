@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/planetscale/connectsdk/lib"
 	"os"
 
 	"github.com/planetscale/airbyte-source/cmd/internal"
@@ -49,7 +50,7 @@ func CheckCommand(ch *Helper) *cobra.Command {
 				}
 			}()
 
-			cs, _ := checkConnectionStatus(ch.Database, psc)
+			cs, _ := checkConnectionStatus(psc)
 			ch.Logger.ConnectionStatus(cs)
 		},
 	}
@@ -70,9 +71,24 @@ func parseSource(reader FileReader, configFilePath string) (internal.PlanetScale
 	return psc, nil
 }
 
-func checkConnectionStatus(database internal.PlanetScaleDatabase, psc internal.PlanetScaleSource) (internal.ConnectionStatus, error) {
-
-	if err := database.CanConnect(context.Background(), psc); err != nil {
+func checkConnectionStatus(psc internal.PlanetScaleSource) (internal.ConnectionStatus, error) {
+	libpsc := lib.PlanetScaleSource{
+		UseReplica:            true,
+		Username:              psc.Username,
+		Database:              psc.Database,
+		Host:                  psc.Host,
+		Password:              psc.Password,
+		TreatTinyIntAsBoolean: !psc.Options.DoNotTreatTinyIntAsBoolean,
+	}
+	mc, err := lib.NewMySQL(&libpsc)
+	if err != nil {
+		return internal.ConnectionStatus{
+			Status:  "FAILED",
+			Message: fmt.Sprintf("Unable to connect to PlanetScale database %v at host %v with username %v. Failed with \n %v", psc.Database, psc.Host, psc.Username, err),
+		}, err
+	}
+	cc := lib.NewConnectClient(&mc)
+	if err := cc.CanConnect(context.Background(), libpsc); err != nil {
 		return internal.ConnectionStatus{
 			Status:  "FAILED",
 			Message: fmt.Sprintf("Unable to connect to PlanetScale database %v at host %v with username %v. Failed with \n %v", psc.Database, psc.Host, psc.Username, err),

@@ -24,7 +24,6 @@ import (
 // that defines all the data access methods needed for the PlanetScale Airbyte source to function.
 type PlanetScaleDatabase interface {
 	CanConnect(ctx context.Context, ps PlanetScaleSource) error
-	DiscoverSchema(ctx context.Context, ps PlanetScaleSource) (Catalog, error)
 	ListShards(ctx context.Context, ps PlanetScaleSource) ([]string, error)
 	Read(ctx context.Context, w io.Writer, ps PlanetScaleSource, s ConfiguredStream, tc *psdbconnect.TableCursor) (*SerializedCursor, error)
 	Close() error
@@ -64,64 +63,6 @@ func (p PlanetScaleEdgeDatabase) checkEdgePassword(ctx context.Context, psc Plan
 	}
 
 	return nil
-}
-
-func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetScaleSource) (Catalog, error) {
-	var c Catalog
-
-	tables, err := p.Mysql.GetTableNames(ctx, psc)
-	if err != nil {
-		return c, errors.Wrap(err, "Unable to query database for schema")
-	}
-
-	for _, tableName := range tables {
-		stream, err := p.getStreamForTable(ctx, psc, tableName)
-		if err != nil {
-			return c, errors.Wrapf(err, "unable to get stream for table %v", tableName)
-		}
-		c.Streams = append(c.Streams, stream)
-	}
-	return c, nil
-}
-
-func (p PlanetScaleEdgeDatabase) getStreamForTable(ctx context.Context, psc PlanetScaleSource, tableName string) (Stream, error) {
-	schema := StreamSchema{
-		Type:       "object",
-		Properties: map[string]PropertyType{},
-	}
-	stream := Stream{
-		Name:               tableName,
-		Schema:             schema,
-		SupportedSyncModes: []string{"full_refresh", "incremental"},
-		Namespace:          psc.Database,
-	}
-
-	var err error
-	stream.Schema.Properties, err = p.Mysql.GetTableSchema(ctx, psc, tableName)
-	if err != nil {
-		return stream, errors.Wrapf(err, "Unable to get column names & types for table %v", tableName)
-	}
-
-	// need this otherwise Airbyte will fail schema discovery for views
-	// without primary keys.
-	stream.PrimaryKeys = [][]string{}
-	stream.DefaultCursorFields = []string{}
-
-	primaryKeys, err := p.Mysql.GetTablePrimaryKeys(ctx, psc, tableName)
-	if err != nil {
-		return stream, errors.Wrapf(err, "unable to iterate primary keys for table %s", tableName)
-	}
-	for _, key := range primaryKeys {
-		stream.PrimaryKeys = append(stream.PrimaryKeys, []string{key})
-	}
-
-	// pick the last key field as the default cursor field.
-	if len(primaryKeys) > 0 {
-		stream.DefaultCursorFields = append(stream.DefaultCursorFields, primaryKeys[len(primaryKeys)-1])
-	}
-
-	stream.SourceDefinedCursor = true
-	return stream, nil
 }
 
 // Convert columnType to Airbyte type.

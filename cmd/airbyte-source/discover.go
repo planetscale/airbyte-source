@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/planetscale/airbyte-source/cmd/internal"
+	"github.com/planetscale/connectsdk/lib"
 	"github.com/spf13/cobra"
 )
 
@@ -40,7 +41,7 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 				return
 			}
 
-			cs, err := checkConnectionStatus(ch.Database, psc)
+			cs, err := checkConnectionStatus(psc)
 			if err != nil {
 				ch.Logger.ConnectionStatus(cs)
 				return
@@ -52,12 +53,27 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 				}
 			}()
 
-			c, err := ch.Database.DiscoverSchema(context.Background(), psc)
+			libpsc := lib.PlanetScaleSource{
+				UseReplica:            true,
+				Username:              psc.Username,
+				Database:              psc.Database,
+				Host:                  psc.Host,
+				Password:              psc.Password,
+				TreatTinyIntAsBoolean: !psc.Options.DoNotTreatTinyIntAsBoolean,
+			}
+			mc, err := lib.NewMySQL(&libpsc)
 			if err != nil {
 				ch.Logger.Log(internal.LOGLEVEL_ERROR, fmt.Sprintf("Unable to discover database, failed with [%v]", err))
 				return
 			}
 
+			sb := internal.NewSchemaBuilder()
+			if err := mc.BuildSchema(context.Background(), libpsc, sb); err != nil {
+				ch.Logger.Log(internal.LOGLEVEL_ERROR, fmt.Sprintf("Unable to discover database, failed with [%v]", err))
+				return
+			}
+
+			c := sb.(*internal.SchemaBuilder).GetCatalog()
 			ch.Logger.Catalog(c)
 		},
 	}

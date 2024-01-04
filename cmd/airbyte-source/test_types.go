@@ -39,10 +39,6 @@ func (td testDatabase) HasTabletType(ctx context.Context, psc internal.PlanetSca
 	return true, nil
 }
 
-func (td testDatabase) DiscoverSchema(ctx context.Context, ps internal.PlanetScaleSource) (internal.Catalog, error) {
-	return td.discoverSchemaResponse.catalog, td.discoverSchemaResponse.err
-}
-
 func (td testDatabase) Read(ctx context.Context, w io.Writer, ps internal.PlanetScaleSource, s internal.ConfiguredStream, tc *psdbconnect.TableCursor) (*internal.SerializedCursor, error) {
 	// TODO implement me
 	panic("implement me")

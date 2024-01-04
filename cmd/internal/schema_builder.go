@@ -14,7 +14,11 @@ var gcTableNameRegexp = regexp.MustCompile(gCTableNameExpression)
 
 type SchemaBuilder struct {
 	catalog *Catalog
-	streams map[string]map[string]Stream
+	streams map[string]map[string]*Stream
+}
+
+func NewSchemaBuilder() lib.SchemaBuilder {
+	return &SchemaBuilder{}
 }
 
 func (sb *SchemaBuilder) OnKeyspace(_ string) {
@@ -32,15 +36,19 @@ func (sb *SchemaBuilder) OnTable(keyspaceName, tableName string) {
 		Properties: map[string]PropertyType{},
 	}
 
-	stream := Stream{
+	stream := &Stream{
 		Name:               tableName,
 		Schema:             schema,
 		SupportedSyncModes: []string{"full_refresh", "incremental"},
 		Namespace:          keyspaceName,
 	}
 
+	if sb.streams == nil {
+		sb.streams = make(map[string]map[string]*Stream)
+	}
+
 	if _, ok := sb.streams[keyspaceName]; !ok {
-		sb.streams[keyspaceName] = make(map[string]Stream)
+		sb.streams[keyspaceName] = make(map[string]*Stream)
 	}
 
 	sb.streams[keyspaceName][tableName] = stream
@@ -70,7 +78,13 @@ func (sb *SchemaBuilder) OnColumns(keyspaceName, tableName string, columns []lib
 }
 
 func (sb *SchemaBuilder) GetCatalog() Catalog {
-	return *sb.catalog
+	c := Catalog{}
+	for _, keyspace := range sb.streams {
+		for _, table := range keyspace {
+			c.Streams = append(c.Streams, *table)
+		}
+	}
+	return c
 }
 
 // Convert columnType to Airbyte type.
