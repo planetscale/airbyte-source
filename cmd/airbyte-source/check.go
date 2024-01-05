@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/planetscale/connectsdk/lib"
+	"github.com/planetscale/connect-sdk/lib"
 	"os"
 
 	"github.com/planetscale/airbyte-source/cmd/internal"

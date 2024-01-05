@@ -3,16 +3,15 @@ module github.com/planetscale/airbyte-source
 go 1.21.3
 
 require (
-	github.com/go-sql-driver/mysql v1.7.1
-	github.com/planetscale/connectsdk v0.0.0-00010101000000-000000000000
+	github.com/go-sql-driver/mysql v1.7.1 // indirect
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.4
 	vitess.io/vitess v0.17.3
-//github.com/planetscale/vtprotobuf v0.5.0 //indirect
 )
 
 require (
 	github.com/pkg/errors v0.9.1
+	github.com/planetscale/connect-sdk v0.1.1
 	github.com/planetscale/psdb v0.0.0-20220429000526-e2a0e798aaf3
 	github.com/twitchtv/twirp v8.1.2+incompatible
 	google.golang.org/grpc v1.59.0
@@ -83,5 +82,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	inet.af/netaddr v0.0.0-20220811202034-502d2d690317 // indirect
 )
-
-replace github.com/planetscale/connectsdk => /Users/phaniraj/ps/connectsdk

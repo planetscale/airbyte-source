@@ -2,7 +2,7 @@ package internal
 
 import (
 	"encoding/base64"
-	"github.com/planetscale/connectsdk/lib"
+	"github.com/planetscale/connect-sdk/lib"
 	"regexp"
 	"strconv"
 	"strings"

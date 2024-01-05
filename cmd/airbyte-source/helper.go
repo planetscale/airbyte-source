@@ -2,7 +2,7 @@ package airbyte_source
 
 import (
 	"github.com/planetscale/airbyte-source/cmd/internal"
-	"github.com/planetscale/connectsdk/lib"
+	"github.com/planetscale/connect-sdk/lib"
 	"io"
 	"os"
 )

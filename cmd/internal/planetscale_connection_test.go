@@ -2,7 +2,7 @@ package internal
 
 import (
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
-	"github.com/planetscale/connectsdk/lib"
+	"github.com/planetscale/connect-sdk/lib"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/planetscale/connectsdk/lib"
+	"github.com/planetscale/connect-sdk/lib"
 	"os"
 	"testing"
 

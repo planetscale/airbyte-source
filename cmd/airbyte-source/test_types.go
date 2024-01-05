@@ -3,7 +3,7 @@ package airbyte_source
 import (
 	"context"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
-	"github.com/planetscale/connectsdk/lib"
+	"github.com/planetscale/connect-sdk/lib"
 )
 
 type testFileReader struct {

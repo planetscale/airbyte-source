@@ -1,7 +1,7 @@
 package internal
 
 import (
-	"github.com/planetscale/connectsdk/lib"
+	"github.com/planetscale/connect-sdk/lib"
 	"regexp"
 	"strings"
 )
