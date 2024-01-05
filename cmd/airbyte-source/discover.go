@@ -41,17 +41,11 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 				return
 			}
 
-			cs, err := checkConnectionStatus(psc)
+			cs, err := checkConnectionStatus(ch.ConnectClient, ch.Source)
 			if err != nil {
 				ch.Logger.ConnectionStatus(cs)
 				return
 			}
-
-			defer func() {
-				if err := ch.Database.Close(); err != nil {
-					fmt.Fprintf(cmd.OutOrStdout(), "Unable to close connection to PlanetScale Database, failed with %v", err)
-				}
-			}()
 
 			libpsc := lib.PlanetScaleSource{
 				UseReplica:            true,

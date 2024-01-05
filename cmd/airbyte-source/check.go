@@ -44,13 +44,7 @@ func CheckCommand(ch *Helper) *cobra.Command {
 				return
 			}
 
-			defer func() {
-				if err := ch.Database.Close(); err != nil {
-					fmt.Fprintf(cmd.OutOrStdout(), "Unable to close connection to PlanetScale Database, failed with %v", err)
-				}
-			}()
-
-			cs, _ := checkConnectionStatus(psc)
+			cs, _ := checkConnectionStatus(ch.ConnectClient, ch.Source)
 			ch.Logger.ConnectionStatus(cs)
 		},
 	}
@@ -71,24 +65,9 @@ func parseSource(reader FileReader, configFilePath string) (internal.PlanetScale
 	return psc, nil
 }
 
-func checkConnectionStatus(psc internal.PlanetScaleSource) (internal.ConnectionStatus, error) {
-	libpsc := lib.PlanetScaleSource{
-		UseReplica:            true,
-		Username:              psc.Username,
-		Database:              psc.Database,
-		Host:                  psc.Host,
-		Password:              psc.Password,
-		TreatTinyIntAsBoolean: !psc.Options.DoNotTreatTinyIntAsBoolean,
-	}
-	mc, err := lib.NewMySQL(&libpsc)
-	if err != nil {
-		return internal.ConnectionStatus{
-			Status:  "FAILED",
-			Message: fmt.Sprintf("Unable to connect to PlanetScale database %v at host %v with username %v. Failed with \n %v", psc.Database, psc.Host, psc.Username, err),
-		}, err
-	}
-	cc := lib.NewConnectClient(&mc)
-	if err := cc.CanConnect(context.Background(), libpsc); err != nil {
+func checkConnectionStatus(connectClient lib.ConnectClient, psc lib.PlanetScaleSource) (internal.ConnectionStatus, error) {
+
+	if err := connectClient.CanConnect(context.Background(), psc); err != nil {
 		return internal.ConnectionStatus{
 			Status:  "FAILED",
 			Message: fmt.Sprintf("Unable to connect to PlanetScale database %v at host %v with username %v. Failed with \n %v", psc.Database, psc.Host, psc.Username, err),
