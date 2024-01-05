@@ -15,7 +15,7 @@ func TestDiscoverInvalidSource(t *testing.T) {
 	tfr := testFileReader{
 		content: []byte("{\"host\": \"something.us-east-3.psdb.cloud\",\"database\":\"database\",\"username\":\"username\",\"password\":\"password\"}"),
 	}
-	td := testDatabase{
+	td := testConnectClient{
 		connectResponse: canConnectResponse{
 			err: fmt.Errorf("[%v] is invalid", "username"),
 		},
@@ -23,9 +23,9 @@ func TestDiscoverInvalidSource(t *testing.T) {
 
 	b := bytes.NewBufferString("")
 	discover := DiscoverCommand(&Helper{
-		Database:   td,
-		FileReader: tfr,
-		Logger:     internal.NewLogger(b),
+		ConnectClient: td,
+		FileReader:    tfr,
+		Logger:        internal.NewLogger(b),
 	})
 	discover.SetArgs([]string{"config source.json"})
 
@@ -46,19 +46,22 @@ func TestDiscoverFailed(t *testing.T) {
 	tfr := testFileReader{
 		content: []byte("{\"host\": \"something.us-east-3.psdb.cloud\",\"database\":\"database\",\"username\":\"username\",\"password\":\"password\"}"),
 	}
-	td := testDatabase{
+	td := testConnectClient{
 		connectResponse: canConnectResponse{
 			err: nil,
 		},
-		discoverSchemaResponse: discoverSchemaResponse{
+	}
+	tmc := testMysqlClient{
+		buildSchemaResponse: buildSchemaResponse{
 			err: fmt.Errorf("unable to get catalog for %v", "keyspace"),
 		},
 	}
 	b := bytes.NewBufferString("")
 	discover := DiscoverCommand(&Helper{
-		Database:   td,
-		FileReader: tfr,
-		Logger:     internal.NewLogger(b),
+		ConnectClient: td,
+		MysqlClient:   tmc,
+		FileReader:    tfr,
+		Logger:        internal.NewLogger(b),
 	})
 	discover.SetArgs([]string{"config source.json"})
 

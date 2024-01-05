@@ -34,6 +34,10 @@ func DefaultHelper(w io.Writer) *Helper {
 }
 
 func (h *Helper) EnsureDB(psc internal.PlanetScaleSource) error {
+	if h.ConnectClient != nil {
+		return nil
+	}
+
 	h.Source = lib.PlanetScaleSource{
 		UseReplica:            true,
 		Username:              psc.Username,

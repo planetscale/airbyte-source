@@ -2,10 +2,8 @@ package internal
 
 import (
 	"fmt"
-	"github.com/go-sql-driver/mysql"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/planetscale/connectsdk/lib"
-	"os"
 	"strings"
 )
 
@@ -22,29 +20,6 @@ type PlanetScaleSource struct {
 
 type CustomSourceOptions struct {
 	DoNotTreatTinyIntAsBoolean bool `json:"do_not_treat_tiny_int_as_boolean"`
-}
-
-// DSN returns a DataSource that mysql libraries can use to connect to a PlanetScale database.
-func (psc PlanetScaleSource) DSN() string {
-	config := mysql.NewConfig()
-	config.Net = "tcp"
-	config.Addr = psc.Host
-	config.User = psc.Username
-	config.DBName = psc.Database
-	config.Passwd = psc.Password
-
-	tt := psdbconnect.TabletType_primary
-	if psc.UseReplica {
-		tt = psdbconnect.TabletType_replica
-	}
-
-	if useSecureConnection() {
-		config.TLSConfig = "true"
-		config.DBName = fmt.Sprintf("%v@%v", psc.Database, TabletTypeToString(tt))
-	} else {
-		config.TLSConfig = "skip-verify"
-	}
-	return config.FormatDSN()
 }
 
 // GetInitialState will return the initial/blank state for a given keyspace in all of its shards.
@@ -82,24 +57,4 @@ func (psc PlanetScaleSource) GetInitialState(keyspaceOrDatabase string, shards [
 	}
 
 	return shardCursors, nil
-}
-
-func useSecureConnection() bool {
-	e2eTestRun, found := os.LookupEnv("PS_END_TO_END_TEST_RUN")
-	if found && (e2eTestRun == "yes" ||
-		e2eTestRun == "y" ||
-		e2eTestRun == "true" ||
-		e2eTestRun == "1") {
-		return false
-	}
-
-	return true
-}
-
-func TabletTypeToString(t psdbconnect.TabletType) string {
-	if t == psdbconnect.TabletType_replica {
-		return "replica"
-	}
-
-	return "primary"
 }

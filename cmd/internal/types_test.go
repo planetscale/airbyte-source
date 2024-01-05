@@ -70,7 +70,7 @@ func TestCanUnmarshalLastKnownState(t *testing.T) {
 		LastKnownPk: lastKnownPK,
 	})
 	require.NoError(t, err)
-	tc, err := sc.SerializedCursorToTableCursor(ConfiguredStream{})
+	tc, err := sc.SerializedCursorToTableCursor()
 	require.NoError(t, err)
 	assert.Equal(t, "connect", tc.Keyspace)
 	assert.Equal(t, "40-80", tc.Shard)

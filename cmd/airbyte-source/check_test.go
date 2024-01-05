@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/planetscale/connectsdk/lib"
 	"os"
 	"testing"
 
@@ -27,7 +28,6 @@ func TestCheckInvalidCatalogJSON(t *testing.T) {
 		content: []byte("i am not json"),
 	}
 	checkCommand := CheckCommand(&Helper{
-		Database:   internal.PlanetScaleEdgeDatabase{},
 		FileReader: tfr,
 		Logger:     internal.NewLogger(os.Stdout),
 	})
@@ -50,16 +50,16 @@ func TestCheckCredentialsInvalid(t *testing.T) {
 		content: []byte("{\"host\": \"something.us-east-3.psdb.cloud\",\"database\":\"database\",\"username\":\"username\",\"password\":\"password\"}"),
 	}
 
-	td := testDatabase{
+	td := testConnectClient{
 		connectResponse: canConnectResponse{
 			err: fmt.Errorf("[%v] is invalid", "username"),
 		},
 	}
 
 	checkCommand := CheckCommand(&Helper{
-		Database:   td,
-		FileReader: tfr,
-		Logger:     internal.NewLogger(os.Stdout),
+		ConnectClient: td,
+		FileReader:    tfr,
+		Logger:        internal.NewLogger(os.Stdout),
 	})
 	b := bytes.NewBufferString("")
 	checkCommand.SetOut(b)
@@ -80,16 +80,21 @@ func TestCheckExecuteSuccessful(t *testing.T) {
 		content: []byte("{\"host\": \"something.us-east-3.psdb.cloud\",\"database\":\"database\",\"username\":\"username\",\"password\":\"password\"}"),
 	}
 
-	td := testDatabase{
+	td := testConnectClient{
 		connectResponse: canConnectResponse{
 			err: nil,
 		},
 	}
 
 	checkCommand := CheckCommand(&Helper{
-		Database:   td,
-		FileReader: tfr,
-		Logger:     internal.NewLogger(os.Stdout),
+		ConnectClient: td,
+		FileReader:    tfr,
+		Source: lib.PlanetScaleSource{
+			Host:     "something.us-east-3.psdb.cloud",
+			Database: "database",
+			Username: "username",
+		},
+		Logger: internal.NewLogger(os.Stdout),
 	})
 	b := bytes.NewBufferString("")
 	checkCommand.SetOut(b)

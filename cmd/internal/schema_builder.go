@@ -13,7 +13,6 @@ const (
 var gcTableNameRegexp = regexp.MustCompile(gCTableNameExpression)
 
 type SchemaBuilder struct {
-	catalog *Catalog
 	streams map[string]map[string]*Stream
 }
 
