@@ -91,20 +91,6 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				os.Exit(1)
 			}
 
-			libpsc := lib.PlanetScaleSource{
-				UseReplica:            false,
-				Username:              psc.Username,
-				Database:              psc.Database,
-				Host:                  psc.Host,
-				Password:              psc.Password,
-				TreatTinyIntAsBoolean: !psc.Options.DoNotTreatTinyIntAsBoolean,
-			}
-			mc, err := lib.NewMySQL(&libpsc)
-			if err != nil {
-				ch.Logger.Error(fmt.Sprintf("Unable to read state : %v", err))
-				os.Exit(1)
-			}
-			cc := lib.NewConnectClient(&mc)
 			allColumns := []string{}
 
 			for _, table := range catalog.Streams {
@@ -150,7 +136,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 						return nil
 					}
 
-					sc, err := cc.Read(context.Background(), ch.Logger, libpsc, table.Stream.Name, allColumns, tc, onResult, onCursor, onUpdate)
+					sc, err := ch.ConnectClient.Read(context.Background(), ch.Logger, ch.Source, table.Stream.Name, allColumns, tc, onResult, onCursor, onUpdate)
 					if err != nil {
 						ch.Logger.Error(err.Error())
 						os.Exit(1)

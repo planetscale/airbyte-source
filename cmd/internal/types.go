@@ -99,25 +99,6 @@ type ShardStates struct {
 	Shards map[string]*lib.SerializedCursor `json:"shards"`
 }
 
-//
-//func (s lib.SerializedCursor) SerializedCursorToTableCursor(table ConfiguredStream) (*psdbconnect.TableCursor, error) {
-//	var (
-//		tc psdbconnect.TableCursor
-//	)
-//	s.
-//	decoded, err := base64.StdEncoding.DecodeString(s.Cursor)
-//	if err != nil {
-//		return nil, errors.Wrap(err, "unable to decode table cursor")
-//	}
-//
-//	err = codec.DefaultCodec.Unmarshal(decoded, &tc)
-//	if err != nil {
-//		return nil, errors.Wrap(err, "unable to deserialize table cursor")
-//	}
-//
-//	return &tc, nil
-//}
-
 func TableCursorToSerializedCursor(cursor *psdbconnect.TableCursor) (*lib.SerializedCursor, error) {
 	d, err := codec.DefaultCodec.Marshal(cursor)
 	if err != nil {
