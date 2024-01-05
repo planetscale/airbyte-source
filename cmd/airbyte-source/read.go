@@ -131,8 +131,8 @@ func ReadCommand(ch *Helper) *cobra.Command {
 							return err
 						}
 						syncState.Streams[streamStateKey].Shards[shardName] = sc
-						ch.Logger.Flush()
 						ch.Logger.State(syncState)
+						ch.Logger.Flush()
 						return nil
 					}
 

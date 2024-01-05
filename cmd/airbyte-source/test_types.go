@@ -27,10 +27,6 @@ func (td testConnectClient) CanConnect(ctx context.Context, ps lib.PlanetScaleSo
 	return td.connectResponse.err
 }
 
-func (td testConnectClient) HasTabletType(ctx context.Context, psc lib.PlanetScaleSource, tt psdbconnect.TabletType) (bool, error) {
-	return true, nil
-}
-
 func (td testConnectClient) Read(context.Context, lib.DatabaseLogger, lib.PlanetScaleSource, string, []string, *psdbconnect.TableCursor, lib.OnResult, lib.OnCursor, lib.OnUpdate) (*lib.SerializedCursor, error) {
 	// TODO implement me
 	panic("implement me")
