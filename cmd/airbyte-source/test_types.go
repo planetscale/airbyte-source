@@ -2,6 +2,7 @@ package airbyte_source
 
 import (
 	"context"
+	"github.com/planetscale/connectsdk/lib"
 	"io"
 
 	"github.com/planetscale/airbyte-source/cmd/internal"
@@ -39,7 +40,7 @@ func (td testDatabase) HasTabletType(ctx context.Context, psc internal.PlanetSca
 	return true, nil
 }
 
-func (td testDatabase) Read(ctx context.Context, w io.Writer, ps internal.PlanetScaleSource, s internal.ConfiguredStream, tc *psdbconnect.TableCursor) (*internal.SerializedCursor, error) {
+func (td testDatabase) Read(ctx context.Context, w io.Writer, ps internal.PlanetScaleSource, s internal.ConfiguredStream, tc *psdbconnect.TableCursor) (*lib.SerializedCursor, error) {
 	// TODO implement me
 	panic("implement me")
 }

@@ -119,8 +119,8 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					os.Exit(1)
 				}
 
-				for _, shardState := range streamState.Shards {
-					tc, err := shardState.SerializedCursorToTableCursor(table)
+				for shardName, shardState := range streamState.Shards {
+					tc, err := shardState.SerializedCursorToTableCursor()
 					if err != nil {
 						ch.Logger.Error(fmt.Sprintf("invalid cursor for stream %v, failed with [%v]", streamStateKey, err))
 						os.Exit(1)
@@ -138,8 +138,13 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					onUpdate := func(*lib.UpdatedRow) error {
 						return nil
 					}
-					onCursor := func(*psdbconnect.TableCursor) error {
-						//syncState.Streams[streamStateKey].Shards[shardName] = sc
+
+					onCursor := func(tc *psdbconnect.TableCursor) error {
+						sc, err := lib.TableCursorToSerializedCursor(tc)
+						if err != nil {
+							return err
+						}
+						syncState.Streams[streamStateKey].Shards[shardName] = sc
 						ch.Logger.Flush()
 						ch.Logger.State(syncState)
 						return nil
@@ -153,8 +158,9 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					if sc != nil {
 						// if we get any new state, we assign it here.
 						// otherwise, the older state is round-tripped back to Airbyte.
-						//syncState.Streams[streamStateKey].Shards[shardName] = sc
+						syncState.Streams[streamStateKey].Shards[shardName] = sc
 					}
+
 					ch.Logger.Flush()
 					ch.Logger.State(syncState)
 				}
@@ -183,6 +189,7 @@ func readState(state string, psc internal.PlanetScaleSource, streams []internal.
 	}
 
 	for _, s := range streams {
+
 		keyspaceOrDatabase := s.Stream.Namespace
 		if keyspaceOrDatabase == "" {
 			keyspaceOrDatabase = psc.Database

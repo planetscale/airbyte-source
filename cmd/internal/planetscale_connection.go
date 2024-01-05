@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/go-sql-driver/mysql"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
+	"github.com/planetscale/connectsdk/lib"
 	"os"
 	"strings"
 )
@@ -50,7 +51,7 @@ func (psc PlanetScaleSource) DSN() string {
 // This state can be round-tripped safely with Airbyte.
 func (psc PlanetScaleSource) GetInitialState(keyspaceOrDatabase string, shards []string) (ShardStates, error) {
 	shardCursors := ShardStates{
-		Shards: map[string]*SerializedCursor{},
+		Shards: map[string]*lib.SerializedCursor{},
 	}
 
 	if len(psc.Shards) > 0 {

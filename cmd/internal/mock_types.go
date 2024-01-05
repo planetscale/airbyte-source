@@ -77,10 +77,8 @@ func (c *clientConnectionMock) Sync(ctx context.Context, in *psdbconnect.SyncReq
 }
 
 type mysqlAccessMock struct {
-	PingContextFn             func(ctx context.Context, source PlanetScaleSource) error
-	PingContextFnInvoked      bool
-	GetVitessTabletsFn        func(ctx context.Context, psc PlanetScaleSource) ([]VitessTablet, error)
-	GetVitessTabletsFnInvoked bool
+	PingContextFn        func(ctx context.Context, source PlanetScaleSource) error
+	PingContextFnInvoked bool
 }
 
 func (tma *mysqlAccessMock) PingContext(ctx context.Context, source PlanetScaleSource) error {
@@ -106,11 +104,6 @@ func (mysqlAccessMock) GetTablePrimaryKeys(ctx context.Context, source PlanetSca
 func (mysqlAccessMock) QueryContext(ctx context.Context, psc PlanetScaleSource, query string, args ...interface{}) (*sql.Rows, error) {
 	//TODO implement me
 	panic("implement me")
-}
-
-func (tma *mysqlAccessMock) GetVitessTablets(ctx context.Context, psc PlanetScaleSource) ([]VitessTablet, error) {
-	tma.GetVitessTabletsFnInvoked = true
-	return tma.GetVitessTabletsFn(ctx, psc)
 }
 
 func (mysqlAccessMock) GetVitessShards(ctx context.Context, psc PlanetScaleSource) ([]string, error) {
