@@ -1,9 +1,9 @@
 module github.com/planetscale/airbyte-source
 
-go 1.21
+go 1.21.3
 
 require (
-	github.com/go-sql-driver/mysql v1.7.1
+	github.com/go-sql-driver/mysql v1.7.1 // indirect
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.4
 	vitess.io/vitess v0.17.3
@@ -11,8 +11,11 @@ require (
 
 require (
 	github.com/pkg/errors v0.9.1
+	github.com/planetscale/connect-sdk v0.1.2
 	github.com/planetscale/psdb v0.0.0-20220429000526-e2a0e798aaf3
+	github.com/twitchtv/twirp v8.1.2+incompatible
 	google.golang.org/grpc v1.59.0
+	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.2.0
 	google.golang.org/protobuf v1.31.0
 )
 

@@ -2,14 +2,17 @@ package airbyte_source
 
 import (
 	"github.com/planetscale/airbyte-source/cmd/internal"
+	"github.com/planetscale/connect-sdk/lib"
 	"io"
 	"os"
 )
 
 type Helper struct {
-	Database   internal.PlanetScaleDatabase
-	FileReader FileReader
-	Logger     internal.AirbyteLogger
+	MysqlClient   lib.MysqlClient
+	ConnectClient lib.ConnectClient
+	Source        lib.PlanetScaleSource
+	FileReader    FileReader
+	Logger        internal.AirbyteLogger
 }
 
 type FileReader interface {
@@ -31,18 +34,23 @@ func DefaultHelper(w io.Writer) *Helper {
 }
 
 func (h *Helper) EnsureDB(psc internal.PlanetScaleSource) error {
-	if h.Database != nil {
+	if h.ConnectClient != nil {
 		return nil
 	}
 
-	mysql, err := internal.NewMySQL(&psc)
+	h.Source = lib.PlanetScaleSource{
+		UseReplica: true,
+		Username:   psc.Username,
+		Database:   psc.Database,
+		Host:       psc.Host,
+		Password:   psc.Password,
+	}
+	var err error
+	h.MysqlClient, err = lib.NewMySQL(&h.Source)
 	if err != nil {
 		return err
 	}
-	h.Database = internal.PlanetScaleEdgeDatabase{
-		Logger: h.Logger,
-		Mysql:  mysql,
-	}
+	h.ConnectClient = lib.NewConnectClient(&h.MysqlClient)
 
 	return nil
 }

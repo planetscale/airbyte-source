@@ -40,24 +40,24 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 				return
 			}
 
-			cs, err := checkConnectionStatus(ch.Database, psc)
+			cs, err := checkConnectionStatus(ch.ConnectClient, ch.Source)
 			if err != nil {
 				ch.Logger.ConnectionStatus(cs)
 				return
 			}
 
-			defer func() {
-				if err := ch.Database.Close(); err != nil {
-					fmt.Fprintf(cmd.OutOrStdout(), "Unable to close connection to PlanetScale Database, failed with %v", err)
-				}
-			}()
+			if err := ch.EnsureDB(psc); err != nil {
+				fmt.Fprintln(cmd.OutOrStdout(), "Unable to connect to PlanetScale Database")
+				return
+			}
 
-			c, err := ch.Database.DiscoverSchema(context.Background(), psc)
-			if err != nil {
+			sb := internal.NewSchemaBuilder()
+			if err := ch.MysqlClient.BuildSchema(context.Background(), ch.Source, sb); err != nil {
 				ch.Logger.Log(internal.LOGLEVEL_ERROR, fmt.Sprintf("Unable to discover database, failed with [%v]", err))
 				return
 			}
 
+			c := sb.(*internal.SchemaBuilder).GetCatalog()
 			ch.Logger.Catalog(c)
 		},
 	}

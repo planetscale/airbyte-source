@@ -2,32 +2,10 @@ package internal
 
 import (
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
+	"github.com/planetscale/connect-sdk/lib"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
-
-func TestCanGenerateSecureDSN(t *testing.T) {
-	psc := PlanetScaleSource{
-		Host:     "useast.psdb.connect",
-		Username: "usernameus-east-4",
-		Password: "pscale_password",
-		Database: "connect-test",
-	}
-	dsn := psc.DSN()
-	assert.Equal(t, "usernameus-east-4:pscale_password@tcp(useast.psdb.connect)/connect-test@primary?tls=true", dsn)
-}
-
-func TestCanGenerateInsecureDSN(t *testing.T) {
-	psc := PlanetScaleSource{
-		Host:     "useast.psdb.connect",
-		Username: "usernameus-east-4",
-		Password: "pscale_password",
-		Database: "connect-test",
-	}
-	t.Setenv("PS_END_TO_END_TEST_RUN", "true")
-	dsn := psc.DSN()
-	assert.Equal(t, "usernameus-east-4:pscale_password@tcp(useast.psdb.connect)/connect-test?tls=skip-verify", dsn)
-}
 
 func TestCanGenerateInitialState_Sharded(t *testing.T) {
 	psc := PlanetScaleSource{
@@ -45,7 +23,7 @@ func TestCanGenerateInitialState_Sharded(t *testing.T) {
 	shardStates, err := psc.GetInitialState("connect-test", shards)
 	assert.NoError(t, err)
 	expectedShardStates := ShardStates{
-		Shards: map[string]*SerializedCursor{},
+		Shards: map[string]*lib.SerializedCursor{},
 	}
 
 	for _, shard := range shards {
@@ -82,7 +60,7 @@ func TestCanGenerateInitialState_CustomShards(t *testing.T) {
 	assert.Equal(t, len(configuredShards), len(shardStates.Shards))
 
 	expectedShardStates := ShardStates{
-		Shards: map[string]*SerializedCursor{},
+		Shards: map[string]*lib.SerializedCursor{},
 	}
 
 	for _, shard := range configuredShards {
@@ -112,7 +90,7 @@ func TestCanGenerateInitialState_Unsharded(t *testing.T) {
 	shardStates, err := psc.GetInitialState("connect-test", shards)
 	assert.NoError(t, err)
 	expectedShardStates := ShardStates{
-		Shards: map[string]*SerializedCursor{},
+		Shards: map[string]*lib.SerializedCursor{},
 	}
 
 	for _, shard := range shards {

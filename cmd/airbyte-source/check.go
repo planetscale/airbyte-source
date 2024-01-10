@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/planetscale/connect-sdk/lib"
 	"os"
 
 	"github.com/planetscale/airbyte-source/cmd/internal"
@@ -43,13 +44,7 @@ func CheckCommand(ch *Helper) *cobra.Command {
 				return
 			}
 
-			defer func() {
-				if err := ch.Database.Close(); err != nil {
-					fmt.Fprintf(cmd.OutOrStdout(), "Unable to close connection to PlanetScale Database, failed with %v", err)
-				}
-			}()
-
-			cs, _ := checkConnectionStatus(ch.Database, psc)
+			cs, _ := checkConnectionStatus(ch.ConnectClient, ch.Source)
 			ch.Logger.ConnectionStatus(cs)
 		},
 	}
@@ -70,9 +65,9 @@ func parseSource(reader FileReader, configFilePath string) (internal.PlanetScale
 	return psc, nil
 }
 
-func checkConnectionStatus(database internal.PlanetScaleDatabase, psc internal.PlanetScaleSource) (internal.ConnectionStatus, error) {
+func checkConnectionStatus(connectClient lib.ConnectClient, psc lib.PlanetScaleSource) (internal.ConnectionStatus, error) {
 
-	if err := database.CanConnect(context.Background(), psc); err != nil {
+	if err := connectClient.CanConnect(context.Background(), psc); err != nil {
 		return internal.ConnectionStatus{
 			Status:  "FAILED",
 			Message: fmt.Sprintf("Unable to connect to PlanetScale database %v at host %v with username %v. Failed with \n %v", psc.Database, psc.Host, psc.Username, err),

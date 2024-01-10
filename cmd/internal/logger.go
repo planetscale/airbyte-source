@@ -14,6 +14,7 @@ type AirbyteLogger interface {
 	Flush()
 	State(syncState SyncState)
 	Error(error string)
+	Info(message string)
 }
 
 const MaxBatchSize = 10000
@@ -87,6 +88,16 @@ func (a *airbyteLogger) Error(error string) {
 		Log: &AirbyteLogMessage{
 			Level:   LOGLEVEL_ERROR,
 			Message: error,
+		},
+	})
+}
+
+func (a *airbyteLogger) Info(message string) {
+	a.recordEncoder.Encode(AirbyteMessage{
+		Type: LOG,
+		Log: &AirbyteLogMessage{
+			Level:   LOGLEVEL_INFO,
+			Message: message,
 		},
 	})
 }
