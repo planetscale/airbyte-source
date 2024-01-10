@@ -39,12 +39,11 @@ func (h *Helper) EnsureDB(psc internal.PlanetScaleSource) error {
 	}
 
 	h.Source = lib.PlanetScaleSource{
-		UseReplica:            true,
-		Username:              psc.Username,
-		Database:              psc.Database,
-		Host:                  psc.Host,
-		Password:              psc.Password,
-		TreatTinyIntAsBoolean: !psc.Options.DoNotTreatTinyIntAsBoolean,
+		UseReplica: true,
+		Username:   psc.Username,
+		Database:   psc.Database,
+		Host:       psc.Host,
+		Password:   psc.Password,
 	}
 	var err error
 	h.MysqlClient, err = lib.NewMySQL(&h.Source)

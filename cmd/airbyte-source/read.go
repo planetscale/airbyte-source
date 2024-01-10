@@ -4,13 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/planetscale/airbyte-source/cmd/internal"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/planetscale/connect-sdk/lib"
-	"os"
-	"vitess.io/vitess/go/sqltypes"
-
-	"github.com/planetscale/airbyte-source/cmd/internal"
 	"github.com/spf13/cobra"
+	"os"
 )
 
 var (
@@ -92,7 +90,8 @@ func ReadCommand(ch *Helper) *cobra.Command {
 			}
 
 			allColumns := []string{}
-
+			rb := internal.NewResultBuilder(ch.Logger)
+			irb := rb.(*internal.ResultBuilder)
 			for _, table := range catalog.Streams {
 				keyspaceOrDatabase := table.Stream.Namespace
 				if keyspaceOrDatabase == "" {
@@ -104,29 +103,17 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					ch.Logger.Error(fmt.Sprintf("Unable to read state for stream %v", streamStateKey))
 					os.Exit(1)
 				}
+				irb.SetKeyspace(keyspaceOrDatabase)
+				irb.SetTable(table.Stream.Name)
 
 				for shardName, shardState := range streamState.Shards {
-					tc, err := shardState.SerializedCursorToTableCursor()
+					tc, err := shardState.DeserializeTableCursor()
 					if err != nil {
 						ch.Logger.Error(fmt.Sprintf("invalid cursor for stream %v, failed with [%v]", streamStateKey, err))
 						os.Exit(1)
 					}
-
-					onResult := func(qr *sqltypes.Result, _ lib.Operation) error {
-						data := internal.QueryResultToRecords(qr)
-
-						for _, record := range data {
-							ch.Logger.Record(keyspaceOrDatabase, table.Stream.Name, record)
-						}
-						return nil
-					}
-
-					onUpdate := func(*lib.UpdatedRow) error {
-						return nil
-					}
-
-					onCursor := func(tc *psdbconnect.TableCursor) error {
-						sc, err := lib.TableCursorToSerializedCursor(tc)
+					irb.HandleOnCursor = func(tc *psdbconnect.TableCursor) error {
+						sc, err := lib.SerializeTableCursor(tc)
 						if err != nil {
 							return err
 						}
@@ -136,7 +123,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 						return nil
 					}
 
-					sc, err := ch.ConnectClient.Read(context.Background(), ch.Logger, ch.Source, table.Stream.Name, allColumns, tc, onResult, onCursor, onUpdate)
+					sc, err := ch.ConnectClient.Read(context.Background(), ch.Logger, ch.Source, table.Stream.Name, allColumns, tc, rb)
 					if err != nil {
 						ch.Logger.Error(err.Error())
 						os.Exit(1)

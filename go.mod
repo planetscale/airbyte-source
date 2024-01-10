@@ -11,7 +11,7 @@ require (
 
 require (
 	github.com/pkg/errors v0.9.1
-	github.com/planetscale/connect-sdk v0.1.1
+	github.com/planetscale/connect-sdk v0.1.2
 	github.com/planetscale/psdb v0.0.0-20220429000526-e2a0e798aaf3
 	github.com/twitchtv/twirp v8.1.2+incompatible
 	google.golang.org/grpc v1.59.0

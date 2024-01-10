@@ -27,7 +27,7 @@ func (td testConnectClient) CanConnect(ctx context.Context, ps lib.PlanetScaleSo
 	return td.connectResponse.err
 }
 
-func (td testConnectClient) Read(context.Context, lib.DatabaseLogger, lib.PlanetScaleSource, string, []string, *psdbconnect.TableCursor, lib.OnResult, lib.OnCursor, lib.OnUpdate) (*lib.SerializedCursor, error) {
+func (td testConnectClient) Read(context.Context, lib.DatabaseLogger, lib.PlanetScaleSource, string, []string, *psdbconnect.TableCursor, lib.ResultBuilder) (*lib.SerializedCursor, error) {
 	// TODO implement me
 	panic("implement me")
 }
