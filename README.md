@@ -1,5 +1,10 @@
 # PlanetScale Airbyte Source
 
+## Getting Support
+
+If you run into any issues with using this source, please reach out to PlanetScale Support at `support@planetscale.com`
+
+## About 
 This repository builds a docker container that is used a [Source Connector](https://docs.airbyte.com/understanding-airbyte/airbyte-specification#source) in [Airbyte](https://airbyte.com/).
 
 Official documentation of connecting to PlanetScale databases from your Airbyte installation is available [here](https://planetscale.com/docs/integrations/airbyte)
