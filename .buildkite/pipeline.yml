@@ -29,7 +29,7 @@ steps:
 
   - name: "staticcheck"
     label: "Tests"
-    command: "go install honnef.co/go/tools/cmd/staticcheck@latest && staticcheck ./..."
+    command: "go install honnef.co/go/tools/cmd/staticcheck@latest && $(go env GOPATH)/bin/staticcheck ./..."
     env:
       DOCKER_BUILDKIT: 1
     plugins:
@@ -60,7 +60,7 @@ steps:
     command: script/release.sh
     plugins:
       - docker#v3.8.0:
-          image: "golang:1.18"
+          image: "golang:1.21.3"
           propagate-environment: true
           environment:
             - "GITHUB_TOKEN"

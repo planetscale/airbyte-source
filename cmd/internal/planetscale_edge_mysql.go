@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/pkg/errors"
-	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -31,7 +31,7 @@ type PlanetScaleEdgeMysqlAccess interface {
 }
 
 func NewMySQL(psc *PlanetScaleSource) (PlanetScaleEdgeMysqlAccess, error) {
-	db, err := sql.Open("mysql", psc.DSN(psdbconnect.TabletType_primary))
+	db, err := sql.Open("mysql", psc.DSN())
 	if err != nil {
 		return nil, err
 	}
@@ -110,6 +110,12 @@ func (p planetScaleEdgeMySQLAccess) PingContext(ctx context.Context, psc PlanetS
 	return p.db.PingContext(ctx)
 }
 
+const (
+	gCTableNameExpression string = `^_vt_(HOLD|PURGE|EVAC|DROP)_([0-f]{32})_([0-9]{14})$`
+)
+
+var gcTableNameRegexp = regexp.MustCompile(gCTableNameExpression)
+
 func (p planetScaleEdgeMySQLAccess) GetTableNames(ctx context.Context, psc PlanetScaleSource) ([]string, error) {
 	var tables []string
 
@@ -124,7 +130,10 @@ func (p planetScaleEdgeMySQLAccess) GetTableNames(ctx context.Context, psc Plane
 			return tables, errors.Wrap(err, "unable to get table names")
 		}
 
-		tables = append(tables, name)
+		// skip any that are Vitess's GC tables.
+		if !gcTableNameRegexp.MatchString(name) {
+			tables = append(tables, name)
+		}
 	}
 
 	if err := tableNamesQR.Err(); err != nil {

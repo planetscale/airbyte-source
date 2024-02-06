@@ -1,17 +1,14 @@
 # syntax=docker/dockerfile:1
 
-ARG GO_VERSION=1.20.1
-FROM golang:${GO_VERSION}-bullseye AS build
+ARG GO_VERSION=1.21.3
+FROM pscale.dev/wolfi-prod/go:${GO_VERSION} AS build
 
-RUN apt-get update && apt-get upgrade -y && \
-    apt-get install -y default-mysql-client ca-certificates && \
-    apt-get install -y ruby && \
-    gem install license_finder && \
-    rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache ruby-3.2 ruby3.2-bundler && \
+    gem install license_finder
 
-
+ENTRYPOINT []
 WORKDIR /airbyte-source
 COPY . .
 
 RUN go mod download
-RUN go build -trimpath -o /connect
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /connect

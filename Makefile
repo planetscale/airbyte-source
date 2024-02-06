@@ -50,12 +50,12 @@ test:
 
 .PHONY: build
 build:
-	@go build -trimpath ./...
+	@CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" ./...
 
 .PHONY: lint
 lint:
 	@go install honnef.co/go/tools/cmd/staticcheck@latest
-	@staticcheck ./...
+	@$(GOBIN)/staticcheck ./...
 
 .PHONY: licensed
 licensed:
