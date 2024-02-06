@@ -10,12 +10,13 @@ import (
 
 // PlanetScaleSource defines a configured Airbyte Source for a PlanetScale database
 type PlanetScaleSource struct {
-	Host     string              `json:"host"`
-	Database string              `json:"database"`
-	Username string              `json:"username"`
-	Password string              `json:"password"`
-	Shards   string              `json:"shards"`
-	Options  CustomSourceOptions `json:"options"`
+	Host       string              `json:"host"`
+	Database   string              `json:"database"`
+	Username   string              `json:"username"`
+	Password   string              `json:"password"`
+	Shards     string              `json:"shards"`
+	UseReplica bool                `json:"use_replica"`
+	Options    CustomSourceOptions `json:"options"`
 }
 
 type CustomSourceOptions struct {
@@ -23,13 +24,18 @@ type CustomSourceOptions struct {
 }
 
 // DSN returns a DataSource that mysql libraries can use to connect to a PlanetScale database.
-func (psc PlanetScaleSource) DSN(tt psdbconnect.TabletType) string {
+func (psc PlanetScaleSource) DSN() string {
 	config := mysql.NewConfig()
 	config.Net = "tcp"
 	config.Addr = psc.Host
 	config.User = psc.Username
 	config.DBName = psc.Database
 	config.Passwd = psc.Password
+
+	tt := psdbconnect.TabletType_primary
+	if psc.UseReplica {
+		tt = psdbconnect.TabletType_replica
+	}
 
 	if useSecureConnection() {
 		config.TLSConfig = "true"

@@ -128,35 +128,22 @@ func (p PlanetScaleEdgeDatabase) getStreamForTable(ctx context.Context, psc Plan
 func getJsonSchemaType(mysqlType string, treatTinyIntAsBoolean bool) PropertyType {
 	// Support custom airbyte types documented here :
 	// https://docs.airbyte.com/understanding-airbyte/supported-data-types/#the-types
-	if strings.HasPrefix(mysqlType, "int") {
-		return PropertyType{Type: "integer"}
-	}
-
-	if strings.HasPrefix(mysqlType, "decimal") || strings.HasPrefix(mysqlType, "double") {
-		return PropertyType{Type: "number"}
-	}
-
-	if strings.HasPrefix(mysqlType, "bigint") {
-		return PropertyType{Type: "string", AirbyteType: "big_integer"}
-	}
-
-	if strings.HasPrefix(mysqlType, "datetime") {
-		return PropertyType{Type: "string", CustomFormat: "date-time", AirbyteType: "timestamp_without_timezone"}
-	}
-
-	if mysqlType == "tinyint(1)" {
+	switch {
+	case strings.HasPrefix(mysqlType, "tinyint(1)"):
 		if treatTinyIntAsBoolean {
 			return PropertyType{Type: "boolean"}
 		}
-
-		return PropertyType{Type: "integer"}
-	}
-
-	switch mysqlType {
-	case "date":
-		return PropertyType{Type: "string", AirbyteType: "date"}
-	case "datetime":
-		return PropertyType{Type: "string", AirbyteType: "timestamp_without_timezone"}
+		return PropertyType{Type: "number", AirbyteType: "integer"}
+	case strings.HasPrefix(mysqlType, "int"), strings.HasPrefix(mysqlType, "smallint"), strings.HasPrefix(mysqlType, "mediumint"), strings.HasPrefix(mysqlType, "bigint"), strings.HasPrefix(mysqlType, "tinyint"):
+		return PropertyType{Type: "number", AirbyteType: "integer"}
+	case strings.HasPrefix(mysqlType, "decimal"), strings.HasPrefix(mysqlType, "double"), strings.HasPrefix(mysqlType, "float"):
+		return PropertyType{Type: "number"}
+	case strings.HasPrefix(mysqlType, "datetime"), strings.HasPrefix(mysqlType, "timestamp"):
+		return PropertyType{Type: "string", CustomFormat: "date-time", AirbyteType: "timestamp_without_timezone"}
+	case strings.HasPrefix(mysqlType, "date"):
+		return PropertyType{Type: "string", CustomFormat: "date", AirbyteType: "date"}
+	case strings.HasPrefix(mysqlType, "time"):
+		return PropertyType{Type: "string", CustomFormat: "time", AirbyteType: "time_without_timezone"}
 	default:
 		return PropertyType{Type: "string"}
 	}
@@ -184,9 +171,15 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	)
 
 	tabletType := psdbconnect.TabletType_primary
+	if ps.UseReplica {
+		tabletType = psdbconnect.TabletType_replica
+	}
+
+	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Syncing from tabletType \"%v\"", TabletTypeToString(tabletType)))
+
 	currentPosition := lastKnownPosition
 	table := s.Stream
-	preamble := fmt.Sprintf("[%v:%v shard : %v] ", table.Namespace, table.Name, currentPosition.Shard)
+	preamble := fmt.Sprintf("[%v:%v:%v shard : %v] ", table.Namespace, TabletTypeToString(tabletType), table.Name, currentPosition.Shard)
 	for {
 		p.Logger.Log(LOGLEVEL_INFO, preamble+"peeking to see if there's any new rows")
 		latestCursorPosition, lcErr := p.getLatestCursorPosition(ctx, currentPosition.Shard, currentPosition.Keyspace, table, ps, tabletType)
@@ -269,7 +262,9 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		TableName:  s.Name,
 		Cursor:     tc,
 		TabletType: tabletType,
+		Cells:      []string{"planetscale_operator_default"},
 	}
+	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("DEBUG: SyncRequest.Cells = %v", sReq.GetCells()))
 
 	c, err := client.Sync(ctx, sReq)
 	if err != nil {
@@ -361,6 +356,7 @@ func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, sh
 			Position: "current",
 		},
 		TabletType: tabletType,
+		Cells:      []string{"planetscale_operator_default"},
 	}
 
 	c, err := client.Sync(ctx, sReq)
