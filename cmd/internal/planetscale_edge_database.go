@@ -179,7 +179,6 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 
 	currentPosition := lastKnownPosition
 	table := s.Stream
-	readDuration := 1 * time.Minute
 	preamble := fmt.Sprintf("[%v:%v:%v shard : %v] ", table.Namespace, TabletTypeToString(tabletType), table.Name, currentPosition.Shard)
 	for {
 		p.Logger.Log(LOGLEVEL_INFO, preamble+"peeking to see if there's any new rows")
@@ -193,10 +192,10 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 			p.Logger.Log(LOGLEVEL_INFO, preamble+"no new rows found, exiting")
 			return TableCursorToSerializedCursor(currentPosition)
 		}
-		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("new rows found, syncing rows for %v", readDuration))
+		p.Logger.Log(LOGLEVEL_INFO, "new rows found, syncing")
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf(preamble+"syncing rows with cursor [%v]", currentPosition))
 
-		currentPosition, err = p.sync(ctx, currentPosition, latestCursorPosition, table, ps, tabletType, readDuration)
+		currentPosition, err = p.sync(ctx, currentPosition, latestCursorPosition, table, ps, tabletType)
 		if currentPosition.Position != "" {
 			currentSerializedCursor, sErr = TableCursorToSerializedCursor(currentPosition)
 			if sErr != nil {
@@ -224,10 +223,8 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	}
 }
 
-func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, stopPosition string, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType, readDuration time.Duration) (*psdbconnect.TableCursor, error) {
+func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, stopPosition string, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType) (*psdbconnect.TableCursor, error) {
 	defer p.Logger.Flush()
-	ctx, cancel := context.WithTimeout(ctx, readDuration)
-	defer cancel()
 
 	var (
 		err    error
