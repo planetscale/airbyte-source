@@ -8,11 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bufbuild/connect-go"
 	"github.com/pkg/errors"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
+	psdbconnectdriver "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1/psdbconnectv1alpha1connect"
 	"github.com/planetscale/psdb/auth"
-	grpcclient "github.com/planetscale/psdb/core/pool"
-	clientoptions "github.com/planetscale/psdb/core/pool/options"
+	psdbclient "github.com/planetscale/psdb/core/client"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"vitess.io/vitess/go/sqltypes"
@@ -36,7 +37,7 @@ type PlanetScaleDatabase interface {
 type PlanetScaleEdgeDatabase struct {
 	Logger   AirbyteLogger
 	Mysql    PlanetScaleEdgeMysqlAccess
-	clientFn func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error)
+	clientFn func(ctx context.Context, ps PlanetScaleSource) (psdbconnectdriver.ConnectClient, error)
 }
 
 func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleSource) error {
@@ -228,23 +229,15 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 
 	var (
 		err    error
-		client psdbconnect.ConnectClient
+		client psdbconnectdriver.ConnectClient
 	)
 
 	if p.clientFn == nil {
-		conn, err := grpcclient.Dial(ctx, ps.Host,
-			clientoptions.WithDefaultTLSConfig(),
-			clientoptions.WithCompression(true),
-			clientoptions.WithConnectionPool(1),
-			clientoptions.WithExtraCallOption(
-				auth.NewBasicAuth(ps.Username, ps.Password).CallOption(),
-			),
+		client = psdbclient.New(
+			ps.Host,
+			psdbconnectdriver.NewConnectClient,
+			auth.NewBasicAuth(ps.Username, ps.Password),
 		)
-		if err != nil {
-			return tc, err
-		}
-		defer conn.Close()
-		client = psdbconnect.NewConnectClient(conn)
 	} else {
 		client, err = p.clientFn(ctx, ps)
 		if err != nil {
@@ -266,7 +259,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 	}
 	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("DEBUG: SyncRequest.Cells = %v", sReq.GetCells()))
 
-	c, err := client.Sync(ctx, sReq)
+	c, err := client.Sync(ctx, connect.NewRequest(sReq))
 	if err != nil {
 		return tc, err
 	}
@@ -279,13 +272,8 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 	// stop when we've reached the well known stop position for this sync session.
 	watchForVgGtidChange := false
 
-	for {
-
-		res, err := c.Recv()
-		if err != nil {
-			return tc, err
-		}
-
+	for c.Receive() {
+		res := c.Msg()
 		if res.Cursor != nil {
 			tc = res.Cursor
 		}
@@ -315,6 +303,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 			return tc, io.EOF
 		}
 	}
+	return tc, c.Err()
 }
 
 func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, shard, keyspace string, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType) (string, error) {
@@ -324,23 +313,15 @@ func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, sh
 	defer cancel()
 	var (
 		err    error
-		client psdbconnect.ConnectClient
+		client psdbconnectdriver.ConnectClient
 	)
 
 	if p.clientFn == nil {
-		conn, err := grpcclient.Dial(ctx, ps.Host,
-			clientoptions.WithDefaultTLSConfig(),
-			clientoptions.WithCompression(true),
-			clientoptions.WithConnectionPool(1),
-			clientoptions.WithExtraCallOption(
-				auth.NewBasicAuth(ps.Username, ps.Password).CallOption(),
-			),
+		client = psdbclient.New(
+			ps.Host,
+			psdbconnectdriver.NewConnectClient,
+			auth.NewBasicAuth(ps.Username, ps.Password),
 		)
-		if err != nil {
-			return "", err
-		}
-		defer conn.Close()
-		client = psdbconnect.NewConnectClient(conn)
 	} else {
 		client, err = p.clientFn(ctx, ps)
 		if err != nil {
@@ -359,21 +340,19 @@ func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, sh
 		Cells:      []string{"planetscale_operator_default"},
 	}
 
-	c, err := client.Sync(ctx, sReq)
+	c, err := client.Sync(ctx, connect.NewRequest(sReq))
 	if err != nil {
 		return "", nil
 	}
 
-	for {
-		res, err := c.Recv()
-		if err != nil {
-			return "", err
-		}
+	for c.Receive() {
+		res := c.Msg()
 
 		if res.Cursor != nil {
 			return res.Cursor.Position, nil
 		}
 	}
+	return "", c.Err()
 }
 
 // printQueryResult will pretty-print an AirbyteRecordMessage to the logger.
