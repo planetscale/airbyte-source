@@ -15,10 +15,11 @@ builds:
       - -trimpath
 dockers:
   - image_templates:
-    - "planetscale/airbyte-source:latest"
-    - "planetscale/airbyte-source:{{ .Tag }}"
-    skip_push: false
+    - "planetscale/airbyte-source:latest-amd64"
+    - "planetscale/airbyte-source:{{ .Tag }}-amd64"
+    use: buildx
     build_flag_templates:
+    - "--platform=linux/amd64"
     - "--pull"
     - "--label=org.opencontainers.image.created={{.Date}}"
     - "--label=org.opencontainers.image.title={{.ProjectName}}"
@@ -26,3 +27,29 @@ dockers:
     - "--label=org.opencontainers.image.version={{.Version}}"
     - "--label=org.opencontainers.image.source={{.GitURL}}"
     dockerfile: Dockerfile.goreleaser
+  - image_templates:
+    - "planetscale/airbyte-source:latest-arm64"
+    - "planetscale/airbyte-source:{{ .Tag }}-arm64"
+    use: buildx
+    build_flag_templates:
+    - "--platform=linux/arm64"
+    - "--pull"
+    - "--label=org.opencontainers.image.created={{.Date}}"
+    - "--label=org.opencontainers.image.title={{.ProjectName}}"
+    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+    - "--label=org.opencontainers.image.version={{.Version}}"
+    - "--label=org.opencontainers.image.source={{.GitURL}}"
+    dockerfile: Dockerfile.goreleaser
+docker_manifests:
+  - name_template:
+    - "planetscale/airbyte-source:latest"
+    image_templates:
+    - "planetscale/airbyte-source:latest-amd64"
+    - "planetscale/airbyte-source:latest-arm64"
+    skip_push: false
+  - name_template:
+    - "planetscale/airbyte-source:{{ .Tag }}"
+    image_templates:
+    - "planetscale/airbyte-source:{{ .Tag }}-amd64"
+    - "planetscale/airbyte-source:{{ .Tag }}-arm64"
+    skip_push: false
