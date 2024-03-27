@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"sync"
 
 	"github.com/planetscale/airbyte-source/cmd/internal"
+	"github.com/planetscale/psdb/types/psdb/v1alpha1/psdbv1alpha1connect"
 	"github.com/spf13/cobra"
 )
 
@@ -105,6 +108,9 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					os.Exit(1)
 				}
 
+				var wg sync.WaitGroup
+				tableState := make(chan syncOutput)
+
 				for shardName, shardState := range streamState.Shards {
 					tc, err := shardState.SerializedCursorToTableCursor(table)
 					if err != nil {
@@ -112,17 +118,38 @@ func ReadCommand(ch *Helper) *cobra.Command {
 						os.Exit(1)
 					}
 
-					sc, err := ch.Database.Read(context.Background(), cmd.OutOrStdout(), psc, table, tc)
-					if err != nil {
-						ch.Logger.Error(err.Error())
-						os.Exit(1)
+					wg.Add(1)
+
+					go func(state chan syncOutput, wrtr io.Writer, psc internal.PlanetScaleSource, table internal.ConfiguredStream, tc *psdbv1alpha1connect.TableCursor, wg *sync.WaitGroup) {
+						sc, err := ch.Database.Read(context.Background(), cmd.OutOrStdout(), psc, table, tc)
+						wg.Done()
+						tableState <- syncOutput{sc: sc, err: err}
+					}(tableState, cmd.OutOrStdout(), psc, table, tc, &wg)
+
+					wg.Wait()
+
+					for {
+						var done bool
+						select {
+						case out := <-tableState:
+							if out.err != nil {
+								ch.Logger.Error(err.Error())
+								os.Exit(1)
+							}
+
+							if out.sc != nil {
+								syncState.Streams[streamStateKey].Shards[shardName] = out.sc
+							}
+						default:
+							done = true
+							break
+						}
+
+						if done {
+							break
+						}
 					}
 
-					if sc != nil {
-						// if we get any new state, we assign it here.
-						// otherwise, the older state is round-tripped back to Airbyte.
-						syncState.Streams[streamStateKey].Shards[shardName] = sc
-					}
 					ch.Logger.State(syncState)
 				}
 			}
@@ -132,6 +159,11 @@ func ReadCommand(ch *Helper) *cobra.Command {
 	readCmd.Flags().StringVar(&readSourceConfigFilePath, "config", "", "Path to the PlanetScale catalog configuration")
 	readCmd.Flags().StringVar(&stateFilePath, "state", "", "Path to the PlanetScale state information")
 	return readCmd
+}
+
+type syncOutput struct {
+	sc  *internal.SerializedCursor
+	err error
 }
 
 type State struct {
