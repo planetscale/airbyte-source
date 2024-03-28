@@ -1,9 +1,11 @@
 package internal
 
 import (
-	"encoding/json"
 	"io"
+	"sync"
 	"time"
+
+	"github.com/goccy/go-json"
 )
 
 type AirbyteLogger interface {
@@ -16,7 +18,7 @@ type AirbyteLogger interface {
 	Error(error string)
 }
 
-const MaxBatchSize = 10000
+const MaxBatchSize = 250000
 
 func NewLogger(w io.Writer) AirbyteLogger {
 	al := airbyteLogger{}
@@ -30,6 +32,8 @@ type airbyteLogger struct {
 	recordEncoder *json.Encoder
 	writer        io.Writer
 	records       []AirbyteMessage
+
+	rMutex sync.Mutex
 }
 
 func (a *airbyteLogger) Log(level, message string) {
@@ -61,17 +65,19 @@ func (a *airbyteLogger) Record(tableNamespace, tableName string, data map[string
 		},
 	}
 
+	a.rMutex.Lock()
+	defer a.rMutex.Unlock()
+
 	a.records = append(a.records, amsg)
 	if len(a.records) == MaxBatchSize {
-		a.Flush()
+		a.flush()
 	}
 }
 
 func (a *airbyteLogger) Flush() {
-	for _, record := range a.records {
-		a.recordEncoder.Encode(record)
-	}
-	a.records = a.records[:0]
+	a.rMutex.Lock()
+	defer a.rMutex.Unlock()
+	a.flush()
 }
 
 func (a *airbyteLogger) State(syncState SyncState) {
@@ -96,6 +102,13 @@ func (a *airbyteLogger) ConnectionStatus(status ConnectionStatus) {
 		Type:             CONNECTION_STATUS,
 		ConnectionStatus: &status,
 	})
+}
+
+func (a *airbyteLogger) flush() {
+	for _, record := range a.records {
+		a.recordEncoder.Encode(record)
+	}
+	a.records = a.records[:0]
 }
 
 func preamble() string {
