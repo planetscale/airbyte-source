@@ -163,7 +163,7 @@ func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScale
 // 3. Ask vstream to stream from the last known vgtid
 // 4. When we reach the stopping point, read all rows available at this vgtid
 // 5. End the stream when (a) a vgtid newer than latest vgtid is encountered or (b) the timeout kicks in.
-func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleSource, s ConfiguredStream, lastKnownPosition *psdbconnect.TableCursor) (*SerializedCursor, error) {
+func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, _ io.Writer, ps PlanetScaleSource, s ConfiguredStream, lastKnownPosition *psdbconnect.TableCursor) (*SerializedCursor, error) {
 	var (
 		err                     error
 		sErr                    error
@@ -180,7 +180,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	currentPosition := lastKnownPosition
 	table := s.Stream
 	readDuration := 30 * time.Minute
-	preamble := fmt.Sprintf("[%v:%v:%v shard : %v] ", table.Namespace, TabletTypeToString(tabletType), table.Name, currentPosition.Shard)
+	preamble := fmt.Sprintf("[%v:%v:%v shard: %v] ", table.Namespace, TabletTypeToString(tabletType), table.Name, currentPosition.Shard)
 	for {
 		p.Logger.Log(LOGLEVEL_INFO, preamble+"peeking to see if there's any new rows")
 		latestCursorPosition, lcErr := p.getLatestCursorPosition(ctx, currentPosition.Shard, currentPosition.Keyspace, table, ps, tabletType)
@@ -198,6 +198,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 
 		currentPosition, err = p.sync(ctx, currentPosition, latestCursorPosition, table, ps, tabletType, readDuration)
 		if currentPosition.Position != "" {
+			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("new rows found, syncing rows for %v", readDuration))
 			currentSerializedCursor, sErr = TableCursorToSerializedCursor(currentPosition)
 			if sErr != nil {
 				// if we failed to serialize here, we should bail.
@@ -259,7 +260,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		tc.Position = ""
 	}
 
-	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Syncing with cursor position : [%v], using last known PK : %v, stop cursor is : [%v]", tc.Position, tc.LastKnownPk != nil, stopPosition))
+	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Syncing with cursor position: [%v], using last known PK: %v, stop cursor is: [%v]", tc.Position, tc.LastKnownPk != nil, stopPosition))
 
 	sReq := &psdbconnect.SyncRequest{
 		TableName:  s.Name,
@@ -281,9 +282,11 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 
 	// stop when we've reached the well known stop position for this sync session.
 	watchForVgGtidChange := false
+	lastRestCount := -1
+	rows := 0
+	defer func() { p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Done, rows read: %v", rows)) }()
 
 	for {
-
 		res, err := c.Recv()
 		if err != nil {
 			return tc, err
@@ -304,6 +307,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 			for _, result := range res.Result {
 				qr := sqltypes.Proto3ToResult(result)
 				for _, row := range qr.Rows {
+					rows++
 					sqlResult := &sqltypes.Result{
 						Fields: result.Fields,
 					}
@@ -314,8 +318,12 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 			}
 		}
 
-		if watchForVgGtidChange && tc.Position != stopPosition {
+		if (watchForVgGtidChange && tc.Position != stopPosition) || (lastRestCount == 0 && len(res.Result) == 0 && tc.Position == stopPosition) {
 			return tc, io.EOF
+		}
+
+		if !(lastRestCount == -1 && len(res.Result) == 0) {
+			lastRestCount = len(res.Result)
 		}
 	}
 }
