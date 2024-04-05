@@ -37,6 +37,8 @@ type PlanetScaleEdgeDatabase struct {
 	Logger   AirbyteLogger
 	Mysql    PlanetScaleEdgeMysqlAccess
 	clientFn func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error)
+
+	dataLogger AirbyteLogger
 }
 
 func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleSource) error {
@@ -163,12 +165,22 @@ func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScale
 // 3. Ask vstream to stream from the last known vgtid
 // 4. When we reach the stopping point, read all rows available at this vgtid
 // 5. End the stream when (a) a vgtid newer than latest vgtid is encountered or (b) the timeout kicks in.
-func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, _ io.Writer, ps PlanetScaleSource, s ConfiguredStream, lastKnownPosition *psdbconnect.TableCursor) (*SerializedCursor, error) {
+func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, wrtr io.Writer, ps PlanetScaleSource, s ConfiguredStream, lastKnownPosition *psdbconnect.TableCursor) (*SerializedCursor, error) {
 	var (
 		err                     error
 		sErr                    error
 		currentSerializedCursor *SerializedCursor
 	)
+
+	var ll AirbyteLogger
+
+	if p.dataLogger != nil {
+		ll = p.dataLogger
+	} else {
+		ll = NewLogger(wrtr)
+	}
+
+	defer ll.Flush()
 
 	tabletType := psdbconnect.TabletType_primary
 	if ps.UseReplica {
@@ -196,7 +208,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, _ io.Writer, ps Plane
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("new rows found, syncing rows for %v", readDuration))
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf(preamble+"syncing rows with cursor [%v]", currentPosition))
 
-		currentPosition, err = p.sync(ctx, currentPosition, latestCursorPosition, table, ps, tabletType, readDuration)
+		currentPosition, err = p.sync(ctx, currentPosition, latestCursorPosition, table, ps, tabletType, readDuration, ll)
 		if currentPosition.Position != "" {
 			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("new rows found, syncing rows for %v", readDuration))
 			currentSerializedCursor, sErr = TableCursorToSerializedCursor(currentPosition)
@@ -225,8 +237,9 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, _ io.Writer, ps Plane
 	}
 }
 
-func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, stopPosition string, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType, readDuration time.Duration) (*psdbconnect.TableCursor, error) {
+func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, stopPosition string, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType, readDuration time.Duration, ll AirbyteLogger) (*psdbconnect.TableCursor, error) {
 	defer p.Logger.Flush()
+	defer ll.Flush()
 	ctx, cancel := context.WithTimeout(ctx, readDuration)
 	defer cancel()
 
@@ -313,12 +326,18 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 					}
 					sqlResult.Rows = append(sqlResult.Rows, row)
 					// print AirbyteRecord messages to stdout here.
-					p.printQueryResult(sqlResult, keyspaceOrDatabase, s.Name)
+					p.printQueryResult(sqlResult, keyspaceOrDatabase, s.Name, ll)
 				}
 			}
 		}
 
-		if (watchForVgGtidChange && tc.Position != stopPosition) || (lastRestCount == 0 && len(res.Result) == 0 && tc.Position == stopPosition) {
+		// todo(nickvanw): this option seems necessary if we're reading from a database that doesn't have any write traffic
+		// however, it breaks tests. Only enable in dev for now
+		// if lastRestCount == 0 && len(res.Result) == 0 && tc.Position == stopPosition {
+		// 	return tc, io.EOF
+		// }
+
+		if watchForVgGtidChange && tc.Position != stopPosition {
 			return tc, io.EOF
 		}
 
@@ -389,10 +408,10 @@ func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, sh
 
 // printQueryResult will pretty-print an AirbyteRecordMessage to the logger.
 // Copied from vtctl/query.go
-func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableNamespace, tableName string) {
+func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableNamespace, tableName string, ll AirbyteLogger) {
 	data := QueryResultToRecords(qr)
 
 	for _, record := range data {
-		p.Logger.Record(tableNamespace, tableName, record)
+		ll.Record(tableNamespace, tableName, record)
 	}
 }

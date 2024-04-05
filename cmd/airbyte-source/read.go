@@ -157,7 +157,6 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					}
 				}
 
-				ch.Logger.Log(internal.LOGLEVEL_INFO, "done done")
 				ch.Logger.State(syncState)
 			}
 		},
