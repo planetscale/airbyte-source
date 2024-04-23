@@ -110,3 +110,49 @@ go run main.go discover --config source.json | jq .
   }
 }
 ```
+
+### 3. Read command:
+Create a `catalog.json` file that looks similar to the output of "Discover", but with the format of:
+```json
+{
+  "streams": [
+    {
+      "stream": { // body of stream from above },
+      "sync_mode": "full_refresh" // one of the supported_sync_modes from above
+    }
+  ]
+}
+```
+For the example output above, a valid `catalog.json` might look like:
+```json
+{
+  "streams": [
+    {
+      "stream": {
+        "name": "departments",
+        "json_schema": {
+          "type": "object",
+          "properties": {
+            "dept_name": {
+              "type": "string"
+            },
+            "dept_no": {
+              "type": "string"
+            }
+          }
+        },
+        "supported_sync_modes": [
+          "full_refresh"
+        ],
+        "namespace": "planetscaledatabase"
+      },
+      "sync_mode": "full_refresh"
+    }
+  ]
+}
+```
+
+Then run:
+```bash
+go run main.go read --config source.json --catalog catalog.json
+```
