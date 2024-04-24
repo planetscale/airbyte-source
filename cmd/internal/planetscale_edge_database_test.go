@@ -507,7 +507,7 @@ func TestRead_CanReturnNewCursorIfNewFound(t *testing.T) {
 	}
 	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
 	assert.NoError(t, err)
-	assert.Equal(t, tc, sc.Cursor)
+	assert.Equal(t, newTC, sc.Cursor)
 	assert.Equal(t, 2, cc.syncFnInvokedCount)
 }
 
