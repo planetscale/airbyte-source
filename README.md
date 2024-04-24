@@ -110,3 +110,74 @@ go run main.go discover --config source.json | jq .
   }
 }
 ```
+
+### 3. Read command:
+Create a `catalog.json` file that looks similar to the output of "Discover", but with the format of:
+```json
+{
+  "streams": [
+    {
+      "stream": { // body of stream from above },
+      "sync_mode": "full_refresh" // one of the supported_sync_modes from above
+    }
+  ]
+}
+```
+For the example output above, a valid `catalog.json` might look like:
+```json
+{
+  "streams": [
+    {
+      "stream": {
+        "name": "departments",
+        "json_schema": {
+          "type": "object",
+          "properties": {
+            "dept_name": {
+              "type": "string"
+            },
+            "dept_no": {
+              "type": "string"
+            }
+          }
+        },
+        "supported_sync_modes": [
+          "full_refresh"
+        ],
+        "namespace": "planetscaledatabase"
+      },
+      "sync_mode": "full_refresh"
+    }
+  ]
+}
+```
+
+Then run:
+```bash
+go run main.go read --config source.json --catalog catalog.json
+```
+
+### 3a. Starting from a specific GTID
+You can start replication from a specific GTID _per keyspace shard_, by passing a `state.json` file to the `read` command:
+```
+go run main.go read --config source.json --catalog catalog.json --state state.json
+```
+
+where `state.json` looks like:
+```json
+{
+    "streams": {
+      "departments": {
+        "shards": {
+          "-": {
+            "cursor": {
+              "shard": "-80",
+              "keyspace": "departments",
+              "position": "MySQL56/2d3177b6-00ff-11ef-a001-d6899245417e:1-152,2dcd54e6-00ff-11ef-80a9-e27694e22958:1-42" // the GTID to start from
+            }
+          }
+        }
+      }
+    }
+}
+```
