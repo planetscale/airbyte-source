@@ -1,9 +1,10 @@
 package internal
 
 import (
+	"testing"
+
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestCanGenerateSecureDSN(t *testing.T) {
@@ -49,12 +50,13 @@ func TestCanGenerateInitialState_Sharded(t *testing.T) {
 	}
 
 	for _, shard := range shards {
-		expectedShardStates.Shards[shard], err = TableCursorToSerializedCursor(&psdbconnect.TableCursor{
-			Shard:    shard,
-			Keyspace: "connect-test",
-			Position: "",
-		})
-		assert.NoError(t, err)
+		expectedShardStates.Shards[shard] = &SerializedCursor{
+			Cursor: &psdbconnect.TableCursor{
+				Shard:    shard,
+				Keyspace: "connect-test",
+				Position: "",
+			},
+		}
 	}
 
 	assert.NoError(t, err)
@@ -86,12 +88,13 @@ func TestCanGenerateInitialState_CustomShards(t *testing.T) {
 	}
 
 	for _, shard := range configuredShards {
-		expectedShardStates.Shards[shard], err = TableCursorToSerializedCursor(&psdbconnect.TableCursor{
-			Shard:    shard,
-			Keyspace: "connect-test",
-			Position: "",
-		})
-		assert.NoError(t, err)
+		expectedShardStates.Shards[shard] = &SerializedCursor{
+			Cursor: &psdbconnect.TableCursor{
+				Shard:    shard,
+				Keyspace: "connect-test",
+				Position: "",
+			},
+		}
 	}
 
 	assert.NoError(t, err)
@@ -116,12 +119,13 @@ func TestCanGenerateInitialState_Unsharded(t *testing.T) {
 	}
 
 	for _, shard := range shards {
-		expectedShardStates.Shards[shard], err = TableCursorToSerializedCursor(&psdbconnect.TableCursor{
-			Shard:    shard,
-			Keyspace: "connect-test",
-			Position: "",
-		})
-		assert.NoError(t, err)
+		expectedShardStates.Shards[shard] = &SerializedCursor{
+			Cursor: &psdbconnect.TableCursor{
+				Shard:    shard,
+				Keyspace: "connect-test",
+				Position: "",
+			},
+		}
 	}
 
 	assert.NoError(t, err)
