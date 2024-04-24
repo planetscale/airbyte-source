@@ -166,7 +166,6 @@ func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScale
 func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleSource, s ConfiguredStream, lastKnownPosition *psdbconnect.TableCursor) (*SerializedCursor, error) {
 	var (
 		err                     error
-		sErr                    error
 		currentSerializedCursor *SerializedCursor
 	)
 
@@ -191,17 +190,17 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		// the current vgtid is the same as the last synced vgtid, no new rows.
 		if latestCursorPosition == currentPosition.Position {
 			p.Logger.Log(LOGLEVEL_INFO, preamble+"no new rows found, exiting")
-			return TableCursorToSerializedCursor(currentPosition)
+			return &SerializedCursor{
+				Cursor: currentPosition,
+			}, nil
 		}
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("new rows found, syncing rows for %v", readDuration))
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf(preamble+"syncing rows with cursor [%v]", currentPosition))
 
 		currentPosition, err = p.sync(ctx, currentPosition, latestCursorPosition, table, ps, tabletType, readDuration)
 		if currentPosition.Position != "" {
-			currentSerializedCursor, sErr = TableCursorToSerializedCursor(currentPosition)
-			if sErr != nil {
-				// if we failed to serialize here, we should bail.
-				return currentSerializedCursor, errors.Wrap(sErr, "unable to serialize current position")
+			currentSerializedCursor = &SerializedCursor{
+				Cursor: currentPosition,
 			}
 		}
 		if err != nil {

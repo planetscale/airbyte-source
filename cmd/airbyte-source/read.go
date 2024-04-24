@@ -74,6 +74,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 
 			state := ""
 			if stateFilePath != "" {
+				ch.Logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("state file detected, parsing provided file %s", stateFilePath))
 				b, err := os.ReadFile(stateFilePath)
 				if err != nil {
 					ch.Logger.Error(fmt.Sprintf("Unable to read state : %v", err))
@@ -87,7 +88,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				os.Exit(1)
 			}
 
-			syncState, err := readState(state, psc, catalog.Streams, shards)
+			syncState, err := readState(state, psc, catalog.Streams, shards, ch.Logger)
 			if err != nil {
 				ch.Logger.Error(fmt.Sprintf("Unable to read state : %v", err))
 				os.Exit(1)
@@ -106,7 +107,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				}
 
 				for shardName, shardState := range streamState.Shards {
-					tc, err := shardState.SerializedCursorToTableCursor(table)
+					tc := shardState.Cursor
 					if err != nil {
 						ch.Logger.Error(fmt.Sprintf("invalid cursor for stream %v, failed with [%v]", streamStateKey, err))
 						os.Exit(1)
@@ -138,7 +139,7 @@ type State struct {
 	Shards map[string]map[string]interface{} `json:"shards"`
 }
 
-func readState(state string, psc internal.PlanetScaleSource, streams []internal.ConfiguredStream, shards []string) (internal.SyncState, error) {
+func readState(state string, psc internal.PlanetScaleSource, streams []internal.ConfiguredStream, shards []string, logger internal.AirbyteLogger) (internal.SyncState, error) {
 	syncState := internal.SyncState{
 		Streams: map[string]internal.ShardStates{},
 	}
@@ -155,11 +156,13 @@ func readState(state string, psc internal.PlanetScaleSource, streams []internal.
 			keyspaceOrDatabase = psc.Database
 		}
 		stateKey := keyspaceOrDatabase + ":" + s.Stream.Name
+		logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("syncing stream %s with sync mode %s", s.Stream.Name, s.SyncMode))
 		ignoreCurrentCursor := !s.IncrementalSyncRequested()
 
 		// if no table cursor was found in the state, or we want to ignore the current cursor,
 		// Send along an empty cursor for each shard.
 		if _, ok := syncState.Streams[stateKey]; !ok || ignoreCurrentCursor {
+			logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("ignoring current cursor since incremental sync is disabled, or no cursor was found for key %s", stateKey))
 			initialState, err := psc.GetInitialState(keyspaceOrDatabase, shards)
 			if err != nil {
 				return syncState, err

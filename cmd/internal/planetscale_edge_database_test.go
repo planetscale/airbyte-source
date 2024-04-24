@@ -55,9 +55,7 @@ func TestRead_CanPeekBeforeRead(t *testing.T) {
 	}
 	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
 	assert.NoError(t, err)
-	esc, err := TableCursorToSerializedCursor(tc)
-	assert.NoError(t, err)
-	assert.Equal(t, esc, sc)
+	assert.Equal(t, tc, sc.Cursor)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
 	assert.False(t, tma.GetVitessTabletsFnInvoked)
@@ -99,9 +97,7 @@ func TestRead_CanEarlyExitIfNoNewVGtidInPeek(t *testing.T) {
 	}
 	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
 	assert.NoError(t, err)
-	esc, err := TableCursorToSerializedCursor(tc)
-	assert.NoError(t, err)
-	assert.Equal(t, esc, sc)
+	assert.Equal(t, tc, sc.Cursor)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
 }
 
@@ -145,9 +141,7 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	}
 	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
 	assert.NoError(t, err)
-	esc, err := TableCursorToSerializedCursor(tc)
-	assert.NoError(t, err)
-	assert.Equal(t, esc, sc)
+	assert.Equal(t, tc, sc.Cursor)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
 	assert.False(t, tma.GetVitessTabletsFnInvoked)
@@ -194,9 +188,7 @@ func TestRead_CanPickReplicaForShardedKeyspaces(t *testing.T) {
 	}
 	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
 	assert.NoError(t, err)
-	esc, err := TableCursorToSerializedCursor(tc)
-	assert.NoError(t, err)
-	assert.Equal(t, esc, sc)
+	assert.Equal(t, tc, sc.Cursor)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
 	assert.False(t, tma.GetVitessTabletsFnInvoked)
@@ -372,9 +364,7 @@ func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 	}
 	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
 	assert.NoError(t, err)
-	esc, err := TableCursorToSerializedCursor(tc)
-	assert.NoError(t, err)
-	assert.Equal(t, esc, sc)
+	assert.Equal(t, tc, sc.Cursor)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
 	assert.False(t, tma.GetVitessTabletsFnInvoked)
@@ -423,9 +413,7 @@ func TestRead_CanPickReplicaForUnshardedKeyspaces(t *testing.T) {
 	}
 	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
 	assert.NoError(t, err)
-	esc, err := TableCursorToSerializedCursor(tc)
-	assert.NoError(t, err)
-	assert.Equal(t, esc, sc)
+	assert.Equal(t, tc, sc.Cursor)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
 	assert.False(t, tma.GetVitessTabletsFnInvoked)
@@ -470,9 +458,7 @@ func TestRead_CanReturnOriginalCursorIfNoNewFound(t *testing.T) {
 	}
 	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
 	assert.NoError(t, err)
-	esc, err := TableCursorToSerializedCursor(tc)
-	assert.NoError(t, err)
-	assert.Equal(t, esc, sc)
+	assert.Equal(t, tc, sc.Cursor)
 	assert.Equal(t, 1, cc.syncFnInvokedCount)
 }
 
@@ -521,9 +507,7 @@ func TestRead_CanReturnNewCursorIfNewFound(t *testing.T) {
 	}
 	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
 	assert.NoError(t, err)
-	esc, err := TableCursorToSerializedCursor(newTC)
-	assert.NoError(t, err)
-	assert.Equal(t, esc, sc)
+	assert.Equal(t, tc, sc.Cursor)
 	assert.Equal(t, 2, cc.syncFnInvokedCount)
 }
 
@@ -606,9 +590,7 @@ func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
 	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, responses[0].Cursor)
 	assert.NoError(t, err)
 	// sync should start at the first vgtid
-	esc, err := TableCursorToSerializedCursor(responses[nextVGtidPosition].Cursor)
-	assert.NoError(t, err)
-	assert.Equal(t, esc, sc)
+	assert.Equal(t, responses[nextVGtidPosition].Cursor, sc.Cursor)
 	assert.Equal(t, 2, cc.syncFnInvokedCount)
 
 	logLines := tal.logMessages[LOGLEVEL_INFO]

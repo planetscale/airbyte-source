@@ -2,10 +2,11 @@ package internal
 
 import (
 	"fmt"
-	"github.com/go-sql-driver/mysql"
-	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"os"
 	"strings"
+
+	"github.com/go-sql-driver/mysql"
+	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 )
 
 // PlanetScaleSource defines a configured Airbyte Source for a PlanetScale database
@@ -73,11 +74,13 @@ func (psc PlanetScaleSource) GetInitialState(keyspaceOrDatabase string, shards [
 	}
 
 	for _, shard := range shards {
-		shardCursors.Shards[shard], _ = TableCursorToSerializedCursor(&psdbconnect.TableCursor{
-			Shard:    shard,
-			Keyspace: keyspaceOrDatabase,
-			Position: "",
-		})
+		shardCursors.Shards[shard] = &SerializedCursor{
+			Cursor: &psdbconnect.TableCursor{
+				Shard:    shard,
+				Keyspace: keyspaceOrDatabase,
+				Position: "",
+			},
+		}
 	}
 
 	return shardCursors, nil
