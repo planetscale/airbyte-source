@@ -1,11 +1,14 @@
 package internal
 
 import (
+	"encoding/base64"
 	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/pkg/errors"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
+	"github.com/planetscale/psdb/core/codec"
 	"vitess.io/vitess/go/sqltypes"
 )
 
@@ -96,7 +99,37 @@ type ShardStates struct {
 }
 
 type SerializedCursor struct {
-	Cursor *psdbconnect.TableCursor `json:"cursor"`
+	UnserializedCursor *psdbconnect.TableCursor `json:"unserialized_cursor"`
+	Cursor             string                   `json:"cursor"`
+}
+
+func (s SerializedCursor) SerializedCursorToTableCursor(table ConfiguredStream) (*psdbconnect.TableCursor, error) {
+	var (
+		tc psdbconnect.TableCursor
+	)
+	decoded, err := base64.StdEncoding.DecodeString(s.Cursor)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to decode table cursor")
+	}
+
+	err = codec.DefaultCodec.Unmarshal(decoded, &tc)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to deserialize table cursor")
+	}
+
+	return &tc, nil
+}
+
+func TableCursorToSerializedCursor(cursor *psdbconnect.TableCursor) (*SerializedCursor, error) {
+	d, err := codec.DefaultCodec.Marshal(cursor)
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to marshal table cursor to save staate.")
+	}
+
+	sc := &SerializedCursor{
+		Cursor: base64.StdEncoding.EncodeToString(d),
+	}
+	return sc, nil
 }
 
 func QueryResultToRecords(qr *sqltypes.Result) []map[string]interface{} {
