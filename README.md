@@ -170,7 +170,7 @@ where `state.json` looks like:
       "departments": {
         "shards": {
           "-": {
-            "cursor": {
+            "unserialized_cursor": {
               "shard": "-80",
               "keyspace": "departments",
               "position": "MySQL56/2d3177b6-00ff-11ef-a001-d6899245417e:1-152,2dcd54e6-00ff-11ef-80a9-e27694e22958:1-42" // the GTID to start from
