@@ -74,13 +74,17 @@ func (psc PlanetScaleSource) GetInitialState(keyspaceOrDatabase string, shards [
 	}
 
 	for _, shard := range shards {
-		shardCursors.Shards[shard] = &SerializedCursor{
-			Cursor: &psdbconnect.TableCursor{
-				Shard:    shard,
-				Keyspace: keyspaceOrDatabase,
-				Position: "",
-			},
+		cursor, _ := TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+			Shard:    shard,
+			Keyspace: keyspaceOrDatabase,
+			Position: "",
+		})
+		cursor.UnserializedCursor = &psdbconnect.TableCursor{
+			Shard:    shard,
+			Keyspace: keyspaceOrDatabase,
+			Position: "",
 		}
+		shardCursors.Shards[shard] = cursor
 	}
 
 	return shardCursors, nil

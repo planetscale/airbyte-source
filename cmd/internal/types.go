@@ -127,7 +127,8 @@ func TableCursorToSerializedCursor(cursor *psdbconnect.TableCursor) (*Serialized
 	}
 
 	sc := &SerializedCursor{
-		Cursor: base64.StdEncoding.EncodeToString(d),
+		Cursor:             base64.StdEncoding.EncodeToString(d),
+		UnserializedCursor: cursor,
 	}
 	return sc, nil
 }
