@@ -50,13 +50,18 @@ func TestCanGenerateInitialState_Sharded(t *testing.T) {
 	}
 
 	for _, shard := range shards {
-		expectedShardStates.Shards[shard] = &SerializedCursor{
-			Cursor: &psdbconnect.TableCursor{
-				Shard:    shard,
-				Keyspace: "connect-test",
-				Position: "",
-			},
+		cursor, err := TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+			Shard:    shard,
+			Keyspace: "connect-test",
+			Position: "",
+		})
+		assert.NoError(t, err)
+		cursor.UnserializedCursor = &psdbconnect.TableCursor{
+			Shard:    shard,
+			Keyspace: "connect-test",
+			Position: "",
 		}
+		expectedShardStates.Shards[shard] = cursor
 	}
 
 	assert.NoError(t, err)
@@ -88,13 +93,18 @@ func TestCanGenerateInitialState_CustomShards(t *testing.T) {
 	}
 
 	for _, shard := range configuredShards {
-		expectedShardStates.Shards[shard] = &SerializedCursor{
-			Cursor: &psdbconnect.TableCursor{
-				Shard:    shard,
-				Keyspace: "connect-test",
-				Position: "",
-			},
+		cursor, err := TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+			Shard:    shard,
+			Keyspace: "connect-test",
+			Position: "",
+		})
+		assert.NoError(t, err)
+		cursor.UnserializedCursor = &psdbconnect.TableCursor{
+			Shard:    shard,
+			Keyspace: "connect-test",
+			Position: "",
 		}
+		expectedShardStates.Shards[shard] = cursor
 	}
 
 	assert.NoError(t, err)
@@ -119,13 +129,18 @@ func TestCanGenerateInitialState_Unsharded(t *testing.T) {
 	}
 
 	for _, shard := range shards {
-		expectedShardStates.Shards[shard] = &SerializedCursor{
-			Cursor: &psdbconnect.TableCursor{
-				Shard:    shard,
-				Keyspace: "connect-test",
-				Position: "",
-			},
+		cursor, err := TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+			Shard:    shard,
+			Keyspace: "connect-test",
+			Position: "",
+		})
+		assert.NoError(t, err)
+		cursor.UnserializedCursor = &psdbconnect.TableCursor{
+			Shard:    shard,
+			Keyspace: "connect-test",
+			Position: "",
 		}
+		expectedShardStates.Shards[shard] = cursor
 	}
 
 	assert.NoError(t, err)
