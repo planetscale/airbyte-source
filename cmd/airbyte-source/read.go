@@ -110,18 +110,11 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				for shardName, shardState := range streamState.Shards {
 					var tc *psdbconnectv1alpha1.TableCursor
 
-					if shardState.UnserializedCursor != nil {
-						// If the user specified an unserialized cursor starting point,
-						// prefer that over the serialized cursor
-						tc = shardState.UnserializedCursor
-						ch.Logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("using unserialized cursor for stream %s", streamStateKey))
-					} else {
-						tc, err = shardState.SerializedCursorToTableCursor(table)
-						ch.Logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("using serialized cursor for stream %s", streamStateKey))
-						if err != nil {
-							ch.Logger.Error(fmt.Sprintf("invalid serialized cursor for stream %v, failed with [%v]", streamStateKey, err))
-							os.Exit(1)
-						}
+					tc, err = shardState.SerializedCursorToTableCursor(table)
+					ch.Logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("using serialized cursor for stream %s", streamStateKey))
+					if err != nil {
+						ch.Logger.Error(fmt.Sprintf("invalid serialized cursor for stream %v, failed with [%v]", streamStateKey, err))
+						os.Exit(1)
 					}
 
 					sc, err := ch.Database.Read(context.Background(), cmd.OutOrStdout(), psc, table, tc)

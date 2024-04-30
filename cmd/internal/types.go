@@ -99,8 +99,7 @@ type ShardStates struct {
 }
 
 type SerializedCursor struct {
-	UnserializedCursor *psdbconnect.TableCursor `json:"unserialized_cursor"`
-	Cursor             string                   `json:"cursor"`
+	Cursor string `json:"cursor"`
 }
 
 func (s SerializedCursor) SerializedCursorToTableCursor(table ConfiguredStream) (*psdbconnect.TableCursor, error) {
@@ -127,8 +126,7 @@ func TableCursorToSerializedCursor(cursor *psdbconnect.TableCursor) (*Serialized
 	}
 
 	sc := &SerializedCursor{
-		Cursor:             base64.StdEncoding.EncodeToString(d),
-		UnserializedCursor: cursor,
+		Cursor: base64.StdEncoding.EncodeToString(d),
 	}
 	return sc, nil
 }
@@ -249,3 +247,7 @@ type AirbyteMessage struct {
 	Record           *AirbyteRecord     `json:"record,omitempty"`
 	State            *AirbyteState      `json:"state,omitempty"`
 }
+
+// A map of starting GTIDs for every keyspace and shard
+// i.e. { keyspace: { shard: gtid} }
+type StartingGtids map[string]map[string]string
