@@ -168,3 +168,5 @@ You can start replication from a specific GTID _per keyspace shard_, by setting 
     "starting_gtids": "{\"keyspace\": {\"shard\": \"MySQL56/MYGTID:1-3\"}}"
 }
 ```
+
+**Note:** When `starting_gtids` is specified in the configuration file, _and_ a `--state` file is passed, the `--state` file will always take precedence. This is so incremental sync continues working.
