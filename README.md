@@ -158,26 +158,13 @@ go run main.go read --config source.json --catalog catalog.json
 ```
 
 ### 3a. Starting from a specific GTID
-You can start replication from a specific GTID _per keyspace shard_, by passing a `state.json` file to the `read` command:
-```
-go run main.go read --config source.json --catalog catalog.json --state state.json
-```
-
-where `state.json` looks like:
+You can start replication from a specific GTID _per keyspace shard_, by setting `starting_gtids` in your configuration file:
 ```json
 {
-    "streams": {
-      "departments": {
-        "shards": {
-          "-": {
-            "unserialized_cursor": {
-              "shard": "-80",
-              "keyspace": "departments",
-              "position": "MySQL56/2d3177b6-00ff-11ef-a001-d6899245417e:1-152,2dcd54e6-00ff-11ef-80a9-e27694e22958:1-42" // the GTID to start from
-            }
-          }
-        }
-      }
-    }
+    "host": "<FQDN for your PS database>",
+    "database":"<default keyspace name>",
+    "username":"<username>",
+    "password":"<some password for your database>",
+    "starting_gtids": "{\"keyspace\": {\"shard\": \"MySQL56/MYGTID:1-3\"}}"
 }
 ```
