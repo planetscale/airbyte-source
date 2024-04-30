@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"sync"
 
 	"github.com/planetscale/airbyte-source/cmd/internal"
+	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/spf13/cobra"
 )
 
@@ -87,7 +90,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				os.Exit(1)
 			}
 
-			syncState, err := readState(state, psc, catalog.Streams, shards)
+			syncState, err := readState(ch, state, psc, catalog.Streams, shards)
 			if err != nil {
 				ch.Logger.Error(fmt.Sprintf("Unable to read state : %v", err))
 				os.Exit(1)
@@ -105,6 +108,11 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					os.Exit(1)
 				}
 
+				var wg sync.WaitGroup
+				tableState := make(chan syncOutput)
+
+				ch.Logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("stream state map: %+v", streamState))
+
 				for shardName, shardState := range streamState.Shards {
 					tc, err := shardState.SerializedCursorToTableCursor(table)
 					if err != nil {
@@ -112,19 +120,44 @@ func ReadCommand(ch *Helper) *cobra.Command {
 						os.Exit(1)
 					}
 
-					sc, err := ch.Database.Read(context.Background(), cmd.OutOrStdout(), psc, table, tc)
-					if err != nil {
-						ch.Logger.Error(err.Error())
-						os.Exit(1)
+					wg.Add(1)
+
+					go func(state chan syncOutput, shardName string, wrtr io.Writer, psc internal.PlanetScaleSource, table internal.ConfiguredStream, tc *psdbconnect.TableCursor) {
+						ch.Logger.Log(internal.LOGLEVEL_INFO, "launching stream for shard "+tc.Shard)
+						sc, err := ch.Database.Read(context.Background(), cmd.OutOrStdout(), psc, table, tc)
+						ch.Logger.Log(internal.LOGLEVEL_INFO, "read finished for shard "+tc.Shard)
+						wg.Done()
+						tableState <- syncOutput{sc: sc, err: err, shardName: shardName}
+					}(tableState, shardName, cmd.OutOrStdout(), psc, table, tc)
+				}
+
+				ch.Logger.Log(internal.LOGLEVEL_INFO, "waiting for sync")
+				wg.Wait()
+				ch.Logger.Log(internal.LOGLEVEL_INFO, "sync complete")
+				var done bool
+
+				for {
+					select {
+					case out := <-tableState:
+						ch.Logger.Log(internal.LOGLEVEL_INFO, "done syncing "+out.shardName)
+						if out.err != nil {
+							ch.Logger.Error(err.Error())
+							os.Exit(1)
+						}
+
+						if out.sc != nil {
+							syncState.Streams[streamStateKey].Shards[out.shardName] = out.sc
+						}
+					default:
+						done = true
 					}
 
-					if sc != nil {
-						// if we get any new state, we assign it here.
-						// otherwise, the older state is round-tripped back to Airbyte.
-						syncState.Streams[streamStateKey].Shards[shardName] = sc
+					if done {
+						break
 					}
-					ch.Logger.State(syncState)
 				}
+
+				ch.Logger.State(syncState)
 			}
 		},
 	}
@@ -134,11 +167,18 @@ func ReadCommand(ch *Helper) *cobra.Command {
 	return readCmd
 }
 
+type syncOutput struct {
+	sc        *internal.SerializedCursor
+	err       error
+	shardName string
+}
+
 type State struct {
 	Shards map[string]map[string]interface{} `json:"shards"`
 }
 
-func readState(state string, psc internal.PlanetScaleSource, streams []internal.ConfiguredStream, shards []string) (internal.SyncState, error) {
+func readState(ch *Helper, state string, psc internal.PlanetScaleSource, streams []internal.ConfiguredStream, shards []string) (internal.SyncState, error) {
+	ch.Logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("state: %+v, psc: %+v, streams: %+v, shards: %+v", state, psc, streams, shards))
 	syncState := internal.SyncState{
 		Streams: map[string]internal.ShardStates{},
 	}

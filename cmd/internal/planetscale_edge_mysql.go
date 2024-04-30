@@ -4,10 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/pkg/errors"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 type VitessTablet struct {
@@ -55,7 +56,7 @@ func (p planetScaleEdgeMySQLAccess) GetVitessShards(ctx context.Context, psc Pla
 	// TODO: is there a prepared statement equivalent?
 	shardNamesQR, err := p.db.QueryContext(
 		ctx,
-		`show vitess_shards like "%`+psc.Database+`%";`,
+		`show vitess_shards like "%`+psc.Database+`/%";`,
 	)
 	if err != nil {
 		return shards, errors.Wrap(err, "Unable to query database for shards")
@@ -104,7 +105,6 @@ func (p planetScaleEdgeMySQLAccess) GetVitessTablets(ctx context.Context, psc Pl
 }
 
 func (p planetScaleEdgeMySQLAccess) PingContext(ctx context.Context, psc PlanetScaleSource) error {
-
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	return p.db.PingContext(ctx)
