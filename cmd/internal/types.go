@@ -247,3 +247,7 @@ type AirbyteMessage struct {
 	Record           *AirbyteRecord     `json:"record,omitempty"`
 	State            *AirbyteState      `json:"state,omitempty"`
 }
+
+// A map of starting GTIDs for every keyspace and shard
+// i.e. { keyspace: { shard: gtid} }
+type StartingGtids map[string]map[string]string

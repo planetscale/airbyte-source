@@ -1,22 +1,25 @@
 package internal
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/go-sql-driver/mysql"
-	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"os"
 	"strings"
+
+	"github.com/go-sql-driver/mysql"
+	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 )
 
 // PlanetScaleSource defines a configured Airbyte Source for a PlanetScale database
 type PlanetScaleSource struct {
-	Host       string              `json:"host"`
-	Database   string              `json:"database"`
-	Username   string              `json:"username"`
-	Password   string              `json:"password"`
-	Shards     string              `json:"shards"`
-	UseReplica bool                `json:"use_replica"`
-	Options    CustomSourceOptions `json:"options"`
+	Host          string              `json:"host"`
+	Database      string              `json:"database"`
+	Username      string              `json:"username"`
+	Password      string              `json:"password"`
+	Shards        string              `json:"shards"`
+	UseReplica    bool                `json:"use_replica"`
+	StartingGtids string              `json:"starting_gtids"`
+	Options       CustomSourceOptions `json:"options"`
 }
 
 type CustomSourceOptions struct {
@@ -72,12 +75,34 @@ func (psc PlanetScaleSource) GetInitialState(keyspaceOrDatabase string, shards [
 		shards = configuredShards
 	}
 
+	var startingGtids StartingGtids
+	var err error
+
+	if psc.StartingGtids != "" {
+		startingGtids, err = psc.GetStartingGtids()
+		if err != nil {
+			return shardCursors, fmt.Errorf("cannot parse starting gtids: %s", psc.StartingGtids)
+		}
+	}
+
 	for _, shard := range shards {
-		shardCursors.Shards[shard], _ = TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+		var position string = ""
+
+		// If a starting GTID was specified, use it
+		if startingGtids != nil {
+			if _, ok := startingGtids[keyspaceOrDatabase]; ok {
+				if _, ok := startingGtids[keyspaceOrDatabase][shard]; ok {
+					position = startingGtids[keyspaceOrDatabase][shard]
+				}
+			}
+		}
+
+		cursor, _ := TableCursorToSerializedCursor(&psdbconnect.TableCursor{
 			Shard:    shard,
 			Keyspace: keyspaceOrDatabase,
-			Position: "",
+			Position: position,
 		})
+		shardCursors.Shards[shard] = cursor
 	}
 
 	return shardCursors, nil
@@ -101,4 +126,14 @@ func TabletTypeToString(t psdbconnect.TabletType) string {
 	}
 
 	return "primary"
+}
+
+func (psc PlanetScaleSource) GetStartingGtids() (StartingGtids, error) {
+	var startingGtids StartingGtids
+
+	if err := json.Unmarshal([]byte(psc.StartingGtids), &startingGtids); err != nil {
+		return nil, fmt.Errorf("could not unmarshal starting gtids from string '%s'", psc.StartingGtids)
+	}
+
+	return startingGtids, nil
 }
