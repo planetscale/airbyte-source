@@ -16,8 +16,8 @@ func TestRead_StartingGtidsAndState(t *testing.T) {
 	psc := internal.PlanetScaleSource{
 		Host:          "aws.connect.psdb.cloud",
 		Database:      "sharded",
-		Username:      "79vousdkgucjf5hnj6zo",
-		Password:      "pscale_pw_wyOS9eOWVJrTkiwvFCC20GxVznX6YlGIUsIx9bnzjMg",
+		Username:      "user",
+		Password:      "pscale_password",
 		StartingGtids: "{\"sharded\": {\"-80\": \"MySQL56/MyGTID:1-3\"}}",
 	}
 	streams := []internal.ConfiguredStream{
