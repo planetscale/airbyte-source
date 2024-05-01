@@ -15,7 +15,8 @@ steps:
     env:
       DOCKER_BUILDKIT: 1
     plugins:
-      - docker-compose#v3.9.0:
+      - docker-compose#v4.15.0:
+          cli-version: "2" # Use 'docker compose' and BuildKit
           run: ci
 
   - name: "go vet"
@@ -24,7 +25,8 @@ steps:
     env:
       DOCKER_BUILDKIT: 1
     plugins:
-      - docker-compose#v3.9.0:
+      - docker-compose#v4.15.0:
+          cli-version: "2" # Use 'docker compose' and BuildKit
           run: ci
 
   - name: "staticcheck"
@@ -33,7 +35,8 @@ steps:
     env:
       DOCKER_BUILDKIT: 1
     plugins:
-      - docker-compose#v3.9.0:
+      - docker-compose#v4.15.0:
+          cli-version: "2" # Use 'docker compose' and BuildKit
           run: ci
 
   - name: "Verify dependency licenses %n"
@@ -41,7 +44,8 @@ steps:
     env:
       DOCKER_BUILDKIT: 1
     plugins:
-      - docker-compose#v3.9.0:
+      - docker-compose#v4.15.0:
+          cli-version: "2" # Use 'docker compose' and BuildKit
           run: ci
 
   - wait
@@ -59,7 +63,7 @@ steps:
     if: build.branch == "main"
     command: script/release.sh
     plugins:
-      - docker#v3.8.0:
+      - docker#v5.9.0:
           image: "golang:1.21.3"
           propagate-environment: true
           environment:
