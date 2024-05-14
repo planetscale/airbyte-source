@@ -172,6 +172,7 @@ You can start replication from a specific GTID _per keyspace shard_, by setting 
 **Note:** When `starting_gtids` is specified in the configuration file, _and_ a `--state` file is passed, the `--state` file will always take precedence. This is so incremental sync continues working.
 
 **How to get starting GTIDs**
+
 You can get the latest exectued GTID for every shard by querying your database. 
 1. Access your PlanetScale database. One way to do so is to use `pscale shell`.
 2. Target the keyspace and shard that you would like the latest GTID for by doing `use keyspace/shard`.
