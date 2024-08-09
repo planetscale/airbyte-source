@@ -116,8 +116,10 @@ const (
 	vreplTableNameExpression string = `\b_(\w+|\d+)_\d+_vrepl\b`
 )
 
-var gcTableNameRegexp = regexp.MustCompile(gCTableNameExpression)
-var vreplRegex = regexp.MustCompile(vreplTableNameExpression)
+var (
+	gcTableNameRegexp = regexp.MustCompile(gCTableNameExpression)
+	vreplRegex        = regexp.MustCompile(vreplTableNameExpression)
+)
 
 func (p planetScaleEdgeMySQLAccess) GetTableNames(ctx context.Context, psc PlanetScaleSource) ([]string, error) {
 	var tables []string
