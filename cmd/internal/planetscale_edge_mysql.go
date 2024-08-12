@@ -136,7 +136,7 @@ func (p planetScaleEdgeMySQLAccess) GetTableNames(ctx context.Context, psc Plane
 		}
 
 		// skip any that are Vitess's GC tables.
-		if !gcTableNameRegexp.MatchString(name) && !vreplRegex.MatchString(name) {
+		if !filterTable(name) {
 			tables = append(tables, name)
 		}
 	}
@@ -146,6 +146,10 @@ func (p planetScaleEdgeMySQLAccess) GetTableNames(ctx context.Context, psc Plane
 	}
 
 	return tables, err
+}
+
+func filterTable(name string) bool {
+	return gcTableNameRegexp.MatchString(name) || vreplRegex.MatchString(name)
 }
 
 func (p planetScaleEdgeMySQLAccess) GetTableSchema(ctx context.Context, psc PlanetScaleSource, tableName string) (map[string]PropertyType, error) {
