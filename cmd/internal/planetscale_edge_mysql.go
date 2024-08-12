@@ -4,10 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/pkg/errors"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 type VitessTablet struct {
@@ -111,10 +112,14 @@ func (p planetScaleEdgeMySQLAccess) PingContext(ctx context.Context, psc PlanetS
 }
 
 const (
-	gCTableNameExpression string = `^_vt_(HOLD|PURGE|EVAC|DROP)_([0-f]{32})_([0-9]{14})$`
+	gCTableNameExpression    string = `^_vt_(HOLD|PURGE|EVAC|DROP)_([0-f]{32})_([0-9]{14})$`
+	vreplTableNameExpression string = `\b_(\w+|\d+)_\d+_vrepl\b`
 )
 
-var gcTableNameRegexp = regexp.MustCompile(gCTableNameExpression)
+var (
+	gcTableNameRegexp = regexp.MustCompile(gCTableNameExpression)
+	vreplRegex        = regexp.MustCompile(vreplTableNameExpression)
+)
 
 func (p planetScaleEdgeMySQLAccess) GetTableNames(ctx context.Context, psc PlanetScaleSource) ([]string, error) {
 	var tables []string
@@ -131,7 +136,7 @@ func (p planetScaleEdgeMySQLAccess) GetTableNames(ctx context.Context, psc Plane
 		}
 
 		// skip any that are Vitess's GC tables.
-		if !gcTableNameRegexp.MatchString(name) {
+		if !filterTable(name) {
 			tables = append(tables, name)
 		}
 	}
@@ -141,6 +146,10 @@ func (p planetScaleEdgeMySQLAccess) GetTableNames(ctx context.Context, psc Plane
 	}
 
 	return tables, err
+}
+
+func filterTable(name string) bool {
+	return gcTableNameRegexp.MatchString(name) || vreplRegex.MatchString(name)
 }
 
 func (p planetScaleEdgeMySQLAccess) GetTableSchema(ctx context.Context, psc PlanetScaleSource, tableName string) (map[string]PropertyType, error) {
