@@ -18,6 +18,7 @@ type PlanetScaleSource struct {
 	Password      string              `json:"password"`
 	Shards        string              `json:"shards"`
 	UseReplica    bool                `json:"use_replica"`
+	UseRdonly     bool                `json:"use_rdonly"`
 	StartingGtids string              `json:"starting_gtids"`
 	Options       CustomSourceOptions `json:"options"`
 }
@@ -36,7 +37,10 @@ func (psc PlanetScaleSource) DSN() string {
 	config.Passwd = psc.Password
 
 	tt := psdbconnect.TabletType_primary
-	if psc.UseReplica {
+	if psc.UseRdonly {
+		tt = psdbconnect.TabletType_batch
+	}
+	else if psc.UseReplica {
 		tt = psdbconnect.TabletType_replica
 	}
 
