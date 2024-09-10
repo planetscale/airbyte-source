@@ -39,8 +39,7 @@ func (psc PlanetScaleSource) DSN() string {
 	tt := psdbconnect.TabletType_primary
 	if psc.UseRdonly {
 		tt = psdbconnect.TabletType_batch
-	}
-	else if psc.UseReplica {
+	} else if psc.UseReplica {
 		tt = psdbconnect.TabletType_replica
 	}
 

@@ -173,8 +173,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	tabletType := psdbconnect.TabletType_primary
 	if ps.UseRdonly {
 		tabletType = psdbconnect.TabletType_batch
-	}
-	else if ps.UseReplica {
+	} else if ps.UseReplica {
 		tabletType = psdbconnect.TabletType_replica
 	}
 
