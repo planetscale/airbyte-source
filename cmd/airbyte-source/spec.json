@@ -53,7 +53,7 @@
           "order": 4
         },
         "use_rdonly": {
-          "description": "Use an rdonly replica to pull data from",
+          "description": "Use a rdonly replica to pull data from",
           "title": "Use rdonly?",
           "type": "boolean",
           "default": false,
