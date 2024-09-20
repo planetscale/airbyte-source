@@ -24,7 +24,7 @@
           "description": "Comma separated list of shards you'd like to sync, by default all shards are synced.",
           "title": "Shards",
           "type": "string",
-          "order": 5
+          "order": 6
         },
         "database": {
           "description": "The PlanetScale database name.",
@@ -52,12 +52,19 @@
           "default": false,
           "order": 4
         },
+        "use_rdonly": {
+          "description": "Use a rdonly replica to pull data from",
+          "title": "Use rdonly?",
+          "type": "boolean",
+          "default": false,
+          "order": 5
+        },
         "starting_gtids": {
           "type": "string",
           "title": "Starting GTIDs",
           "default": "",
           "description": "A JSON string containing start GTIDs for every { keyspace: { shard: starting_gtid } }",
-          "order": 6
+          "order": 7
         },
         "options": {
           "type": "object",
