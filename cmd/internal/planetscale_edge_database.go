@@ -210,16 +210,16 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 			if s, ok := status.FromError(err); ok {
 				// if the error is anything other than server timeout, keep going
 				if s.Code() != codes.DeadlineExceeded {
-					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%v Got error [%v], Returning with cursor :[%v] after server timeout", preamble, s.Code(), currentPosition))
+					p.Logger.Log(LOGLEVEL_ERROR, fmt.Sprintf("%v Got error [%v], Returning with cursor :[%v] after server timeout", preamble, s.Code(), currentPosition))
 					return currentSerializedCursor, nil
 				} else {
-					p.Logger.Log(LOGLEVEL_INFO, preamble+"Continuing with cursor after server timeout")
+					p.Logger.Log(LOGLEVEL_WARN, preamble+"Continuing with cursor after server timeout")
 				}
 			} else if errors.Is(err, io.EOF) {
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%vFinished reading all rows for table [%v]", preamble, table.Name))
 				return currentSerializedCursor, nil
 			} else {
-				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("non-grpc error [%v]]", err))
+				p.Logger.Log(LOGLEVEL_ERROR, fmt.Sprintf("non-grpc error [%v]]", err))
 				return currentSerializedCursor, err
 			}
 		}
