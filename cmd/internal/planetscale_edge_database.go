@@ -227,6 +227,8 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 }
 
 func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, stopPosition string, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType, readDuration time.Duration) (*psdbconnect.TableCursor, error) {
+	preamble := fmt.Sprintf("[%v:%v:%v shard : %v] ", s.Namespace, TabletTypeToString(tabletType), s.Name, tc.Shard)
+
 	defer p.Logger.Flush()
 	ctx, cancel := context.WithTimeout(ctx, readDuration)
 	defer cancel()
@@ -261,7 +263,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		tc.Position = ""
 	}
 
-	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Syncing with cursor position : [%v], using last known PK : %v, stop cursor is : [%v]", tc.Position, tc.LastKnownPk != nil, stopPosition))
+	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sSyncing with cursor position : [%v], using last known PK : %v, stop cursor is : [%v]", preamble, tc.Position, tc.LastKnownPk != nil, stopPosition))
 
 	sReq := &psdbconnect.SyncRequest{
 		TableName:  s.Name,
@@ -269,7 +271,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		TabletType: tabletType,
 		Cells:      []string{"planetscale_operator_default"},
 	}
-	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("DEBUG: SyncRequest.Cells = %v", sReq.GetCells()))
+	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sDEBUG: SyncRequest.Cells = %v", preamble, sReq.GetCells()))
 
 	c, err := client.Sync(ctx, sReq)
 	if err != nil {
@@ -283,11 +285,13 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 
 	// stop when we've reached the well known stop position for this sync session.
 	watchForVgGtidChange := false
+	resultCount := 0
 
 	for {
 
 		res, err := c.Recv()
 		if err != nil {
+			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%s%s %s total results: %v", preamble, keyspaceOrDatabase, s.Name, resultCount))
 			return tc, err
 		}
 
@@ -303,6 +307,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		watchForVgGtidChange = watchForVgGtidChange || tc.Position == stopPosition
 
 		if len(res.Result) > 0 {
+			resultCount += len(res.Result)
 			for _, result := range res.Result {
 				qr := sqltypes.Proto3ToResult(result)
 				for _, row := range qr.Rows {
@@ -317,6 +322,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		}
 
 		if watchForVgGtidChange && tc.Position != stopPosition {
+			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%s%s %s total results: %v", preamble, keyspaceOrDatabase, s.Name, resultCount))
 			return tc, io.EOF
 		}
 	}
