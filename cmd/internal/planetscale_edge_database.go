@@ -198,7 +198,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("new rows found, syncing rows for %v", readDuration))
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf(preamble+"syncing rows with cursor [%v]", currentPosition))
 
-		currentPosition, err = p.sync(ctx, currentPosition, latestCursorPosition, table, ps, tabletType, readDuration)
+		currentPosition, recordCount, err := p.sync(ctx, currentPosition, latestCursorPosition, table, ps, tabletType, readDuration)
 		if currentPosition.Position != "" {
 			currentSerializedCursor, sErr = TableCursorToSerializedCursor(currentPosition)
 			if sErr != nil {
@@ -210,23 +210,23 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 			if s, ok := status.FromError(err); ok {
 				// if the error is anything other than server timeout, keep going
 				if s.Code() != codes.DeadlineExceeded {
-					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%v Got error [%v], Returning with cursor :[%v] after server timeout", preamble, s.Code(), currentPosition))
+					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%vGot error [%v], Returning with cursor :[%v] after server timeout", preamble, s.Code(), currentPosition))
 					return currentSerializedCursor, nil
 				} else {
-					p.Logger.Log(LOGLEVEL_INFO, preamble+"Continuing with cursor after server timeout")
+					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%v%v records sycned. Continuing with cursor after server timeout", preamble, recordCount))
 				}
 			} else if errors.Is(err, io.EOF) {
-				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%vFinished reading all rows for table [%v]", preamble, table.Name))
+				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%vFinished reading %v records for table [%v]", preamble, recordCount, table.Name))
 				return currentSerializedCursor, nil
 			} else {
-				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("non-grpc error [%v]]", err))
+				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%vnon-grpc error [%v]]", preamble, err))
 				return currentSerializedCursor, err
 			}
 		}
 	}
 }
 
-func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, stopPosition string, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType, readDuration time.Duration) (*psdbconnect.TableCursor, error) {
+func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.TableCursor, stopPosition string, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType, readDuration time.Duration) (*psdbconnect.TableCursor, int, error) {
 	preamble := fmt.Sprintf("[%v:%v:%v shard : %v] ", s.Namespace, TabletTypeToString(tabletType), s.Name, tc.Shard)
 
 	defer p.Logger.Flush()
@@ -248,14 +248,14 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 			),
 		)
 		if err != nil {
-			return tc, err
+			return tc, 0, err
 		}
 		defer conn.Close()
 		client = psdbconnect.NewConnectClient(conn)
 	} else {
 		client, err = p.clientFn(ctx, ps)
 		if err != nil {
-			return tc, err
+			return tc, 0, err
 		}
 	}
 
@@ -275,7 +275,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 
 	c, err := client.Sync(ctx, sReq)
 	if err != nil {
-		return tc, err
+		return tc, 0, err
 	}
 
 	keyspaceOrDatabase := s.Namespace
@@ -291,8 +291,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 
 		res, err := c.Recv()
 		if err != nil {
-			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%s%s %s total results: %v", preamble, keyspaceOrDatabase, s.Name, resultCount))
-			return tc, err
+			return tc, resultCount, err
 		}
 
 		if res.Cursor != nil {
@@ -322,8 +321,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		}
 
 		if watchForVgGtidChange && tc.Position != stopPosition {
-			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%s%s %s total results: %v", preamble, keyspaceOrDatabase, s.Name, resultCount))
-			return tc, io.EOF
+			return tc, resultCount, io.EOF
 		}
 	}
 }
