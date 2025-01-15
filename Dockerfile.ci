@@ -9,11 +9,13 @@ COPY . .
 RUN go mod download
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /connect
 
-FROM pscale.dev/wolfi-prod/ruby:3.4-dev AS ruby
+FROM pscale.dev/wolfi-prod/ruby:3.4-dev
 
 RUN gem install bundler && \
     gem install license_finder
 
 COPY --from=build /connect /connect
+WORKDIR /airbyte-source
+COPY . .
 
 ENTRYPOINT []
