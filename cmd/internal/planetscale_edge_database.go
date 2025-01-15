@@ -195,7 +195,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 			p.Logger.Log(LOGLEVEL_INFO, preamble+"no new rows found, exiting")
 			return TableCursorToSerializedCursor(currentPosition)
 		}
-		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("new rows found, syncing rows for %v", readDuration))
+		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf(preamble+"new rows found, syncing rows for %v", readDuration))
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf(preamble+"syncing rows with cursor [%v]", currentPosition))
 
 		currentPosition, recordCount, err := p.sync(ctx, currentPosition, latestCursorPosition, table, ps, tabletType, readDuration)
@@ -263,7 +263,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		tc.Position = ""
 	}
 
-	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sSyncing with cursor position : [%v], using last known PK : %v, stop cursor is : [%v]", preamble, tc.Position, tc.LastKnownPk != nil, stopPosition))
+	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sSyncing with cursor position: [%v], using last known PK: %v, stop cursor is: [%v]", preamble, tc.Position, tc.LastKnownPk != nil, stopPosition))
 
 	sReq := &psdbconnect.SyncRequest{
 		TableName:  s.Name,
