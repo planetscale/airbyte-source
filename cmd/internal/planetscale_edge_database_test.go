@@ -661,7 +661,7 @@ func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
 	assert.Equal(t, 2, cc.syncFnInvokedCount)
 
 	logLines := tal.logMessages[LOGLEVEL_INFO]
-	assert.Equal(t, "[connect-test:primary:customers shard : -] Finished reading 10 records for table [customers]", logLines[len(logLines)-1])
+	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records for table [customers]", nextVGtidPosition/3), logLines[len(logLines)-1])
 	records := tal.records["connect-test.customers"]
 	assert.Equal(t, 2*(nextVGtidPosition/3), len(records))
 }
