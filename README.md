@@ -195,3 +195,45 @@ fe8e2a3c-f91a-11ee-9812-82f5834c1ba7:1-46602355
 6. Repeat this process for all your shards, if your database is sharded.
 
 **Note**: Remember to prepend the prefix `MySQL56/` onto your starting GTIDs.
+
+## Interpreting logs
+Airbyte logs will include logs from the source (this library), the Airbyte connector, and the destination. All source logs will be prefixed with `[source]` and `PlanetScale Source ::`.
+
+### Source-level logs
+
+`Checking connection`
+The Airbyte source is checking if it can connect to the PlanetScale database.
+
+`state file detected, parsing provided file <file>`
+A state JSON file was passed to the Airbyte source.
+
+`Syncing from tabletType <tabletType>`
+The tablet type the Airbyte source is syncing from.
+
+### Table-level logs
+`syncing stream <table> with sync mode <sync mode>`
+Beginning sync for _table_ with the sync mode _sync mode_ (i.e. incremental)
+
+### Shard-level logs
+Shard-level logs will be prefixed with: `[<keyspace>:<tablet_type>:<table> shard : <shard>]`.
+
+`peeking to see if there's any new rows`
+The Airbyte source is checking if there are any new rows by comparing the _current_ cursor position with the _end_ (latest) cursor position.
+
+`new rows found, syncing rows for 1m0s`
+New rows detected (_current_ cursor position is behind _end_/latest cursor position)
+
+`syncing rows with cursor <start cursor>`
+Airbyte source will attempt to sync starting from `start cursor`.
+
+`Syncing with cursor position : <start cursor>, using last known PK : <usingLastKnownPK>, stop cursor is : <stop cursor>`
+Airbyte source will attempt to read from `start cursor` to `stop cursor`. `usingLastKnownPK` specifies whether or not the Airbyte source is syncing from a last known primary key.
+
+`DEBUG: SyncRequest.Cells = [<cells>]`
+Vitess cells that the Airbyte source will sync from.
+
+`Finished reading <recordCount> records for table [<table>]`
+Airbyte source has detected that the client has ended its connection. `recordCount` records were counted as having been sent to connector for table `table`.
+
+
+
