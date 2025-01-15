@@ -3,7 +3,7 @@
 ARG GO_VERSION=1.22.2
 FROM pscale.dev/wolfi-prod/go:${GO_VERSION} AS build
 
-RUN apk add --no-cache libxcrypt ruby-3.4 ruby3.4-bundler && \
+RUN apk add --no-cache libxcrypt openssl-dev ruby-3.4 ruby3.4-bundler && \
     gem install license_finder
 
 ENTRYPOINT []
