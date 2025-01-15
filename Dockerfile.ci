@@ -3,19 +3,12 @@
 ARG GO_VERSION=1.22.2
 FROM pscale.dev/wolfi-prod/go:${GO_VERSION} AS build
 
+RUN apk add --no-cache openssl libxcrypt ruby-3.0 && \
+    gem install license_finder
+
+ENTRYPOINT []
 WORKDIR /airbyte-source
 COPY . .
 
 RUN go mod download
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /connect
-
-FROM pscale.dev/wolfi-prod/ruby:3.4-dev
-
-RUN gem install bundler && \
-    gem install license_finder
-
-COPY --from=build /connect /connect
-WORKDIR /airbyte-source
-COPY . .
-
-ENTRYPOINT []
