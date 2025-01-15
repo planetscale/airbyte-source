@@ -213,7 +213,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%vGot error [%v], Returning with cursor :[%v] after server timeout", preamble, s.Code(), currentPosition))
 					return currentSerializedCursor, nil
 				} else {
-					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%v%v records sycned. Continuing with cursor after server timeout", preamble, recordCount))
+					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%v%v records synced. Continuing with cursor after server timeout", preamble, recordCount))
 				}
 			} else if errors.Is(err, io.EOF) {
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%vFinished reading %v records for table [%v]", preamble, recordCount, table.Name))
