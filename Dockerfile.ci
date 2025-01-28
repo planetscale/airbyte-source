@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG GO_VERSION=1.22.2
+ARG GO_VERSION=1.23.5
 FROM pscale.dev/wolfi-prod/go:${GO_VERSION} AS build
 
 RUN apk add --no-cache openssl openssl-dev libxcrypt ruby-3.2
