@@ -69,13 +69,13 @@ func ReadCommand(ch *Helper) *cobra.Command {
 			}
 
 			if len(catalog.Streams) == 0 {
-				ch.Logger.Log(internal.LOGLEVEL_ERROR, "catalog has no streams")
+				ch.Logger.Log(internal.LOGLEVEL_ERROR, "Catalog has no streams")
 				return
 			}
 
 			state := ""
 			if stateFilePath != "" {
-				ch.Logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("state file detected, parsing provided file %s", stateFilePath))
+				ch.Logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("State file detected, parsing provided file %s", stateFilePath))
 				b, err := os.ReadFile(stateFilePath)
 				if err != nil {
 					ch.Logger.Error(fmt.Sprintf("Unable to read state : %v", err))
@@ -111,9 +111,9 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					var tc *psdbconnectv1alpha1.TableCursor
 
 					tc, err = shardState.SerializedCursorToTableCursor(table)
-					ch.Logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("using serialized cursor for stream %s", streamStateKey))
+					ch.Logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("Using serialized cursor for stream %s", streamStateKey))
 					if err != nil {
-						ch.Logger.Error(fmt.Sprintf("invalid serialized cursor for stream %v, failed with [%v]", streamStateKey, err))
+						ch.Logger.Error(fmt.Sprintf("Invalid serialized cursor for stream %v, failed with [%v]", streamStateKey, err))
 						os.Exit(1)
 					}
 
@@ -160,13 +160,13 @@ func readState(state string, psc internal.PlanetScaleSource, streams []internal.
 			keyspaceOrDatabase = psc.Database
 		}
 		stateKey := keyspaceOrDatabase + ":" + s.Stream.Name
-		logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("syncing stream %s with sync mode %s", s.Stream.Name, s.SyncMode))
+		logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("Syncing stream %s with sync mode %s", s.Stream.Name, s.SyncMode))
 		ignoreCurrentCursor := !s.IncrementalSyncRequested()
 
 		// if no table cursor was found in the state, or we want to ignore the current cursor,
 		// Send along an empty cursor for each shard.
 		if _, ok := syncState.Streams[stateKey]; !ok || ignoreCurrentCursor {
-			logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("ignoring current cursor since incremental sync is disabled, or no cursor was found for key %s", stateKey))
+			logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("Ignoring current cursor since incremental sync is disabled, or no cursor was found for key %s", stateKey))
 			initialState, err := psc.GetInitialState(keyspaceOrDatabase, shards)
 			if err != nil {
 				return syncState, err
