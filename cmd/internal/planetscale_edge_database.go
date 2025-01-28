@@ -303,12 +303,12 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 
 		if len(res.Result) > 0 {
 			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sFound %+v results", preamble, len(res.Result)))
+			watchForVgGtidChange = watchForVgGtidChange || PositionAtLeast(tc.Position, stopPosition)
 			// Because of the ordering of events in a vstream
 			// we receive the vgtid event first and then the rows.
 			// the vgtid event might repeat, but they're ordered.
 			// so we once we reach the desired stop vgtid, we stop the sync session
 			// if we get a newer vgtid.
-			watchForVgGtidChange = true
 			for _, result := range res.Result {
 				qr := sqltypes.Proto3ToResult(result)
 				for _, row := range qr.Rows {
@@ -324,7 +324,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 			}
 		}
 
-		if watchForVgGtidChange && PositionAtLeast(tc.Position, stopPosition) {
+		if watchForVgGtidChange && PositionAfter(tc.Position, stopPosition) {
 			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because current position %+v has passed stop position %+v", preamble, tc.Position, stopPosition))
 			return tc, resultCount, io.EOF
 		}
@@ -417,4 +417,42 @@ func PositionAtLeast(a string, b string) bool {
 	}
 
 	return parsedA.AtLeast(parsedB)
+}
+
+// PositionAtEqual returns true if position `a` is equal to position `b`
+func PositionEqual(a string, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+
+	parsedA, err := vtmysql.DecodePosition(a)
+	if err != nil {
+		return false
+	}
+
+	parsedB, err := vtmysql.DecodePosition(b)
+	if err != nil {
+		return false
+	}
+
+	return parsedA.Equal(parsedB)
+}
+
+// PositionAfter returns true if position `a` is after position `b`
+func PositionAfter(a string, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+
+	parsedA, err := vtmysql.DecodePosition(a)
+	if err != nil {
+		return false
+	}
+
+	parsedB, err := vtmysql.DecodePosition(b)
+	if err != nil {
+		return false
+	}
+
+	return !parsedA.Equal(parsedB) && parsedA.AtLeast(parsedB)
 }

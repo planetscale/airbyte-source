@@ -587,11 +587,11 @@ func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
 	numResponses := 10
 	// when the client tries to get the "current" vgtid,
 	// we return the ante-penultimate element of the array.
-	currentVGtidPosition := (numResponses * 3) - 4
+	currentVGtidPosition := (numResponses * 3) - 4 // position 26, GTID: 1-8
 	// this is the next vgtid that should stop the sync session.
-	nextVGtidPosition := currentVGtidPosition + 1
+	nextVGtidPosition := currentVGtidPosition + 1 // position 27, GTID: 1-9
 	responses := make([]*psdbconnect.SyncResponse, 0, numResponses)
-	for i := 0; i < numResponses; i++ {
+	for i := 0; i < numResponses; i++ { // 10
 		// this simulates multiple events being returned, for the same vgtid, from vstream
 		for x := 0; x < 3; x++ {
 			var result []*query.QueryResult
@@ -606,7 +606,7 @@ func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
 				}
 			}
 
-			vgtid := fmt.Sprintf("e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", i)
+			vgtid := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", i)
 			responses = append(responses, &psdbconnect.SyncResponse{
 				Cursor: &psdbconnect.TableCursor{
 					Shard:    "-",
@@ -661,7 +661,7 @@ func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
 	assert.Equal(t, 2, cc.syncFnInvokedCount)
 
 	logLines := tal.logMessages[LOGLEVEL_INFO]
-	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records for table [customers]", nextVGtidPosition/3), logLines[len(logLines)-1])
+	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records for table [customers]", nextVGtidPosition/3*2), logLines[len(logLines)-1])
 	records := tal.records["connect-test.customers"]
 	assert.Equal(t, 2*(nextVGtidPosition/3), len(records))
 }
@@ -675,12 +675,12 @@ func TestRead_CanLogResults(t *testing.T) {
 	}
 	tc := &psdbconnect.TableCursor{
 		Shard:    "-",
-		Position: "THIS_IS_A_SHARD_GTID",
+		Position: "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-2,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2",
 		Keyspace: "connect-test",
 	}
 	newTC := &psdbconnect.TableCursor{
 		Shard:    "-",
-		Position: "I_AM_FARTHER_IN_THE_BINLOG",
+		Position: "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-3,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2",
 		Keyspace: "connect-test",
 	}
 
