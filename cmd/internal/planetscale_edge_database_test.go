@@ -534,19 +534,19 @@ func TestRead_CanReturnNewCursorIfNewFound(t *testing.T) {
 	}
 	tc := &psdbconnect.TableCursor{
 		Shard:    "-",
-		Position: "THIS_IS_A_SHARD_GTID",
+		Position: "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-2,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2",
 		Keyspace: "connect-test",
 	}
 	newTC := &psdbconnect.TableCursor{
 		Shard:    "-",
-		Position: "I_AM_FARTHER_IN_THE_BINLOG",
+		Position: "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-3,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2",
 		Keyspace: "connect-test",
 	}
 
 	syncClient := &connectSyncClientMock{
 		syncResponses: []*psdbconnect.SyncResponse{
 			{Cursor: newTC},
-			{Cursor: newTC},
+			{Cursor: newTC, Result: []*query.QueryResult{{Rows: []*query.Row{{Values: []byte("1,my_name")}}}}},
 		},
 	}
 
