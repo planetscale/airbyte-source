@@ -191,7 +191,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		}
 
 		// the last synced VGTID is not at least, or after the current VGTID
-		if currentPosition.Position != "" && !PositionAtLeast(latestCursorPosition, currentPosition.Position) {
+		if currentPosition.Position != "" && !positionAtLeast(latestCursorPosition, currentPosition.Position) {
 			p.Logger.Log(LOGLEVEL_INFO, preamble+"No new rows found, exiting")
 			return TableCursorToSerializedCursor(currentPosition)
 		}
@@ -285,7 +285,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		keyspaceOrDatabase = ps.Database
 	}
 
-	// stop when we've reached the well known stop position for this sync session.
+	// Stop when we've reached the well known stop position for this sync session.
 	watchForVgGtidChange := false
 	resultCount := 0
 
@@ -301,14 +301,14 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 			tc = res.Cursor
 		}
 
+		// Heartbeats and other non-DML queries can create binlog events with the same VGTID, but no rows.
+		// These no-row results can have the same VGTID as a subsequent result with rows.
 		if len(res.Result) > 0 {
 			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sFound %+v results", preamble, len(res.Result)))
-			watchForVgGtidChange = watchForVgGtidChange || PositionAtLeast(tc.Position, stopPosition)
-			// Because of the ordering of events in a vstream
-			// we receive the vgtid event first and then the rows.
-			// the vgtid event might repeat, but they're ordered.
-			// so we once we reach the desired stop vgtid, we stop the sync session
-			// if we get a newer vgtid.
+			// Watch for VGTID change as soon as we encounter records from some VGTID that is equal to, or after the stop position we're looking for.
+			// We watch for a VGTID that is equal to or after (not just equal to) the stop position, because by the time the first sync for records occurs,
+			// the current VGTID may have already advanced past the stop position.
+			watchForVgGtidChange = watchForVgGtidChange || positionAtLeast(tc.Position, stopPosition)
 			for _, result := range res.Result {
 				qr := sqltypes.Proto3ToResult(result)
 				for _, row := range qr.Rows {
@@ -317,14 +317,14 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 						Fields: result.Fields,
 					}
 					sqlResult.Rows = append(sqlResult.Rows, row)
-					// print AirbyteRecord messages to stdout here.
-
+					// Results queued to Airbyte here, and flushed at the end of sync()
 					p.printQueryResult(sqlResult, keyspaceOrDatabase, s.Name)
 				}
 			}
 		}
 
-		if watchForVgGtidChange && PositionAfter(tc.Position, stopPosition) {
+		// Exit sync and flush records once the VGTID position is past the desired stop position
+		if watchForVgGtidChange && positionAfter(tc.Position, stopPosition) {
 			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because current position %+v has passed stop position %+v", preamble, tc.Position, stopPosition))
 			return tc, resultCount, io.EOF
 		}
@@ -400,8 +400,8 @@ func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableName
 	}
 }
 
-// PositionAtLeast returns true if position `a` is equal to or after position `b`
-func PositionAtLeast(a string, b string) bool {
+// positionAtLeast returns true if position `a` is equal to or after position `b`
+func positionAtLeast(a string, b string) bool {
 	if a == "" || b == "" {
 		return false
 	}
@@ -419,27 +419,8 @@ func PositionAtLeast(a string, b string) bool {
 	return parsedA.AtLeast(parsedB)
 }
 
-// PositionAtEqual returns true if position `a` is equal to position `b`
-func PositionEqual(a string, b string) bool {
-	if a == "" || b == "" {
-		return false
-	}
-
-	parsedA, err := vtmysql.DecodePosition(a)
-	if err != nil {
-		return false
-	}
-
-	parsedB, err := vtmysql.DecodePosition(b)
-	if err != nil {
-		return false
-	}
-
-	return parsedA.Equal(parsedB)
-}
-
-// PositionAfter returns true if position `a` is after position `b`
-func PositionAfter(a string, b string) bool {
+// positionAfter returns true if position `a` is after position `b`
+func positionAfter(a string, b string) bool {
 	if a == "" || b == "" {
 		return false
 	}

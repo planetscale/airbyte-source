@@ -768,3 +768,133 @@ func getTestMysqlAccess() *mysqlAccessMock {
 	}
 	return &tma
 }
+
+/*
+*
+CanSyncPastStopPosition tests the following situation:
+1. Full sync (no start cursor)
+2. Connector reaches out to fetch the current VGTID position as the "stop VGTID"
+3. We sync from the beginning (no start cursor) to the current VGTID position "current VGTID position"
+  - "current VGTID position" could already be ahead of the prior step's "stop VGTID" because of heartbeats, write frequency, etc.
+
+4. "current VGTID position" is after "stop VGTID"
+5. Since the "current VGTID position" is already after the "stop VGTID", we can stop the sync and flush records
+6. We return "next VGTID position" (the first VGTID position that is after the "stop VGTID") as the "start cursor" for the next sync
+*
+*/
+func TestRead_CanStopSyncPastStopPosition(t *testing.T) {
+	tma := getTestMysqlAccess()
+	tal := testAirbyteLogger{}
+	ped := PlanetScaleEdgeDatabase{
+		Logger: &tal,
+		Mysql:  tma,
+	}
+
+	stopVGTIDNumber := 7
+	currentVGTIDNumber := 8
+	nextVGTIDNumber := currentVGTIDNumber
+	stopVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", stopVGTIDNumber)
+	currentVGTIDPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", currentVGTIDNumber)
+	nextVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", nextVGTIDNumber)
+	startCursor := &psdbconnect.TableCursor{
+		Shard:    "-",
+		Keyspace: "connect-test",
+		Position: "",
+	}
+
+	results := []*query.QueryResult{
+		sqltypes.ResultToProto3(sqltypes.MakeTestResult(sqltypes.MakeTestFields(
+			"pid|description",
+			"int64|varbinary"),
+			fmt.Sprintf("%v|keyboard", 1),
+			fmt.Sprintf("%v|monitor", 2),
+			fmt.Sprintf("%v|keyboard", 3),
+			fmt.Sprintf("%v|monitor", 4),
+			fmt.Sprintf("%v|keyboard", 5),
+			fmt.Sprintf("%v|monitor", 6),
+			fmt.Sprintf("%v|keyboard", 7),
+			fmt.Sprintf("%v|monitor", 8),
+			fmt.Sprintf("%v|keyboard", 9),
+			fmt.Sprintf("%v|monitor", 10),
+		)),
+	}
+
+	responses := []*psdbconnect.SyncResponse{
+		// A heartbeat response that can occur first, with the same VGTID as a response with rows
+		{
+			Cursor: &psdbconnect.TableCursor{
+				Shard:    "-",
+				Keyspace: "connect-test",
+				Position: currentVGTIDPosition,
+			},
+		},
+		// A response with rows
+		{
+			Cursor: &psdbconnect.TableCursor{
+				Shard:    "-",
+				Keyspace: "connect-test",
+				Position: currentVGTIDPosition,
+			},
+			Result: results,
+		},
+	}
+
+	syncClient := &connectSyncClientMock{
+		syncResponses: responses,
+	}
+
+	getStopVGtidClient := &connectSyncClientMock{
+		syncResponses: []*psdbconnect.SyncResponse{
+			{
+				Cursor: &psdbconnect.TableCursor{
+					Shard:    "-",
+					Keyspace: "connect-test",
+					Position: stopVGtidPosition,
+				},
+			},
+		},
+	}
+
+	cc := clientConnectionMock{
+		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
+			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
+			if in.Cursor.Position == "current" {
+				// Returned while fetching the "stop VGTID cursor"
+				return getStopVGtidClient, nil
+			}
+
+			// Returned during sync of records, after "stop VGTID cursor" is fetched
+			return syncClient, nil
+		},
+	}
+
+	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
+		return &cc, nil
+	}
+	ps := PlanetScaleSource{
+		Database: "connect-test",
+	}
+	cs := ConfiguredStream{
+		Stream: Stream{
+			Name:      "customers",
+			Namespace: "connect-test",
+		},
+	}
+
+	nextSyncStartCursor, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	assert.NoError(t, err)
+	// Next sync will start at the VGTID after the end of the current sync
+	esc, err := TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+		Shard:    "-",
+		Keyspace: "connect-test",
+		Position: nextVGtidPosition,
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, esc, nextSyncStartCursor)
+	assert.Equal(t, 2, cc.syncFnInvokedCount)
+
+	logLines := tal.logMessages[LOGLEVEL_INFO]
+	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records for table [customers]", 10), logLines[len(logLines)-1])
+	records := tal.records["connect-test.customers"]
+	assert.Equal(t, 10, len(records))
+}
