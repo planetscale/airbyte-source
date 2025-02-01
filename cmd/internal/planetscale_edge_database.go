@@ -265,6 +265,11 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		tc.Position = ""
 	}
 
+	inCopyPhase := false
+	if tc.Position == "" {
+		inCopyPhase = true
+	}
+
 	sReq := &psdbconnect.SyncRequest{
 		TableName:  s.Name,
 		Cursor:     tc,
@@ -324,7 +329,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		}
 
 		// Exit sync and flush records once the VGTID position is past the desired stop position
-		if watchForVgGtidChange && positionAfter(tc.Position, stopPosition) {
+		if watchForVgGtidChange && positionAfter(tc.Position, stopPosition) && !inCopyPhase {
 			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because current position %+v has passed stop position %+v", preamble, tc.Position, stopPosition))
 			return tc, resultCount, io.EOF
 		}
