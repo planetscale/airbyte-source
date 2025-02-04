@@ -10,7 +10,6 @@ import (
 
 	"github.com/pkg/errors"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
-	"github.com/planetscale/airbyte-source/proto/vtgateservice"
 	"github.com/planetscale/psdb/auth"
 	grpcclient "github.com/planetscale/psdb/core/pool"
 	clientoptions "github.com/planetscale/psdb/core/pool/options"
@@ -21,6 +20,8 @@ import (
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/proto/binlogdata"
 	"vitess.io/vitess/go/vt/proto/topodata"
+	"vitess.io/vitess/go/vt/proto/vtgate"
+	vtgateservice "vitess.io/vitess/go/vt/proto/vtgateservice"
 	_ "vitess.io/vitess/go/vt/vtctl/grpcvtctlclient"
 	_ "vitess.io/vitess/go/vt/vtgate/grpcvtgateconn"
 )
@@ -192,6 +193,9 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		p.Logger.Log(LOGLEVEL_INFO, preamble+"Peeking to see if there's any new rows")
 		latestCursorPosition, lcErr := p.getLatestCursorPosition(ctx, currentPosition.Shard, currentPosition.Keyspace, table, ps, tabletType)
 		if lcErr != nil {
+			return currentSerializedCursor, errors.Wrap(err, "Unable to get latest cursor position")
+		}
+		if latestCursorPosition == "" {
 			return currentSerializedCursor, errors.Wrap(err, "Unable to get latest cursor position")
 		}
 
@@ -367,7 +371,7 @@ func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, sh
 		}
 	}
 
-	vtgateReq := &vtgateservice.VStreamRequest{
+	vtgateReq := &vtgate.VStreamRequest{
 		TabletType: topodata.TabletType(tabletType),
 		Vgtid: &binlogdata.VGtid{
 			ShardGtids: []*binlogdata.ShardGtid{
@@ -378,7 +382,7 @@ func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, sh
 				},
 			},
 		},
-		Flags: &vtgateservice.VStreamFlags{
+		Flags: &vtgate.VStreamFlags{
 			MinimizeSkew: true,
 			Cells:        "planetscale_operator_default",
 		},
@@ -403,8 +407,13 @@ func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, sh
 		}
 
 		if res.Events != nil {
-			lastEvent := res.Events[len(res.Events)-1]
-			return lastEvent.Gtid, nil
+			for _, event := range res.Events {
+				if event.Type == binlogdata.VEventType_VGTID {
+					gtid := event.Vgtid.ShardGtids[0].Gtid
+					return gtid, nil
+				}
+			}
+			return "", errors.New("unable to find VEvent of VGTID type to use as stop cursor")
 		}
 	}
 }
