@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package vtgateservice;
+
+import "topodata.proto";
+import "vtrpc.proto";
+import "binlogdata.proto";
+
+option go_package = "github.com/planetscale/airbyte-source/proto/vtgateservice";
+
+// VStreamRequest is the payload for VStream.
+message VStreamRequest {
+  vtrpc.CallerID caller_id = 1;
+
+  topodata.TabletType tablet_type = 2;
+
+  // position specifies the starting point of the bin log positions
+  // as well as the keyspace-shards to pull events from.
+  // position is of the form 'ks1:0@MySQL56/<mysql_pos>|ks2:-80@MySQL56/<mysql_pos>'.
+  binlogdata.VGtid vgtid = 3;
+  binlogdata.Filter filter = 4;
+  VStreamFlags flags = 5;
+}
+
+message VStreamFlags {
+  // align streams
+  bool minimize_skew = 1;
+  // how often heartbeats must be sent when idle (seconds)
+  uint32 heartbeat_interval = 2;
+  // stop streams on a reshard (journal event)
+  bool stop_on_reshard = 3;
+  // if specified, these cells (comma-separated) are used to pick source tablets from.
+  // defaults to the cell of the vtgate serving the VStream API.
+  string cells = 4;
+  string cell_preference = 5;
+  string tablet_order = 6;
+}
+
+// VStreamResponse is streamed by VStream.
+message VStreamResponse {
+  repeated binlogdata.VEvent events = 1;
+}
+
+service Vitess {
+  rpc VStream(VStreamRequest) returns (stream VStreamResponse) {}
+}
