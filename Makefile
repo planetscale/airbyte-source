@@ -27,6 +27,7 @@ ifeq ($(OS),Darwin)
 	PROTOC_PLATFORM := osx
 endif
 PSDBCONNECT_PROTO_OUT := proto/psdbconnect
+VTGATESERVICE_PROTO_OUT := proto/vtgateservice
 
 .PHONY: all
 all: build test lint
@@ -114,3 +115,24 @@ $(PSDBCONNECT_PROTO_OUT)/v1alpha1/psdbconnect.v1alpha1.pb.go: $(PROTO_TOOLS) pro
 	  -I thirdparty/vitess/proto \
 	  -I proto \
 	  proto/psdbconnect.v1alpha1.proto
+
+vtgate-proto: $(VTGATESERVICE_PROTO_OUT)/vtgateservice.pb.go
+
+$(VTGATESERVICE_PROTO_OUT)/vtgateservice.pb.go: $(PROTO_TOOLS) proto/vtgateservice.proto
+	mkdir -p $(VTGATESERVICE_PROTO_OUT)
+	$(BIN)/protoc \
+	  --plugin=protoc-gen-go=$(BIN)/protoc-gen-go \
+	  --plugin=protoc-gen-go-grpc=$(BIN)/protoc-gen-go-grpc \
+	  --plugin=protoc-gen-go-vtproto=$(BIN)/protoc-gen-go-vtproto \
+	  --go_out=$(VTGATESERVICE_PROTO_OUT) \
+	  --go-grpc_out=$(VTGATESERVICE_PROTO_OUT) \
+	  --go-vtproto_out=$(VTGATESERVICE_PROTO_OUT) \
+	  --go_opt=paths=source_relative \
+	  --go-grpc_opt=paths=source_relative \
+	  --go-grpc_opt=require_unimplemented_servers=false \
+	  --go-vtproto_opt=features=marshal+unmarshal+size \
+	  --go-vtproto_opt=paths=source_relative \
+	  -I thirdparty \
+	  -I thirdparty/vitess/proto \
+	  -I proto \
+	  proto/vtgateservice.proto

@@ -88,7 +88,7 @@ message Charset {
     string position = 1;
   
     // what to get
-    topopdata.KeyRange key_range = 2;
+    topodata.KeyRange key_range = 2;
   
     // default charset on the player side
     Charset charset = 3;
