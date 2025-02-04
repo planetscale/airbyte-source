@@ -43,7 +43,6 @@ type PlanetScaleDatabase interface {
 type PlanetScaleEdgeDatabase struct {
 	Logger         AirbyteLogger
 	Mysql          PlanetScaleEdgeMysqlAccess
-	clientFn       func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error)
 	vtgateClientFn func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error)
 }
 
@@ -248,29 +247,16 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		vtgateClient vtgateservice.VitessClient
 	)
 
-	if p.vtgateClientFn == nil {
-		conn, err := grpcclient.Dial(ctx, ps.Host,
-			clientoptions.WithDefaultTLSConfig(),
-			clientoptions.WithCompression(true),
-			clientoptions.WithConnectionPool(1),
-			clientoptions.WithExtraCallOption(
-				auth.NewBasicAuth(ps.Username, ps.Password).CallOption(),
-			),
-		)
-		if err != nil {
-			return tc, 0, err
-		}
+	vtgateClient, conn, err := p.initializeVTGateClient(ctx, ps)
+	if err != nil {
+		return tc, 0, err
+	}
+	if conn != nil {
 		defer conn.Close()
-		vtgateClient = vtgateservice.NewVitessClient(conn)
-	} else {
-		vtgateClient, err = p.vtgateClientFn(ctx, ps)
-		if err != nil {
-			return tc, 0, err
-		}
 	}
 
 	// If there is a LastKnownPk, that means we were in a copy phase
-	// and want to resume the copy phase
+	// Setting position to "" specifies COPY phase in the VStream API
 	if tc.LastKnownPk != nil {
 		tc.Position = ""
 	}
@@ -278,31 +264,8 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 	waitForCopyCompleted := tc.Position == ""
 	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sWill be waiting for COPY_COMPLETED event? %v", preamble, waitForCopyCompleted))
 
-	vtgateReq := &vtgate.VStreamRequest{
-		TabletType: topodata.TabletType(tabletType),
-		Vgtid: &binlogdata.VGtid{
-			ShardGtids: []*binlogdata.ShardGtid{
-				{
-					Shard:    tc.Shard,
-					Keyspace: tc.Keyspace,
-					Gtid:     tc.Position,
-				},
-			},
-		},
-		Flags: &vtgate.VStreamFlags{
-			MinimizeSkew: true,
-			Cells:        "planetscale_operator_default",
-		},
-		Filter: &binlogdata.Filter{
-			Rules: []*binlogdata.Rule{{
-				Match:  s.Name,
-				Filter: "SELECT * FROM " + sqlescape.EscapeID(s.Name),
-			}},
-		},
-	}
-
+	vtgateReq := buildVStreamRequest(tabletType, s.Name, tc.Shard, tc.Keyspace, tc.Position)
 	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sRequesting to sync from cursor position [%v] to stop cursor position [%v] in cells %v; using last known PK: %v", preamble, tc.Position, stopPosition, vtgateReq.Flags.Cells, tc.LastKnownPk != nil))
-
 	c, err := vtgateClient.VStream(ctx, vtgateReq)
 
 	if err != nil {
@@ -315,13 +278,17 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		keyspaceOrDatabase = ps.Database
 	}
 
-	// Stop when we've reached the well known stop position for this sync session.
+	// Stop when we've reached or surpassed the stop position for this sync session
 	watchForVgGtidChange := false
 	resultCount := 0
+	loopCount := 0
 
 	var fields []*query.Field
 
 	for {
+		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sStarting sync loop #%v", preamble, loopCount))
+		loopCount += 1
+
 		res, err := c.Recv()
 		if err != nil {
 			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records due to error: %+v", preamble, err))
@@ -374,14 +341,15 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 			}
 		}
 
-		// Heartbeats and other non-DML queries can create binlog events with the same VGTID, but no rows.
-		// These no-row results can have the same VGTID as a subsequent result with rows.
 		if len(rows) > 0 {
 			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sROW event found, with %+v rows", preamble, len(rows)))
 			// Watch for VGTID change as soon as we encounter records from some VGTID that is equal to, or after the stop position we're looking for.
 			// We watch for a VGTID that is equal to or after (not just equal to) the stop position, because by the time the first sync for records occurs,
 			// the current VGTID may have already advanced past the stop position.
 			watchForVgGtidChange = watchForVgGtidChange || positionAtLeast(tc.Position, stopPosition)
+			if watchForVgGtidChange {
+				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sRows up to desired VGTID [%+v] found, waiting for next VGTID. Waiting for COPY_COMPLETED event? %v", preamble, tc.Position, waitForCopyCompleted))
+			}
 			for _, result := range rows {
 				qr := sqltypes.Proto3ToResult(result)
 				for _, row := range qr.Rows {
@@ -396,7 +364,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 			}
 		}
 
-		// Exit sync and flush records once the VGTID position is past the desired stop position
+		// Exit sync and flush records once the VGTID position is past the desired stop position, and we're no longer waiting for COPY phase to complete
 		if watchForVgGtidChange && positionAfter(tc.Position, stopPosition) && !waitForCopyCompleted {
 			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because current position %+v has passed stop position %+v", preamble, tc.Position, stopPosition))
 			return tc, resultCount, io.EOF
@@ -414,50 +382,15 @@ func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, sh
 		vtgateClient vtgateservice.VitessClient
 	)
 
-	if p.vtgateClientFn == nil {
-		conn, err := grpcclient.Dial(ctx, ps.Host,
-			clientoptions.WithDefaultTLSConfig(),
-			clientoptions.WithCompression(true),
-			clientoptions.WithConnectionPool(1),
-			clientoptions.WithExtraCallOption(
-				auth.NewBasicAuth(ps.Username, ps.Password).CallOption(),
-			),
-		)
-		if err != nil {
-			return "", err
-		}
+	vtgateClient, conn, err := p.initializeVTGateClient(ctx, ps)
+	if err != nil {
+		return "", err
+	}
+	if conn != nil {
 		defer conn.Close()
-		vtgateClient = vtgateservice.NewVitessClient(conn)
-	} else {
-		vtgateClient, err = p.vtgateClientFn(ctx, ps)
-		if err != nil {
-			return "", err
-		}
 	}
 
-	vtgateReq := &vtgate.VStreamRequest{
-		TabletType: topodata.TabletType(tabletType),
-		Vgtid: &binlogdata.VGtid{
-			ShardGtids: []*binlogdata.ShardGtid{
-				{
-					Shard:    shard,
-					Keyspace: keyspace,
-					Gtid:     "current",
-				},
-			},
-		},
-		Flags: &vtgate.VStreamFlags{
-			MinimizeSkew: true,
-			Cells:        "planetscale_operator_default",
-		},
-		Filter: &binlogdata.Filter{
-			Rules: []*binlogdata.Rule{{
-				Match:  s.Name,
-				Filter: "SELECT * FROM " + sqlescape.EscapeID(s.Name),
-			}},
-		},
-	}
-
+	vtgateReq := buildVStreamRequest(tabletType, s.Name, shard, keyspace, "current")
 	vtgateCursor, vtgateErr := vtgateClient.VStream(ctx, vtgateReq)
 
 	if vtgateErr != nil {
@@ -482,6 +415,29 @@ func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, sh
 	}
 }
 
+func (p PlanetScaleEdgeDatabase) initializeVTGateClient(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, grpcclient.ConnPool, error) {
+	if p.vtgateClientFn == nil {
+		conn, err := grpcclient.Dial(ctx, ps.Host,
+			clientoptions.WithDefaultTLSConfig(),
+			clientoptions.WithCompression(true),
+			clientoptions.WithConnectionPool(1),
+			clientoptions.WithExtraCallOption(
+				auth.NewBasicAuth(ps.Username, ps.Password).CallOption(),
+			),
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+		return vtgateservice.NewVitessClient(conn), conn, err
+	} else {
+		vtgateClient, err := p.vtgateClientFn(ctx, ps)
+		if err != nil {
+			return nil, nil, err
+		}
+		return vtgateClient, nil, nil
+	}
+}
+
 // printQueryResult will pretty-print an AirbyteRecordMessage to the logger.
 // Copied from vtctl/query.go
 func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableNamespace, tableName string) {
@@ -489,6 +445,31 @@ func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableName
 
 	for _, record := range data {
 		p.Logger.Record(tableNamespace, tableName, record)
+	}
+}
+
+func buildVStreamRequest(tabletType psdbconnect.TabletType, table string, shard string, keyspace string, gtid string) *vtgate.VStreamRequest {
+	return &vtgate.VStreamRequest{
+		TabletType: topodata.TabletType(tabletType),
+		Vgtid: &binlogdata.VGtid{
+			ShardGtids: []*binlogdata.ShardGtid{
+				{
+					Shard:    shard,
+					Keyspace: keyspace,
+					Gtid:     gtid,
+				},
+			},
+		},
+		Flags: &vtgate.VStreamFlags{
+			MinimizeSkew: true,
+			Cells:        "planetscale_operator_default",
+		},
+		Filter: &binlogdata.Filter{
+			Rules: []*binlogdata.Rule{{
+				Match:  table,
+				Filter: "SELECT * FROM " + sqlescape.EscapeID(table),
+			}},
+		},
 	}
 }
 
