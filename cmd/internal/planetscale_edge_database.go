@@ -348,7 +348,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 			// the current VGTID may have already advanced past the stop position.
 			watchForVgGtidChange = watchForVgGtidChange || positionAtLeast(tc.Position, stopPosition)
 			if watchForVgGtidChange {
-				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sRows up to desired VGTID [%+v] found, waiting for next VGTID. Waiting for COPY_COMPLETED event? %v", preamble, tc.Position, waitForCopyCompleted))
+				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sRows up to stop position [%+v] found, waiting for next VGTID. Waiting for COPY_COMPLETED event? %v", preamble, stopPosition, waitForCopyCompleted))
 			}
 			for _, result := range rows {
 				qr := sqltypes.Proto3ToResult(result)
