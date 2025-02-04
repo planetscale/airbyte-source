@@ -10,13 +10,17 @@ import (
 
 	"github.com/pkg/errors"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
+	"github.com/planetscale/airbyte-source/proto/vtgateservice"
 	"github.com/planetscale/psdb/auth"
 	grpcclient "github.com/planetscale/psdb/core/pool"
 	clientoptions "github.com/planetscale/psdb/core/pool/options"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	vtmysql "vitess.io/vitess/go/mysql"
+	"vitess.io/vitess/go/sqlescape"
 	"vitess.io/vitess/go/sqltypes"
+	"vitess.io/vitess/go/vt/proto/binlogdata"
+	"vitess.io/vitess/go/vt/proto/topodata"
 	_ "vitess.io/vitess/go/vt/vtctl/grpcvtctlclient"
 	_ "vitess.io/vitess/go/vt/vtgate/grpcvtgateconn"
 )
@@ -35,9 +39,10 @@ type PlanetScaleDatabase interface {
 // It uses the mysql interface provided by PlanetScale for all schema/shard/tablet discovery and
 // the grpc API for incrementally syncing rows from PlanetScale.
 type PlanetScaleEdgeDatabase struct {
-	Logger   AirbyteLogger
-	Mysql    PlanetScaleEdgeMysqlAccess
-	clientFn func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error)
+	Logger         AirbyteLogger
+	Mysql          PlanetScaleEdgeMysqlAccess
+	clientFn       func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error)
+	vtgateClientFn func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error)
 }
 
 func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScaleSource) error {
@@ -337,11 +342,11 @@ func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, sh
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var (
-		err    error
-		client psdbconnect.ConnectClient
+		err          error
+		vtgateClient vtgateservice.VitessClient
 	)
 
-	if p.clientFn == nil {
+	if p.vtgateClientFn == nil {
 		conn, err := grpcclient.Dial(ctx, ps.Host,
 			clientoptions.WithDefaultTLSConfig(),
 			clientoptions.WithCompression(true),
@@ -354,38 +359,52 @@ func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, sh
 			return "", err
 		}
 		defer conn.Close()
-		client = psdbconnect.NewConnectClient(conn)
+		vtgateClient = vtgateservice.NewVitessClient(conn)
 	} else {
-		client, err = p.clientFn(ctx, ps)
+		vtgateClient, err = p.vtgateClientFn(ctx, ps)
 		if err != nil {
 			return "", err
 		}
 	}
 
-	sReq := &psdbconnect.SyncRequest{
-		TableName: s.Name,
-		Cursor: &psdbconnect.TableCursor{
-			Shard:    shard,
-			Keyspace: keyspace,
-			Position: "current",
+	vtgateReq := &vtgateservice.VStreamRequest{
+		TabletType: topodata.TabletType(tabletType),
+		Vgtid: &binlogdata.VGtid{
+			ShardGtids: []*binlogdata.ShardGtid{
+				{
+					Shard:    shard,
+					Keyspace: keyspace,
+					Gtid:     "current",
+				},
+			},
 		},
-		TabletType: tabletType,
-		Cells:      []string{"planetscale_operator_default"},
+		Flags: &vtgateservice.VStreamFlags{
+			MinimizeSkew: true,
+			Cells:        "planetscale_operator_default",
+		},
+		Filter: &binlogdata.Filter{
+			Rules: []*binlogdata.Rule{{
+				Match:  s.Name,
+				Filter: "SELECT * FROM " + sqlescape.EscapeID(s.Name),
+			}},
+		},
 	}
 
-	c, err := client.Sync(ctx, sReq)
-	if err != nil {
+	vtgateCursor, vtgateErr := vtgateClient.VStream(ctx, vtgateReq)
+
+	if vtgateErr != nil {
 		return "", nil
 	}
 
 	for {
-		res, err := c.Recv()
+		res, err := vtgateCursor.Recv()
 		if err != nil {
 			return "", err
 		}
 
-		if res.Cursor != nil {
-			return res.Cursor.Position, nil
+		if res.Events != nil {
+			lastEvent := res.Events[len(res.Events)-1]
+			return lastEvent.Gtid, nil
 		}
 	}
 }
