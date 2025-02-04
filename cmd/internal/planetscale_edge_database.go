@@ -19,6 +19,7 @@ import (
 	"vitess.io/vitess/go/sqlescape"
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/proto/binlogdata"
+	"vitess.io/vitess/go/vt/proto/query"
 	"vitess.io/vitess/go/vt/proto/topodata"
 	"vitess.io/vitess/go/vt/proto/vtgate"
 	vtgateservice "vitess.io/vitess/go/vt/proto/vtgateservice"
@@ -243,11 +244,11 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 	defer cancel()
 
 	var (
-		err    error
-		client psdbconnect.ConnectClient
+		err          error
+		vtgateClient vtgateservice.VitessClient
 	)
 
-	if p.clientFn == nil {
+	if p.vtgateClientFn == nil {
 		conn, err := grpcclient.Dial(ctx, ps.Host,
 			clientoptions.WithDefaultTLSConfig(),
 			clientoptions.WithCompression(true),
@@ -260,9 +261,9 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 			return tc, 0, err
 		}
 		defer conn.Close()
-		client = psdbconnect.NewConnectClient(conn)
+		vtgateClient = vtgateservice.NewVitessClient(conn)
 	} else {
-		client, err = p.clientFn(ctx, ps)
+		vtgateClient, err = p.vtgateClientFn(ctx, ps)
 		if err != nil {
 			return tc, 0, err
 		}
@@ -274,16 +275,36 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		tc.Position = ""
 	}
 
-	sReq := &psdbconnect.SyncRequest{
-		TableName:  s.Name,
-		Cursor:     tc,
-		TabletType: tabletType,
-		Cells:      []string{"planetscale_operator_default"},
+	waitForCopyCompleted := tc.Position == ""
+	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sWill be waiting for COPY_COMPLETED event? %v", preamble, waitForCopyCompleted))
+
+	vtgateReq := &vtgate.VStreamRequest{
+		TabletType: topodata.TabletType(tabletType),
+		Vgtid: &binlogdata.VGtid{
+			ShardGtids: []*binlogdata.ShardGtid{
+				{
+					Shard:    tc.Shard,
+					Keyspace: tc.Keyspace,
+					Gtid:     tc.Position,
+				},
+			},
+		},
+		Flags: &vtgate.VStreamFlags{
+			MinimizeSkew: true,
+			Cells:        "planetscale_operator_default",
+		},
+		Filter: &binlogdata.Filter{
+			Rules: []*binlogdata.Rule{{
+				Match:  s.Name,
+				Filter: "SELECT * FROM " + sqlescape.EscapeID(s.Name),
+			}},
+		},
 	}
 
-	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sRequesting to sync from cursor position [%v] to stop cursor position [%v] in cells %v; using last known PK: %v", preamble, tc.Position, stopPosition, sReq.GetCells(), tc.LastKnownPk != nil))
+	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sRequesting to sync from cursor position [%v] to stop cursor position [%v] in cells %v; using last known PK: %v", preamble, tc.Position, stopPosition, vtgateReq.Flags.Cells, tc.LastKnownPk != nil))
 
-	c, err := client.Sync(ctx, sReq)
+	c, err := vtgateClient.VStream(ctx, vtgateReq)
+
 	if err != nil {
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync due to client sync error: %+v", preamble, err))
 		return tc, 0, err
@@ -298,6 +319,8 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 	watchForVgGtidChange := false
 	resultCount := 0
 
+	var fields []*query.Field
+
 	for {
 		res, err := c.Recv()
 		if err != nil {
@@ -305,25 +328,66 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 			return tc, resultCount, err
 		}
 
-		if res.Cursor != nil {
-			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sAdvancing cursor to %+v", preamble, res.Cursor))
-			tc = res.Cursor
+		var rows []*query.QueryResult
+
+		for _, event := range res.Events {
+			switch event.Type {
+			case binlogdata.VEventType_VGTID:
+				vgtid := event.GetVgtid().ShardGtids[0]
+				if vgtid != nil {
+					// Update cursor to new VGTID
+					tc = &psdbconnect.TableCursor{
+						Shard:    event.Shard,
+						Keyspace: event.Keyspace,
+						Position: vgtid.Gtid,
+					}
+					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sVGTID event found, advancing cursor to %+v", preamble, tc))
+				}
+			case binlogdata.VEventType_LASTPK:
+				if event.LastPKEvent.TableLastPK != nil {
+					// Only update last PK because we're in a COPY phase
+					tc = &psdbconnect.TableCursor{
+						Shard:       tc.Shard,
+						Keyspace:    tc.Keyspace,
+						LastKnownPk: event.LastPKEvent.TableLastPK.Lastpk,
+						Position:    tc.Position,
+					}
+					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sLASTPK event found, setting last PK to %+v", preamble, tc))
+				}
+			case binlogdata.VEventType_FIELD:
+				// Save fields for processing
+				fields = event.FieldEvent.Fields
+				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sFIELD event found, setting fields to %+v", preamble, fields))
+			case binlogdata.VEventType_ROW:
+				// Collect rows for processing
+				for _, change := range event.RowEvent.RowChanges {
+					if change.After != nil {
+						rows = append(rows, &query.QueryResult{
+							Fields: fields,
+							Rows:   []*query.Row{change.After},
+						})
+					}
+				}
+			case binlogdata.VEventType_COPY_COMPLETED:
+				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sCOPY_COMPLETED event found, copy phase finished", preamble))
+				waitForCopyCompleted = false
+			}
 		}
 
 		// Heartbeats and other non-DML queries can create binlog events with the same VGTID, but no rows.
 		// These no-row results can have the same VGTID as a subsequent result with rows.
-		if len(res.Result) > 0 {
-			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sFound %+v results", preamble, len(res.Result)))
+		if len(rows) > 0 {
+			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sROW event found, with %+v rows", preamble, len(rows)))
 			// Watch for VGTID change as soon as we encounter records from some VGTID that is equal to, or after the stop position we're looking for.
 			// We watch for a VGTID that is equal to or after (not just equal to) the stop position, because by the time the first sync for records occurs,
 			// the current VGTID may have already advanced past the stop position.
 			watchForVgGtidChange = watchForVgGtidChange || positionAtLeast(tc.Position, stopPosition)
-			for _, result := range res.Result {
+			for _, result := range rows {
 				qr := sqltypes.Proto3ToResult(result)
 				for _, row := range qr.Rows {
 					resultCount += 1
 					sqlResult := &sqltypes.Result{
-						Fields: result.Fields,
+						Fields: fields,
 					}
 					sqlResult.Rows = append(sqlResult.Rows, row)
 					// Results queued to Airbyte here, and flushed at the end of sync()
@@ -333,7 +397,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		}
 
 		// Exit sync and flush records once the VGTID position is past the desired stop position
-		if watchForVgGtidChange && positionAfter(tc.Position, stopPosition) {
+		if watchForVgGtidChange && positionAfter(tc.Position, stopPosition) && !waitForCopyCompleted {
 			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because current position %+v has passed stop position %+v", preamble, tc.Position, stopPosition))
 			return tc, resultCount, io.EOF
 		}
