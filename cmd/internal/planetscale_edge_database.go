@@ -200,7 +200,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		}
 
 		// the last synced VGTID is not at least, or after the current VGTID
-		if currentPosition.Position != "" && !positionAtLeast(latestCursorPosition, currentPosition.Position) {
+		if currentPosition.Position != "" && !positionAfter(latestCursorPosition, currentPosition.Position) {
 			p.Logger.Log(LOGLEVEL_INFO, preamble+"No new rows found, exiting")
 			return TableCursorToSerializedCursor(currentPosition)
 		}
@@ -284,7 +284,6 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 	//   - or seen a COPY_COMPLETED event (for a full sync)
 	watchForVgGtidChange := false
 	resultCount := 0
-
 	var fields []*query.Field
 	for {
 		res, err := c.Recv()
@@ -353,9 +352,6 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		}
 
 		if len(rows) > 0 {
-			// Watch for VGTID change as soon as we encounter records from some VGTID that is equal to, or after the stop position we're looking for.
-			// We watch for a VGTID that is equal to or after (not just equal to) the stop position, because by the time the first sync for records occurs,
-			// the current VGTID may have already advanced past the stop position.
 			for _, result := range rows {
 				qr := sqltypes.Proto3ToResult(result)
 				for _, row := range qr.Rows {
