@@ -279,17 +279,15 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		keyspaceOrDatabase = ps.Database
 	}
 
-	// Stop when we've reached or surpassed the stop position for this sync session
+	// Stop when we've:
+	//   - reached the stop position (for an incremental sync)
+	//   - or seen a COPY_COMPLETED event (for a full sync)
 	watchForVgGtidChange := false
 	resultCount := 0
-	loopCount := 0
 
 	var fields []*query.Field
 
 	for {
-		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sStarting sync loop #%v", preamble, loopCount))
-		loopCount += 1
-
 		res, err := c.Recv()
 		if err != nil {
 			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records due to error: %+v", preamble, err))
@@ -309,7 +307,6 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 						Keyspace: tc.Keyspace,
 						Position: vgtid.Gtid,
 					}
-					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sVGTID event found, advancing cursor to %+v", preamble, tc))
 				}
 			case binlogdata.VEventType_LASTPK:
 				if event.LastPKEvent.TableLastPK != nil {
@@ -342,13 +339,16 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 			}
 		}
 
-		watchForVgGtidChange = watchForVgGtidChange || (positionEqual(tc.Position, stopPosition) || (waitForCopyCompleted && copyCompletedSeen))
-		if watchForVgGtidChange {
-			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sStop position [%+v] found, or copy phase completed. Waiting for next VGTID after stop position.", preamble, stopPosition))
+		if waitForCopyCompleted && copyCompletedSeen {
+			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sCopy phase completed. Waiting for next VGTID after stop position.", preamble))
+			watchForVgGtidChange = true
+		}
+		if !waitForCopyCompleted && positionEqual(tc.Position, stopPosition) {
+			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sStop position [%+v] found. Waiting for next VGTID after stop position.", preamble, stopPosition))
+			watchForVgGtidChange = true
 		}
 
 		if len(rows) > 0 {
-			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sROW event found, with %+v rows", preamble, len(rows)))
 			// Watch for VGTID change as soon as we encounter records from some VGTID that is equal to, or after the stop position we're looking for.
 			// We watch for a VGTID that is equal to or after (not just equal to) the stop position, because by the time the first sync for records occurs,
 			// the current VGTID may have already advanced past the stop position.
