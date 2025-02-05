@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"io"
 
-	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"google.golang.org/grpc"
 	"vitess.io/vitess/go/vt/proto/vtgate"
 	vtgateservice "vitess.io/vitess/go/vt/proto/vtgateservice"
@@ -60,12 +59,6 @@ type vstreamClientMock struct {
 	vstreamFnInvokedCount int
 }
 
-type clientConnectionMock struct {
-	syncFn             func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error)
-	syncFnInvoked      bool
-	syncFnInvokedCount int
-}
-
 type vtgateVStreamClientMock struct {
 	lastResponseSent int
 	vstreamResponses []*vtgate.VStreamResponse
@@ -108,25 +101,6 @@ func (c *vstreamClientMock) VStream(ctx context.Context, in *vtgate.VStreamReque
 	c.vstreamFnInvoked = true
 	c.vstreamFnInvokedCount += 1
 	return c.vstreamFn(ctx, in, opts...)
-}
-
-type connectSyncClientMock struct {
-	lastResponseSent int
-	syncResponses    []*psdbconnect.SyncResponse
-	grpc.ClientStream
-}
-
-func (x *connectSyncClientMock) Recv() (*psdbconnect.SyncResponse, error) {
-	if x.lastResponseSent >= len(x.syncResponses) {
-		return nil, io.EOF
-	}
-	x.lastResponseSent += 1
-	return x.syncResponses[x.lastResponseSent-1], nil
-}
-func (c *clientConnectionMock) Sync(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-	c.syncFnInvoked = true
-	c.syncFnInvokedCount += 1
-	return c.syncFn(ctx, in, opts...)
 }
 
 type mysqlAccessMock struct {
