@@ -286,7 +286,6 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 	resultCount := 0
 
 	var fields []*query.Field
-
 	for {
 		res, err := c.Recv()
 		if err != nil {
@@ -295,7 +294,6 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		}
 
 		var rows []*query.QueryResult
-
 		for _, event := range res.Events {
 			switch event.Type {
 			case binlogdata.VEventType_VGTID:
@@ -348,6 +346,12 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 			watchForVgGtidChange = true
 		}
 
+		// Exit sync and flush records once the VGTID position is past the desired stop position, and we're no longer waiting for COPY phase to complete
+		if watchForVgGtidChange && positionAfter(tc.Position, stopPosition) {
+			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because current position %+v has passed stop position %+v", preamble, tc.Position, stopPosition))
+			return tc, resultCount, io.EOF
+		}
+
 		if len(rows) > 0 {
 			// Watch for VGTID change as soon as we encounter records from some VGTID that is equal to, or after the stop position we're looking for.
 			// We watch for a VGTID that is equal to or after (not just equal to) the stop position, because by the time the first sync for records occurs,
@@ -364,12 +368,6 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 					p.printQueryResult(sqlResult, keyspaceOrDatabase, s.Name)
 				}
 			}
-		}
-
-		// Exit sync and flush records once the VGTID position is past the desired stop position, and we're no longer waiting for COPY phase to complete
-		if watchForVgGtidChange && positionAfter(tc.Position, stopPosition) {
-			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because current position %+v has passed stop position %+v", preamble, tc.Position, stopPosition))
-			return tc, resultCount, io.EOF
 		}
 	}
 }
