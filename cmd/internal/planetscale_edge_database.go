@@ -262,6 +262,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 	}
 
 	waitForCopyCompleted := tc.Position == ""
+	copyCompletedSeen := false
 	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sWill be waiting for COPY_COMPLETED event? %v", preamble, waitForCopyCompleted))
 
 	vtgateReq := buildVStreamRequest(tabletType, s.Name, tc.Shard, tc.Keyspace, tc.Position)
@@ -304,8 +305,8 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 				if vgtid != nil {
 					// Update cursor to new VGTID
 					tc = &psdbconnect.TableCursor{
-						Shard:    event.Shard,
-						Keyspace: event.Keyspace,
+						Shard:    tc.Shard,
+						Keyspace: tc.Keyspace,
 						Position: vgtid.Gtid,
 					}
 					p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sVGTID event found, advancing cursor to %+v", preamble, tc))
@@ -337,8 +338,13 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 				}
 			case binlogdata.VEventType_COPY_COMPLETED:
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sCOPY_COMPLETED event found, copy phase finished", preamble))
-				waitForCopyCompleted = false
+				copyCompletedSeen = true
 			}
+		}
+
+		watchForVgGtidChange = watchForVgGtidChange || (positionEqual(tc.Position, stopPosition) || (waitForCopyCompleted && copyCompletedSeen))
+		if watchForVgGtidChange {
+			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sStop position [%+v] found, or copy phase completed. Waiting for next VGTID after stop position.", preamble, stopPosition))
 		}
 
 		if len(rows) > 0 {
@@ -346,10 +352,6 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 			// Watch for VGTID change as soon as we encounter records from some VGTID that is equal to, or after the stop position we're looking for.
 			// We watch for a VGTID that is equal to or after (not just equal to) the stop position, because by the time the first sync for records occurs,
 			// the current VGTID may have already advanced past the stop position.
-			watchForVgGtidChange = watchForVgGtidChange || positionAtLeast(tc.Position, stopPosition)
-			if watchForVgGtidChange {
-				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sRows up to stop position [%+v] found, waiting for next VGTID. Waiting for COPY_COMPLETED event? %v", preamble, stopPosition, waitForCopyCompleted))
-			}
 			for _, result := range rows {
 				qr := sqltypes.Proto3ToResult(result)
 				for _, row := range qr.Rows {
@@ -365,7 +367,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		}
 
 		// Exit sync and flush records once the VGTID position is past the desired stop position, and we're no longer waiting for COPY phase to complete
-		if watchForVgGtidChange && positionAfter(tc.Position, stopPosition) && !waitForCopyCompleted {
+		if watchForVgGtidChange && positionAfter(tc.Position, stopPosition) {
 			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because current position %+v has passed stop position %+v", preamble, tc.Position, stopPosition))
 			return tc, resultCount, io.EOF
 		}
@@ -415,6 +417,19 @@ func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, sh
 	}
 }
 
+func toTopoTabletType(tabletType psdbconnect.TabletType) topodata.TabletType {
+	if tabletType == psdbconnect.TabletType_replica {
+		return topodata.TabletType_REPLICA
+	} else if tabletType == psdbconnect.TabletType_batch {
+		return topodata.TabletType_RDONLY
+	} else if tabletType == psdbconnect.TabletType_primary {
+		return topodata.TabletType_PRIMARY
+	}
+
+	// Fall back to replica
+	return topodata.TabletType_REPLICA
+}
+
 func (p PlanetScaleEdgeDatabase) initializeVTGateClient(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, grpcclient.ConnPool, error) {
 	if p.vtgateClientFn == nil {
 		conn, err := grpcclient.Dial(ctx, ps.Host,
@@ -450,7 +465,7 @@ func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableName
 
 func buildVStreamRequest(tabletType psdbconnect.TabletType, table string, shard string, keyspace string, gtid string) *vtgate.VStreamRequest {
 	return &vtgate.VStreamRequest{
-		TabletType: topodata.TabletType(tabletType),
+		TabletType: toTopoTabletType(tabletType),
 		Vgtid: &binlogdata.VGtid{
 			ShardGtids: []*binlogdata.ShardGtid{
 				{
@@ -471,6 +486,25 @@ func buildVStreamRequest(tabletType psdbconnect.TabletType, table string, shard 
 			}},
 		},
 	}
+}
+
+// positionEqual returns true if position `a` is equal to or after position `b`
+func positionEqual(a string, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+
+	parsedA, err := vtmysql.DecodePosition(a)
+	if err != nil {
+		return false
+	}
+
+	parsedB, err := vtmysql.DecodePosition(b)
+	if err != nil {
+		return false
+	}
+
+	return parsedA.Equal(parsedB)
 }
 
 // positionAtLeast returns true if position `a` is equal to or after position `b`
