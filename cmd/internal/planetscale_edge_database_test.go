@@ -144,102 +144,131 @@ func TestRead_CanEarlyExitIfNoNewVGtidInPeek(t *testing.T) {
 	assert.Equal(t, 1, vsc.vstreamFnInvokedCount)
 }
 
-// func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
-// 	tma := getTestMysqlAccess()
-// 	b := bytes.NewBufferString("")
-// 	ped := PlanetScaleEdgeDatabase{
-// 		Logger: NewLogger(b),
-// 		Mysql:  tma,
-// 	}
-// 	tc := &psdbconnect.TableCursor{
-// 		Shard:    "40-80",
-// 		Position: "THIS_IS_A_SHARD_GTID",
-// 		Keyspace: "connect-test",
-// 	}
+func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
+	tma := getTestMysqlAccess()
+	b := bytes.NewBufferString("")
+	ped := PlanetScaleEdgeDatabase{
+		Logger: NewLogger(b),
+		Mysql:  tma,
+	}
+	tc := &psdbconnect.TableCursor{
+		Shard:    "40-80",
+		Position: "THIS_IS_A_SHARD_GTID",
+		Keyspace: "connect-test",
+	}
 
-// 	syncClient := &connectSyncClientMock{
-// 		syncResponses: []*psdbconnect.SyncResponse{
-// 			{Cursor: tc},
-// 		},
-// 	}
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vtgate.VStreamResponse{
+			{
+				Events: []*binlogdata.VEvent{
+					&binlogdata.VEvent{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    tc.Shard,
+									Gtid:     tc.Position,
+									Keyspace: tc.Keyspace,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 
-// 	cc := clientConnectionMock{
-// 		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-// 			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
-// 			assert.Contains(t, in.Cells, "planetscale_operator_default")
-// 			return syncClient, nil
-// 		},
-// 	}
-// 	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
-// 		return &cc, nil
-// 	}
-// 	ps := PlanetScaleSource{
-// 		Database: "connect-test",
-// 	}
-// 	cs := ConfiguredStream{
-// 		Stream: Stream{
-// 			Name:      "customers",
-// 			Namespace: "connect-test",
-// 		},
-// 	}
-// 	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
-// 	assert.NoError(t, err)
-// 	esc, err := TableCursorToSerializedCursor(tc)
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, esc, sc)
-// 	assert.Equal(t, 1, cc.syncFnInvokedCount)
-// 	assert.False(t, tma.PingContextFnInvoked)
-// 	assert.False(t, tma.GetVitessTabletsFnInvoked)
-// }
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			return vstreamSyncClient, nil
+		},
+	}
 
-// func TestRead_CanPickReplicaForShardedKeyspaces(t *testing.T) {
-// 	tma := getTestMysqlAccess()
-// 	b := bytes.NewBufferString("")
-// 	ped := PlanetScaleEdgeDatabase{
-// 		Logger: NewLogger(b),
-// 		Mysql:  tma,
-// 	}
-// 	tc := &psdbconnect.TableCursor{
-// 		Shard:    "40-80",
-// 		Position: "THIS_IS_A_SHARD_GTID",
-// 		Keyspace: "connect-test",
-// 	}
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
+	}
 
-// 	syncClient := &connectSyncClientMock{
-// 		syncResponses: []*psdbconnect.SyncResponse{
-// 			{Cursor: tc},
-// 		},
-// 	}
+	ps := PlanetScaleSource{
+		Database: "connect-test",
+	}
+	cs := ConfiguredStream{
+		Stream: Stream{
+			Name:      "customers",
+			Namespace: "connect-test",
+		},
+	}
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	assert.NoError(t, err)
+	esc, err := TableCursorToSerializedCursor(tc)
+	assert.NoError(t, err)
+	assert.Equal(t, esc, sc)
+	assert.Equal(t, 1, vsc.vstreamFnInvokedCount)
+	assert.False(t, tma.PingContextFnInvoked)
+	assert.False(t, tma.GetVitessTabletsFnInvoked)
+}
 
-// 	cc := clientConnectionMock{
-// 		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-// 			assert.Equal(t, psdbconnect.TabletType_replica, in.TabletType)
-// 			assert.Contains(t, in.Cells, "planetscale_operator_default")
-// 			return syncClient, nil
-// 		},
-// 	}
-// 	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
-// 		return &cc, nil
-// 	}
-// 	ps := PlanetScaleSource{
-// 		Database:   "connect-test",
-// 		UseReplica: true,
-// 	}
-// 	cs := ConfiguredStream{
-// 		Stream: Stream{
-// 			Name:      "customers",
-// 			Namespace: "connect-test",
-// 		},
-// 	}
-// 	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
-// 	assert.NoError(t, err)
-// 	esc, err := TableCursorToSerializedCursor(tc)
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, esc, sc)
-// 	assert.Equal(t, 1, cc.syncFnInvokedCount)
-// 	assert.False(t, tma.PingContextFnInvoked)
-// 	assert.False(t, tma.GetVitessTabletsFnInvoked)
-// }
+func TestRead_CanPickReplicaForShardedKeyspaces(t *testing.T) {
+	tma := getTestMysqlAccess()
+	b := bytes.NewBufferString("")
+	ped := PlanetScaleEdgeDatabase{
+		Logger: NewLogger(b),
+		Mysql:  tma,
+	}
+	tc := &psdbconnect.TableCursor{
+		Shard:    "40-80",
+		Position: "THIS_IS_A_SHARD_GTID",
+		Keyspace: "connect-test",
+	}
+
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vtgate.VStreamResponse{
+			{
+				Events: []*binlogdata.VEvent{
+					&binlogdata.VEvent{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    tc.Shard,
+									Gtid:     tc.Position,
+									Keyspace: tc.Keyspace,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			return vstreamSyncClient, nil
+		},
+	}
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
+	}
+	ps := PlanetScaleSource{
+		Database:   "connect-test",
+		UseReplica: true,
+	}
+	cs := ConfiguredStream{
+		Stream: Stream{
+			Name:      "customers",
+			Namespace: "connect-test",
+		},
+	}
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	assert.NoError(t, err)
+	esc, err := TableCursorToSerializedCursor(tc)
+	assert.NoError(t, err)
+	assert.Equal(t, esc, sc)
+	assert.Equal(t, 1, vsc.vstreamFnInvokedCount)
+	assert.False(t, tma.PingContextFnInvoked)
+	assert.False(t, tma.GetVitessTabletsFnInvoked)
+}
 
 // func TestRead_CanPickRdonlyForShardedKeyspaces(t *testing.T) {
 // 	tma := getTestMysqlAccess()
