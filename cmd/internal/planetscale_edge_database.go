@@ -339,17 +339,17 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		}
 
 		if waitForCopyCompleted && copyCompletedSeen {
-			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sCopy phase completed.", preamble))
+			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sReady to finish sync and flush since copy phase completed.", preamble))
 			finishSyncAndFlush = true
 		}
 		if !waitForCopyCompleted && positionAfter(tc.Position, stopPosition) {
-			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sStop position [%+v] passed.", preamble, stopPosition))
+			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sReady to finish sync and flush since stop position [%+v] passed.", preamble, stopPosition))
 			finishSyncAndFlush = true
 		}
 
 		// Exit sync and flush records once the VGTID position is past the desired stop position, and we're no longer waiting for COPY phase to complete
 		if finishSyncAndFlush {
-			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because current position %+v is equal to, or after, stop position %+v", preamble, tc.Position, stopPosition))
+			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records with current position %+v", preamble, tc.Position))
 			return tc, resultCount, io.EOF
 		}
 
