@@ -193,9 +193,11 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		p.Logger.Log(LOGLEVEL_INFO, preamble+"Peeking to see if there's any new rows")
 		latestCursorPosition, lcErr := p.getLatestCursorPosition(ctx, currentPosition.Shard, currentPosition.Keyspace, table, ps, tabletType)
 		if lcErr != nil {
+			p.Logger.Log(LOGLEVEL_ERROR, preamble+fmt.Sprintf("Error fetching latest cursor position: %+v", lcErr))
 			return currentSerializedCursor, errors.Wrap(err, "Unable to get latest cursor position")
 		}
 		if latestCursorPosition == "" {
+			p.Logger.Log(LOGLEVEL_ERROR, preamble+fmt.Sprintf("Error fetching latest cursor position, was empty string: %+v", latestCursorPosition))
 			return currentSerializedCursor, errors.Wrap(err, "Unable to get latest cursor position")
 		}
 
@@ -270,7 +272,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 	c, err := vtgateClient.VStream(ctx, vtgateReq)
 
 	if err != nil {
-		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync due to client sync error: %+v", preamble, err))
+		p.Logger.Log(LOGLEVEL_ERROR, fmt.Sprintf("%sExiting sync due to client sync error: %+v", preamble, err))
 		return tc, 0, err
 	}
 
@@ -280,15 +282,15 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 	}
 
 	// Stop when we've:
-	//   - reached the stop position (for an incremental sync)
+	//   - reached a position after the stop position (for an incremental sync)
 	//   - or seen a COPY_COMPLETED event (for a full sync)
-	watchForVgGtidChange := false
+	finishSyncAndFlush := false
 	resultCount := 0
 	var fields []*query.Field
 	for {
 		res, err := c.Recv()
 		if err != nil {
-			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records due to error: %+v", preamble, err))
+			p.Logger.Log(LOGLEVEL_ERROR, fmt.Sprintf("%sExiting sync and flushing records due to error: %+v", preamble, err))
 			return tc, resultCount, err
 		}
 
@@ -337,17 +339,17 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		}
 
 		if waitForCopyCompleted && copyCompletedSeen {
-			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sCopy phase completed. Waiting for next VGTID after stop position.", preamble))
-			watchForVgGtidChange = true
+			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sCopy phase completed.", preamble))
+			finishSyncAndFlush = true
 		}
-		if !waitForCopyCompleted && positionEqual(tc.Position, stopPosition) {
-			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sStop position [%+v] found. Waiting for next VGTID after stop position.", preamble, stopPosition))
-			watchForVgGtidChange = true
+		if !waitForCopyCompleted && positionAfter(tc.Position, stopPosition) {
+			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sStop position [%+v] passed.", preamble, stopPosition))
+			finishSyncAndFlush = true
 		}
 
 		// Exit sync and flush records once the VGTID position is past the desired stop position, and we're no longer waiting for COPY phase to complete
-		if watchForVgGtidChange && positionAfter(tc.Position, stopPosition) {
-			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because current position %+v has passed stop position %+v", preamble, tc.Position, stopPosition))
+		if finishSyncAndFlush {
+			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because current position %+v is equal to, or after, stop position %+v", preamble, tc.Position, stopPosition))
 			return tc, resultCount, io.EOF
 		}
 
@@ -366,6 +368,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 			}
 		}
 	}
+
 }
 
 func (p PlanetScaleEdgeDatabase) getLatestCursorPosition(ctx context.Context, shard, keyspace string, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType) (string, error) {
@@ -499,6 +502,25 @@ func positionEqual(a string, b string) bool {
 	}
 
 	return parsedA.Equal(parsedB)
+}
+
+// positionAtLeast returns true if position `a` is equal to, or after position `b`
+func positionAtLeast(a string, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+
+	parsedA, err := vtmysql.DecodePosition(a)
+	if err != nil {
+		return false
+	}
+
+	parsedB, err := vtmysql.DecodePosition(b)
+	if err != nil {
+		return false
+	}
+
+	return parsedA.AtLeast(parsedB)
 }
 
 // positionAfter returns true if position `a` is after position `b`

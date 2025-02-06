@@ -766,7 +766,7 @@ func TestRead_IncrementalSync_CanReturnNewCursorIfNewFound(t *testing.T) {
 	assert.Equal(t, 2, vsc.vstreamFnInvokedCount)
 }
 
-// CanStopAtWellKnownCursor tests stopping & flushing records once stop position is passed during an incremental sync
+// CanStopAtWellKnownCursor tests stopping & flushing records once stop position is reached during an incremental sync
 func TestRead_IncrementalSync_CanStopAtWellKnownCursor(t *testing.T) {
 	tma := getTestMysqlAccess()
 	tal := testAirbyteLogger{}
