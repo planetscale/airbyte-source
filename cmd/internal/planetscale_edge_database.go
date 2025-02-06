@@ -281,15 +281,20 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 		keyspaceOrDatabase = ps.Database
 	}
 
-	// Stop when we've:
-	//   - reached a position after the stop position (for an incremental sync)
-	//   - or seen a COPY_COMPLETED event (for a full sync)
-	finishSyncAndFlush := false
+	// Can finish sync once we've synced to the stop position, or finished the VStream COPY phase
+	canFinishSync := false
 	resultCount := 0
+
 	var fields []*query.Field
+
 	for {
 		res, err := c.Recv()
 		if err != nil {
+			if s, ok := status.FromError(err); ok && s.Code() == codes.DeadlineExceeded && canFinishSync {
+				// No next VGTID found, but we previously found stop position or finished VStream COPY phase
+				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because no new VGTID found after stop position %+v", preamble, stopPosition))
+				return tc, resultCount, io.EOF
+			}
 			p.Logger.Log(LOGLEVEL_ERROR, fmt.Sprintf("%sExiting sync and flushing records due to error: %+v", preamble, err))
 			return tc, resultCount, err
 		}
@@ -340,16 +345,16 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, tc *psdbconnect.Table
 
 		if waitForCopyCompleted && copyCompletedSeen {
 			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sReady to finish sync and flush since copy phase completed.", preamble))
-			finishSyncAndFlush = true
+			canFinishSync = true
 		}
-		if !waitForCopyCompleted && positionAfter(tc.Position, stopPosition) {
-			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sReady to finish sync and flush since stop position [%+v] passed.", preamble, stopPosition))
-			finishSyncAndFlush = true
+		if !waitForCopyCompleted && positionEqual(tc.Position, stopPosition) {
+			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sReady to finish sync and flush since stop position [%+v] found.", preamble, stopPosition))
+			canFinishSync = true
 		}
 
 		// Exit sync and flush records once the VGTID position is past the desired stop position, and we're no longer waiting for COPY phase to complete
-		if finishSyncAndFlush {
-			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records with current position %+v", preamble, tc.Position))
+		if canFinishSync && positionAfter(tc.Position, stopPosition) {
+			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because current position %+v has passed stop position %+v", preamble, tc.Position, stopPosition))
 			return tc, resultCount, io.EOF
 		}
 
