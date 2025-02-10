@@ -509,25 +509,6 @@ func positionEqual(a string, b string) bool {
 	return parsedA.Equal(parsedB)
 }
 
-// positionAtLeast returns true if position `a` is equal to, or after position `b`
-func positionAtLeast(a string, b string) bool {
-	if a == "" || b == "" {
-		return false
-	}
-
-	parsedA, err := vtmysql.DecodePosition(a)
-	if err != nil {
-		return false
-	}
-
-	parsedB, err := vtmysql.DecodePosition(b)
-	if err != nil {
-		return false
-	}
-
-	return parsedA.AtLeast(parsedB)
-}
-
 // positionAfter returns true if position `a` is after position `b`
 func positionAfter(a string, b string) bool {
 	if a == "" || b == "" {
