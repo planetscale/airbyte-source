@@ -7,7 +7,7 @@ import (
 
 	"google.golang.org/grpc"
 	"vitess.io/vitess/go/vt/proto/vtgate"
-	vtgateservice "vitess.io/vitess/go/vt/proto/vtgateservice"
+	"vitess.io/vitess/go/vt/proto/vtgateservice"
 )
 
 type testAirbyteLogger struct {

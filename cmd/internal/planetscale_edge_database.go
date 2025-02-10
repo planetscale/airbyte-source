@@ -22,7 +22,7 @@ import (
 	"vitess.io/vitess/go/vt/proto/query"
 	"vitess.io/vitess/go/vt/proto/topodata"
 	"vitess.io/vitess/go/vt/proto/vtgate"
-	vtgateservice "vitess.io/vitess/go/vt/proto/vtgateservice"
+	"vitess.io/vitess/go/vt/proto/vtgateservice"
 	_ "vitess.io/vitess/go/vt/vtctl/grpcvtctlclient"
 	_ "vitess.io/vitess/go/vt/vtgate/grpcvtgateconn"
 )
