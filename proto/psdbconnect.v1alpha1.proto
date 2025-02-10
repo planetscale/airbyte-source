@@ -61,8 +61,3 @@ message TableCursor {
   string position = 3;
   query.QueryResult last_known_pk = 4;
 }
-
-service Connect {
-  rpc Sync(SyncRequest) returns (stream SyncResponse) {}
-}
-
