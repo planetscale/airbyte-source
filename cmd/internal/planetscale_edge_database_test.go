@@ -1795,3 +1795,323 @@ func TestRead_FullSync_CanStopSyncEqualToStopPosition(t *testing.T) {
 	records := tal.records["connect-test.customers"]
 	assert.Equal(t, 10, len(records))
 }
+
+/*
+*
+FullSync_CopyCatchupLoop tests the following situation:
+1. Full sync (no start cursor)
+2. Dataset is large so we reach `vreplication_copy_phase_duration`, cutting COPY phase short
+3. A catchup phase is run
+4. Another COPY phase is run
+5. A catchup phase is run
+6. We reach COPY COMPLETED
+*
+*/
+func TestRead_FullSync_CopyCatchupLoop(t *testing.T) {
+	tma := getTestMysqlAccess()
+	tal := testAirbyteLogger{}
+	ped := PlanetScaleEdgeDatabase{
+		Logger: &tal,
+		Mysql:  tma,
+	}
+
+	startCursor := &psdbconnect.TableCursor{
+		Shard:    "-",
+		Keyspace: "connect-test",
+		Position: "",
+	}
+	stopVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 8)
+	nextSyncVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 10)
+
+	numRows := 10
+	shard := "-"
+	keyspace := "connect-test"
+	table := "customers"
+	database := "connect-test"
+
+	responses := []*vtgate.VStreamResponse{
+		{
+			Events: []*binlogdata.VEvent{
+				{
+					Type:     binlogdata.VEventType_BEGIN,
+					Keyspace: keyspace,
+					Shard:    shard,
+				},
+				{
+					Type:     binlogdata.VEventType_VGTID,
+					Keyspace: keyspace,
+					Shard:    shard,
+					Vgtid: &binlogdata.VGtid{
+						ShardGtids: []*binlogdata.ShardGtid{
+							{
+								Keyspace: keyspace,
+								Shard:    shard,
+								Gtid:     stopVGtidPosition,
+							},
+						},
+					},
+				},
+				{
+					Type:     binlogdata.VEventType_COMMIT,
+					Keyspace: keyspace,
+					Shard:    shard,
+				},
+				{
+					Type: binlogdata.VEventType_FIELD,
+					FieldEvent: &binlogdata.FieldEvent{
+						TableName: table,
+						Fields: []*query.Field{
+							{
+								Name:         "id",
+								Type:         query.Type_INT64,
+								Table:        table,
+								OrgTable:     table,
+								Database:     database,
+								ColumnLength: 20,
+								Charset:      63,
+								ColumnType:   "bigint",
+							},
+							{
+								Name:         "product",
+								Type:         query.Type_VARCHAR,
+								Table:        table,
+								OrgTable:     table,
+								Database:     database,
+								ColumnLength: 1024,
+								Charset:      255,
+								ColumnType:   "varchar(256)",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	copyPhase1 := vtgate.VStreamResponse{
+		Events: []*binlogdata.VEvent{
+			{
+				Type:     binlogdata.VEventType_BEGIN,
+				Keyspace: keyspace,
+				Shard:    shard,
+			},
+		},
+	}
+	for i := 0; i < numRows; i++ {
+		event := binlogdata.VEvent{
+			Type: binlogdata.VEventType_ROW,
+			RowEvent: &binlogdata.RowEvent{
+				TableName: table,
+				RowChanges: []*binlogdata.RowChange{
+					{
+						After: &query.Row{
+							Values: []byte(fmt.Sprintf("%v,keyboard", i)),
+						},
+					},
+				},
+			},
+		}
+		copyPhase1.Events = append(copyPhase1.Events, &event)
+	}
+
+	responses = append(responses, &copyPhase1)
+
+	catchupPhase1 := vtgate.VStreamResponse{
+		Events: []*binlogdata.VEvent{
+			{
+				Type:     binlogdata.VEventType_BEGIN,
+				Keyspace: "sharded",
+				Shard:    "-80",
+			},
+			{
+				Type: binlogdata.VEventType_ROW,
+				RowEvent: &binlogdata.RowEvent{
+					TableName: "sharded.t1",
+					RowChanges: []*binlogdata.RowChange{
+						{
+							After: &query.Row{
+								Values: []byte(fmt.Sprintf("%v,keyboard", 9)),
+							},
+						},
+					},
+				},
+			},
+			{
+				Type:     binlogdata.VEventType_VGTID,
+				Keyspace: keyspace,
+				Shard:    shard,
+				Vgtid: &binlogdata.VGtid{
+					ShardGtids: []*binlogdata.ShardGtid{
+						{
+							Keyspace: keyspace,
+							Shard:    shard,
+							Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", numRows),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	responses = append(responses, &catchupPhase1)
+
+	copyPhase2 := vtgate.VStreamResponse{
+		Events: []*binlogdata.VEvent{
+			{
+				Type:     binlogdata.VEventType_BEGIN,
+				Keyspace: keyspace,
+				Shard:    shard,
+			},
+		},
+	}
+	for i := numRows + 1; i < numRows+11; i++ {
+		event := binlogdata.VEvent{
+			Type: binlogdata.VEventType_ROW,
+			RowEvent: &binlogdata.RowEvent{
+				TableName: table,
+				RowChanges: []*binlogdata.RowChange{
+					{
+						After: &query.Row{
+							Values: []byte(fmt.Sprintf("%v,keyboard", i)),
+						},
+					},
+				},
+			},
+		}
+		copyPhase2.Events = append(copyPhase2.Events, &event)
+	}
+
+	responses = append(responses, &copyPhase2)
+
+	catchupPhase2 := vtgate.VStreamResponse{
+		Events: []*binlogdata.VEvent{
+			{
+				Type:     binlogdata.VEventType_BEGIN,
+				Keyspace: "sharded",
+				Shard:    "-80",
+			},
+			{
+				Type: binlogdata.VEventType_ROW,
+				RowEvent: &binlogdata.RowEvent{
+					TableName: "sharded.t1",
+					RowChanges: []*binlogdata.RowChange{
+						{
+							After: &query.Row{
+								Values: []byte(fmt.Sprintf("%v,keyboard", numRows+11)),
+							},
+						},
+					},
+				},
+			},
+			{
+				Type:     binlogdata.VEventType_VGTID,
+				Keyspace: keyspace,
+				Shard:    shard,
+				Vgtid: &binlogdata.VGtid{
+					ShardGtids: []*binlogdata.ShardGtid{
+						{
+							Keyspace: keyspace,
+							Shard:    shard,
+							Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 10),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	responses = append(responses, &catchupPhase2)
+
+	responses = append(responses, &vtgate.VStreamResponse{
+		Events: []*binlogdata.VEvent{
+			{
+				Type: binlogdata.VEventType_COPY_COMPLETED,
+			},
+		},
+	})
+
+	responses = append(responses, &vtgate.VStreamResponse{
+		Events: []*binlogdata.VEvent{
+			{
+				Type:     binlogdata.VEventType_VGTID,
+				Keyspace: keyspace,
+				Shard:    shard,
+				Vgtid: &binlogdata.VGtid{
+					ShardGtids: []*binlogdata.ShardGtid{
+						{
+							Keyspace: keyspace,
+							Shard:    shard,
+							Gtid:     nextSyncVGtidPosition,
+						},
+					},
+				},
+			},
+		},
+	})
+
+	getCurrentVGtidClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vtgate.VStreamResponse{
+			// First sync to get stop position
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    shard,
+									Gtid:     stopVGtidPosition,
+									Keyspace: keyspace,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: responses,
+	}
+
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			assert.Equal(t, topodata.TabletType_PRIMARY, in.TabletType)
+			if in.Vgtid.ShardGtids[0].Gtid == "current" {
+				return getCurrentVGtidClient, nil
+			}
+			return vstreamSyncClient, nil
+		},
+	}
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
+	}
+
+	ps := PlanetScaleSource{
+		Database: "connect-test",
+	}
+	cs := ConfiguredStream{
+		Stream: Stream{
+			Name:      "customers",
+			Namespace: "connect-test",
+		},
+	}
+
+	nextSyncStartCursor, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	assert.NoError(t, err)
+	// Next sync will start at the VGTID where COPY COMPLETED is
+	esc, err := TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+		Shard:    "-",
+		Keyspace: "connect-test",
+		Position: nextSyncVGtidPosition,
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, esc, nextSyncStartCursor)
+	assert.Equal(t, 2, vsc.vstreamFnInvokedCount)
+
+	logLines := tal.logMessages[LOGLEVEL_INFO]
+	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records for table [customers]", 22), logLines[len(logLines)-1])
+	records := tal.records["connect-test.customers"]
+	assert.Equal(t, 22, len(records))
+}
