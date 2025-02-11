@@ -11,7 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"vitess.io/vitess/go/sqltypes"
+	"vitess.io/vitess/go/vt/proto/binlogdata"
 	"vitess.io/vitess/go/vt/proto/query"
+	"vitess.io/vitess/go/vt/proto/topodata"
+	"vitess.io/vitess/go/vt/proto/vtgate"
+	"vitess.io/vitess/go/vt/proto/vtgateservice"
 )
 
 func TestRead_CanPeekBeforeRead(t *testing.T) {
@@ -27,25 +31,42 @@ func TestRead_CanPeekBeforeRead(t *testing.T) {
 		Keyspace: "connect-test",
 	}
 
-	syncClient := &connectSyncClientMock{
-		syncResponses: []*psdbconnect.SyncResponse{
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vtgate.VStreamResponse{
 			{
-				Cursor: tc,
-			},
-			{
-				Cursor: tc,
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    "-",
+									Gtid:     "THIS_IS_A_SHARD_GTID",
+									Keyspace: "connect-test",
+								},
+								{
+									Shard:    "-",
+									Gtid:     "THIS_IS_A_SHARD_GTID",
+									Keyspace: "connect-test",
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	}
 
-	cc := clientConnectionMock{
-		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-			return syncClient, nil
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			return vstreamSyncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
-		return &cc, nil
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
 	}
+
 	ps := PlanetScaleSource{}
 	cs := ConfiguredStream{
 		Stream: Stream{
@@ -58,7 +79,7 @@ func TestRead_CanPeekBeforeRead(t *testing.T) {
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
-	assert.Equal(t, 1, cc.syncFnInvokedCount)
+	assert.Equal(t, 1, vsc.vstreamFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
 	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
@@ -76,20 +97,42 @@ func TestRead_CanEarlyExitIfNoNewVGtidInPeek(t *testing.T) {
 		Keyspace: "connect-test",
 	}
 
-	syncClient := &connectSyncClientMock{
-		syncResponses: []*psdbconnect.SyncResponse{
-			{Cursor: tc},
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vtgate.VStreamResponse{
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    "-",
+									Gtid:     "THIS_IS_A_SHARD_GTID",
+									Keyspace: "connect-test",
+								},
+								{
+									Shard:    "-",
+									Gtid:     "THIS_IS_A_SHARD_GTID",
+									Keyspace: "connect-test",
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 
-	cc := clientConnectionMock{
-		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-			return syncClient, nil
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			return vstreamSyncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
-		return &cc, nil
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
 	}
+
 	ps := PlanetScaleSource{}
 	cs := ConfiguredStream{
 		Stream: Stream{
@@ -102,7 +145,7 @@ func TestRead_CanEarlyExitIfNoNewVGtidInPeek(t *testing.T) {
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
-	assert.Equal(t, 1, cc.syncFnInvokedCount)
+	assert.Equal(t, 1, vsc.vstreamFnInvokedCount)
 }
 
 func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
@@ -118,22 +161,39 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 		Keyspace: "connect-test",
 	}
 
-	syncClient := &connectSyncClientMock{
-		syncResponses: []*psdbconnect.SyncResponse{
-			{Cursor: tc},
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vtgate.VStreamResponse{
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    tc.Shard,
+									Gtid:     tc.Position,
+									Keyspace: tc.Keyspace,
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 
-	cc := clientConnectionMock{
-		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
-			assert.Contains(t, in.Cells, "planetscale_operator_default")
-			return syncClient, nil
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			assert.Equal(t, topodata.TabletType_PRIMARY, in.TabletType)
+			assert.Contains(t, in.Flags.Cells, "planetscale_operator_default")
+			return vstreamSyncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
-		return &cc, nil
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
 	}
+
 	ps := PlanetScaleSource{
 		Database: "connect-test",
 	}
@@ -148,7 +208,7 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
-	assert.Equal(t, 1, cc.syncFnInvokedCount)
+	assert.Equal(t, 1, vsc.vstreamFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
 	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
@@ -166,21 +226,37 @@ func TestRead_CanPickReplicaForShardedKeyspaces(t *testing.T) {
 		Keyspace: "connect-test",
 	}
 
-	syncClient := &connectSyncClientMock{
-		syncResponses: []*psdbconnect.SyncResponse{
-			{Cursor: tc},
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vtgate.VStreamResponse{
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    tc.Shard,
+									Gtid:     tc.Position,
+									Keyspace: tc.Keyspace,
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 
-	cc := clientConnectionMock{
-		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-			assert.Equal(t, psdbconnect.TabletType_replica, in.TabletType)
-			assert.Contains(t, in.Cells, "planetscale_operator_default")
-			return syncClient, nil
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			assert.Equal(t, topodata.TabletType_REPLICA, in.TabletType)
+			assert.Contains(t, in.Flags.Cells, "planetscale_operator_default")
+			return vstreamSyncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
-		return &cc, nil
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
 	}
 	ps := PlanetScaleSource{
 		Database:   "connect-test",
@@ -197,7 +273,7 @@ func TestRead_CanPickReplicaForShardedKeyspaces(t *testing.T) {
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
-	assert.Equal(t, 1, cc.syncFnInvokedCount)
+	assert.Equal(t, 1, vsc.vstreamFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
 	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
@@ -215,21 +291,37 @@ func TestRead_CanPickRdonlyForShardedKeyspaces(t *testing.T) {
 		Keyspace: "connect-test",
 	}
 
-	syncClient := &connectSyncClientMock{
-		syncResponses: []*psdbconnect.SyncResponse{
-			{Cursor: tc},
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vtgate.VStreamResponse{
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    tc.Shard,
+									Gtid:     tc.Position,
+									Keyspace: tc.Keyspace,
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 
-	cc := clientConnectionMock{
-		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-			assert.Equal(t, psdbconnect.TabletType_batch, in.TabletType)
-			assert.Contains(t, in.Cells, "planetscale_operator_default")
-			return syncClient, nil
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			assert.Equal(t, topodata.TabletType_RDONLY, in.TabletType)
+			assert.Contains(t, in.Flags.Cells, "planetscale_operator_default")
+			return vstreamSyncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
-		return &cc, nil
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
 	}
 	ps := PlanetScaleSource{
 		Database:  "connect-test",
@@ -246,7 +338,7 @@ func TestRead_CanPickRdonlyForShardedKeyspaces(t *testing.T) {
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
-	assert.Equal(t, 1, cc.syncFnInvokedCount)
+	assert.Equal(t, 1, vsc.vstreamFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
 	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
@@ -379,6 +471,7 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 		})
 	}
 }
+
 func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
@@ -392,23 +485,37 @@ func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 		Keyspace: "connect-test",
 	}
 
-	syncClient := &connectSyncClientMock{
-		syncResponses: []*psdbconnect.SyncResponse{
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vtgate.VStreamResponse{
 			{
-				Cursor: tc,
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    tc.Shard,
+									Gtid:     tc.Position,
+									Keyspace: tc.Keyspace,
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	}
 
-	cc := clientConnectionMock{
-		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
-			assert.Contains(t, in.Cells, "planetscale_operator_default")
-			return syncClient, nil
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			assert.Equal(t, topodata.TabletType_PRIMARY, in.TabletType)
+			assert.Contains(t, in.Flags.Cells, "planetscale_operator_default")
+			return vstreamSyncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
-		return &cc, nil
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
 	}
 	ps := PlanetScaleSource{
 		Database: "connect-test",
@@ -424,7 +531,7 @@ func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
-	assert.Equal(t, 1, cc.syncFnInvokedCount)
+	assert.Equal(t, 1, vsc.vstreamFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
 	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
@@ -438,27 +545,41 @@ func TestRead_CanPickReplicaForUnshardedKeyspaces(t *testing.T) {
 	}
 	tc := &psdbconnect.TableCursor{
 		Shard:    "-",
-		Position: "THIS_IS_A_SHARD_GTID",
+		Position: "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-2,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2",
 		Keyspace: "connect-test",
 	}
 
-	syncClient := &connectSyncClientMock{
-		syncResponses: []*psdbconnect.SyncResponse{
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vtgate.VStreamResponse{
 			{
-				Cursor: tc,
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    tc.Shard,
+									Gtid:     tc.Position,
+									Keyspace: tc.Keyspace,
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	}
 
-	cc := clientConnectionMock{
-		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-			assert.Equal(t, psdbconnect.TabletType_replica, in.TabletType)
-			assert.Contains(t, in.Cells, "planetscale_operator_default")
-			return syncClient, nil
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			assert.Equal(t, topodata.TabletType_REPLICA, in.TabletType)
+			assert.Contains(t, in.Flags.Cells, "planetscale_operator_default")
+			return vstreamSyncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
-		return &cc, nil
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
 	}
 	ps := PlanetScaleSource{
 		Database:   "connect-test",
@@ -475,12 +596,13 @@ func TestRead_CanPickReplicaForUnshardedKeyspaces(t *testing.T) {
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
-	assert.Equal(t, 1, cc.syncFnInvokedCount)
+	assert.Equal(t, 1, vsc.vstreamFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
 	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
 
-func TestRead_CanReturnOriginalCursorIfNoNewFound(t *testing.T) {
+// CanReturnNewCursorIfNewFound tests returning the same GTid as stop position
+func TestRead_IncrementalSync_CanReturnOriginalCursorIfNoNewFound(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
 	ped := PlanetScaleEdgeDatabase{
@@ -489,24 +611,41 @@ func TestRead_CanReturnOriginalCursorIfNoNewFound(t *testing.T) {
 	}
 	tc := &psdbconnect.TableCursor{
 		Shard:    "-",
-		Position: "THIS_IS_A_SHARD_GTID",
+		Position: "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-2,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2",
 		Keyspace: "connect-test",
 	}
 
-	syncClient := &connectSyncClientMock{
-		syncResponses: []*psdbconnect.SyncResponse{
-			{Cursor: tc},
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vtgate.VStreamResponse{
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    tc.Shard,
+									Gtid:     tc.Position,
+									Keyspace: tc.Keyspace,
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 
-	cc := clientConnectionMock{
-		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
-			return syncClient, nil
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			assert.Equal(t, topodata.TabletType_PRIMARY, in.TabletType)
+			assert.Contains(t, in.Flags.Cells, "planetscale_operator_default")
+			return vstreamSyncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
-		return &cc, nil
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
 	}
 	ps := PlanetScaleSource{
 		Database: "connect-test",
@@ -522,10 +661,11 @@ func TestRead_CanReturnOriginalCursorIfNoNewFound(t *testing.T) {
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
-	assert.Equal(t, 1, cc.syncFnInvokedCount)
+	assert.Equal(t, 1, vsc.vstreamFnInvokedCount)
 }
 
-func TestRead_CanReturnNewCursorIfNewFound(t *testing.T) {
+// CanReturnNewCursorIfNewFound tests returning the GTid after the stop position as the start GTid for the next sync
+func TestRead_IncrementalSync_CanReturnNewCursorIfNewFound(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
 	ped := PlanetScaleEdgeDatabase{
@@ -543,21 +683,71 @@ func TestRead_CanReturnNewCursorIfNewFound(t *testing.T) {
 		Keyspace: "connect-test",
 	}
 
-	syncClient := &connectSyncClientMock{
-		syncResponses: []*psdbconnect.SyncResponse{
-			{Cursor: newTC},
-			{Cursor: newTC, Result: []*query.QueryResult{{Rows: []*query.Row{{Values: []byte("1,my_name")}}}}},
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vtgate.VStreamResponse{
+			// First sync to get end position
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    newTC.Shard,
+									Gtid:     newTC.Position,
+									Keyspace: newTC.Keyspace,
+								},
+							},
+						},
+					},
+				},
+			},
+			// First recv() of second sync for rows
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    newTC.Shard,
+									Gtid:     newTC.Position,
+									Keyspace: newTC.Keyspace,
+								},
+							},
+						},
+					},
+				},
+			},
+			// Second recv() of second sync for rows
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_ROW,
+						RowEvent: &binlogdata.RowEvent{
+							TableName: "customers",
+							Keyspace:  newTC.Keyspace,
+							Shard:     newTC.Shard,
+							RowChanges: []*binlogdata.RowChange{
+								{
+									After: &query.Row{Values: []byte("1,my_name")},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 
-	cc := clientConnectionMock{
-		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
-			return syncClient, nil
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			return vstreamSyncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
-		return &cc, nil
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
 	}
 	ps := PlanetScaleSource{
 		Database: "connect-test",
@@ -573,10 +763,11 @@ func TestRead_CanReturnNewCursorIfNewFound(t *testing.T) {
 	esc, err := TableCursorToSerializedCursor(newTC)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
-	assert.Equal(t, 2, cc.syncFnInvokedCount)
+	assert.Equal(t, 2, vsc.vstreamFnInvokedCount)
 }
 
-func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
+// CanStopAtWellKnownCursor tests stopping & flushing records once stop position is reached during an incremental sync
+func TestRead_IncrementalSync_CanStopAtWellKnownCursor(t *testing.T) {
 	tma := getTestMysqlAccess()
 	tal := testAirbyteLogger{}
 	ped := PlanetScaleEdgeDatabase{
@@ -584,64 +775,157 @@ func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
 		Mysql:  tma,
 	}
 
-	numResponses := 10
-	// when the client tries to get the "current" vgtid,
-	// we return the ante-penultimate element of the array.
-	currentVGtidPosition := (numResponses * 3) - 4 // position 26, GTID: 1-8
-	// this is the next vgtid that should stop the sync session.
-	nextVGtidPosition := currentVGtidPosition + 1 // position 27, GTID: 1-9
-	responses := make([]*psdbconnect.SyncResponse, 0, numResponses)
-	for i := 0; i < numResponses; i++ { // 10
-		// this simulates multiple events being returned, for the same vgtid, from vstream
-		for x := 0; x < 3; x++ {
-			var result []*query.QueryResult
-			if x == 2 {
-				result = []*query.QueryResult{
-					sqltypes.ResultToProto3(sqltypes.MakeTestResult(sqltypes.MakeTestFields(
-						"pid|description",
-						"int64|varbinary"),
-						fmt.Sprintf("%v|keyboard", i+1),
-						fmt.Sprintf("%v|monitor", i+2),
-					)),
-				}
-			}
-
-			vgtid := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", i)
-			responses = append(responses, &psdbconnect.SyncResponse{
-				Cursor: &psdbconnect.TableCursor{
-					Shard:    "-",
-					Keyspace: "connect-test",
-					Position: vgtid,
+	numRows := 10
+	startVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 0)
+	stopVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 8)
+	nextSyncVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 9)
+	shard := "-"
+	keyspace := "connect-test"
+	table := "customers"
+	database := "connect-test"
+	responses := []*vtgate.VStreamResponse{
+		{
+			Events: []*binlogdata.VEvent{
+				{
+					Type:     binlogdata.VEventType_BEGIN,
+					Keyspace: keyspace,
+					Shard:    shard,
 				},
-				Result: result,
-			})
+				{
+					Type:     binlogdata.VEventType_VGTID,
+					Keyspace: keyspace,
+					Shard:    shard,
+					Vgtid: &binlogdata.VGtid{
+						ShardGtids: []*binlogdata.ShardGtid{
+							{
+								Keyspace: keyspace,
+								Shard:    shard,
+								Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 0),
+							},
+						},
+					},
+				},
+				{
+					Type:     binlogdata.VEventType_COMMIT,
+					Keyspace: keyspace,
+					Shard:    shard,
+				},
+				{
+					Type: binlogdata.VEventType_FIELD,
+					FieldEvent: &binlogdata.FieldEvent{
+						TableName: table,
+						Fields: []*query.Field{
+							{
+								Name:         "id",
+								Type:         query.Type_INT64,
+								Table:        table,
+								OrgTable:     table,
+								Database:     database,
+								ColumnLength: 20,
+								Charset:      63,
+								ColumnType:   "bigint",
+							},
+							{
+								Name:         "product",
+								Type:         query.Type_VARCHAR,
+								Table:        table,
+								OrgTable:     table,
+								Database:     database,
+								ColumnLength: 1024,
+								Charset:      255,
+								ColumnType:   "varchar(256)",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	for i := 1; i < numRows; i++ {
+		response := vtgate.VStreamResponse{
+			Events: []*binlogdata.VEvent{
+				{
+					Type:     binlogdata.VEventType_BEGIN,
+					Keyspace: keyspace,
+					Shard:    shard,
+				},
+				{
+					Type: binlogdata.VEventType_ROW,
+					RowEvent: &binlogdata.RowEvent{
+						TableName: table,
+						RowChanges: []*binlogdata.RowChange{
+							{
+								After: &query.Row{
+									Values: []byte(fmt.Sprintf("%v,keyboard", i)),
+								},
+							},
+						},
+					},
+				},
+				{
+					Type:     binlogdata.VEventType_VGTID,
+					Keyspace: keyspace,
+					Shard:    shard,
+					Vgtid: &binlogdata.VGtid{
+						ShardGtids: []*binlogdata.ShardGtid{
+							{
+								Keyspace: keyspace,
+								Shard:    shard,
+								Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", i),
+							},
+						},
+					},
+				},
+				{
+					Type:     binlogdata.VEventType_COMMIT,
+					Keyspace: keyspace,
+					Shard:    shard,
+				},
+			},
 		}
+		responses = append(responses, &response)
 	}
 
-	syncClient := &connectSyncClientMock{
-		syncResponses: responses,
-	}
-
-	getCurrentVGtidClient := &connectSyncClientMock{
-		syncResponses: []*psdbconnect.SyncResponse{
-			responses[currentVGtidPosition],
+	getCurrentVGtidClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vtgate.VStreamResponse{
+			// First sync to get stop position
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    shard,
+									Gtid:     stopVGtidPosition,
+									Keyspace: keyspace,
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 
-	cc := clientConnectionMock{
-		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
-			if in.Cursor.Position == "current" {
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: responses,
+	}
+
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			assert.Equal(t, topodata.TabletType_PRIMARY, in.TabletType)
+			if in.Vgtid.ShardGtids[0].Gtid == "current" {
 				return getCurrentVGtidClient, nil
 			}
-
-			return syncClient, nil
+			return vstreamSyncClient, nil
 		},
 	}
 
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
-		return &cc, nil
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
 	}
+
 	ps := PlanetScaleSource{
 		Database: "connect-test",
 	}
@@ -652,63 +936,228 @@ func TestRead_CanStopAtWellKnownCursor(t *testing.T) {
 		},
 	}
 
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, responses[0].Cursor)
+	startCursor := &psdbconnect.TableCursor{
+		Shard:    shard,
+		Keyspace: keyspace,
+		Position: startVGtidPosition,
+	}
+
+	expectedCursor := &psdbconnect.TableCursor{
+		Shard:    shard,
+		Keyspace: keyspace,
+		Position: nextSyncVGtidPosition,
+	}
+
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
 	assert.NoError(t, err)
-	// sync should start at the first vgtid
-	esc, err := TableCursorToSerializedCursor(responses[nextVGtidPosition].Cursor)
+	// Should output next VGtid after stop VGtid as cursor
+	esc, err := TableCursorToSerializedCursor(expectedCursor)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
-	assert.Equal(t, 2, cc.syncFnInvokedCount)
+	assert.Equal(t, 2, vsc.vstreamFnInvokedCount)
 
+	// There were 10 row events total
+	assert.Equal(t, 10, len(responses))
 	logLines := tal.logMessages[LOGLEVEL_INFO]
-	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records for table [customers]", nextVGtidPosition/3*2), logLines[len(logLines)-1])
+	// But only the first 8 (with VGtids <= stop position) will be synced
+	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records for table [customers]", 8), logLines[len(logLines)-1])
 	records := tal.records["connect-test.customers"]
-	assert.Equal(t, 2*(nextVGtidPosition/3), len(records))
+	assert.Equal(t, 8, len(records))
 }
 
-func TestRead_CanLogResults(t *testing.T) {
+// CanLogResults tests synced records from stopping & flushing records once stop position is passed
+func TestRead_IncrementalSync_CanLogResults(t *testing.T) {
 	tma := getTestMysqlAccess()
 	tal := testAirbyteLogger{}
 	ped := PlanetScaleEdgeDatabase{
 		Logger: &tal,
 		Mysql:  tma,
 	}
-	tc := &psdbconnect.TableCursor{
-		Shard:    "-",
-		Position: "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-2,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2",
-		Keyspace: "connect-test",
-	}
-	newTC := &psdbconnect.TableCursor{
-		Shard:    "-",
-		Position: "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-3,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2",
-		Keyspace: "connect-test",
+
+	keyspace := "connect-test"
+	shard := "-"
+	table := "products"
+	startVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-2,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2"
+	nextVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-4,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2"
+	stopVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-3,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2"
+
+	startCursor := &psdbconnect.TableCursor{
+		Shard:    shard,
+		Position: startVGtid,
+		Keyspace: keyspace,
 	}
 
-	result := []*query.QueryResult{
-		sqltypes.ResultToProto3(sqltypes.MakeTestResult(sqltypes.MakeTestFields(
-			"pid|description",
-			"int64|varbinary"),
-			"1|keyboard",
-			"2|monitor",
-		)),
-	}
-
-	syncClient := &connectSyncClientMock{
-		syncResponses: []*psdbconnect.SyncResponse{
-			{Cursor: newTC, Result: result},
-			{Cursor: newTC, Result: result},
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vtgate.VStreamResponse{
+			// First sync to get stop position
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    shard,
+									Gtid:     stopVGtid,
+									Keyspace: keyspace,
+								},
+							},
+						},
+					},
+				},
+			},
+			// 1st recv() of second sync for rows to get start VGtid
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    shard,
+									Gtid:     startVGtid,
+									Keyspace: keyspace,
+								},
+							},
+						},
+					},
+				},
+			},
+			// 2nd recv() of second sync for rows to get stop VGtid
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    shard,
+									Gtid:     stopVGtid,
+									Keyspace: keyspace,
+								},
+							},
+						},
+					},
+				},
+			},
+			// 3rd recv() for second sync for rows to get fields
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_FIELD,
+						FieldEvent: &binlogdata.FieldEvent{
+							TableName: table,
+							Fields: []*query.Field{
+								{
+									Name:         "pid",
+									Type:         query.Type_INT64,
+									Table:        table,
+									OrgTable:     table,
+									Database:     keyspace,
+									ColumnLength: 20,
+									Charset:      63,
+									ColumnType:   "bigint",
+								},
+								{
+									Name:         "description",
+									Type:         query.Type_VARCHAR,
+									Table:        table,
+									OrgTable:     table,
+									Database:     keyspace,
+									ColumnLength: 1024,
+									Charset:      255,
+									ColumnType:   "varchar(256)",
+								},
+							},
+						},
+					},
+				},
+			},
+			// 4th recv() of second sync for rows to get records
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_ROW,
+						RowEvent: &binlogdata.RowEvent{
+							TableName: table,
+							Keyspace:  keyspace,
+							Shard:     shard,
+							RowChanges: []*binlogdata.RowChange{
+								{
+									After: &query.Row{
+										Lengths: []int64{1, 8},
+										Values:  []byte("1keyboard"),
+									},
+								},
+								{
+									After: &query.Row{
+										Lengths: []int64{1, 7},
+										Values:  []byte("2monitor"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			// 5th recv() of second sync for rows to advance GTid past stop position
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    shard,
+									Gtid:     nextVGtid,
+									Keyspace: keyspace,
+								},
+							},
+						},
+					},
+				},
+			},
+			// Will not reach this event since stop position passed
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_ROW,
+						RowEvent: &binlogdata.RowEvent{
+							TableName: table,
+							Keyspace:  keyspace,
+							Shard:     shard,
+							RowChanges: []*binlogdata.RowChange{
+								{
+									After: &query.Row{
+										Lengths: []int64{1, 8},
+										Values:  []byte("1keyboard"),
+									},
+								},
+								{
+									After: &query.Row{
+										Lengths: []int64{1, 7},
+										Values:  []byte("2monitor"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 
-	cc := clientConnectionMock{
-		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
-			return syncClient, nil
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			assert.Equal(t, topodata.TabletType_PRIMARY, in.TabletType)
+			return vstreamSyncClient, nil
 		},
 	}
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
-		return &cc, nil
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
 	}
+
 	ps := PlanetScaleSource{
 		Database: "connect-test",
 	}
@@ -718,7 +1167,7 @@ func TestRead_CanLogResults(t *testing.T) {
 			Namespace: "connect-test",
 		},
 	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
 	assert.NoError(t, err)
 	assert.NotNil(t, sc)
 	assert.Equal(t, 2, len(tal.records["connect-test.products"]))
@@ -742,6 +1191,154 @@ func TestRead_CanLogResults(t *testing.T) {
 	}
 	assert.True(t, keyboardFound)
 	assert.True(t, monitorFound)
+}
+
+// CanStopIfNoRows tests stopping even if no rows are found during an incremental sync
+func TestRead_IncrementalSync_CanStopIfNoRows(t *testing.T) {
+	tma := getTestMysqlAccess()
+	tal := testAirbyteLogger{}
+	ped := PlanetScaleEdgeDatabase{
+		Logger: &tal,
+		Mysql:  tma,
+	}
+
+	keyspace := "connect-test"
+	shard := "-"
+	table := "products"
+	startVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-2,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2"
+	nextVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-4,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2"
+	stopVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-3,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2"
+
+	startCursor := &psdbconnect.TableCursor{
+		Shard:    shard,
+		Position: startVGtid,
+		Keyspace: keyspace,
+	}
+
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vtgate.VStreamResponse{
+			// First sync to get stop position
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    shard,
+									Gtid:     stopVGtid,
+									Keyspace: keyspace,
+								},
+							},
+						},
+					},
+				},
+			},
+			// 1st recv() of second sync for rows to get start VGtid
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    shard,
+									Gtid:     startVGtid,
+									Keyspace: keyspace,
+								},
+							},
+						},
+					},
+				},
+			},
+			// 2nd recv() of second sync for rows to get stop VGtid
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    shard,
+									Gtid:     stopVGtid,
+									Keyspace: keyspace,
+								},
+							},
+						},
+					},
+				},
+			},
+			// 3rd recv() of second sync for rows to advance GTid past stop position
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    shard,
+									Gtid:     nextVGtid,
+									Keyspace: keyspace,
+								},
+							},
+						},
+					},
+				},
+			},
+			// Will not reach this event since stop position passed
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_ROW,
+						RowEvent: &binlogdata.RowEvent{
+							TableName: table,
+							Keyspace:  keyspace,
+							Shard:     shard,
+							RowChanges: []*binlogdata.RowChange{
+								{
+									After: &query.Row{
+										Lengths: []int64{1, 8},
+										Values:  []byte("1keyboard"),
+									},
+								},
+								{
+									After: &query.Row{
+										Lengths: []int64{1, 7},
+										Values:  []byte("2monitor"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			assert.Equal(t, topodata.TabletType_PRIMARY, in.TabletType)
+			return vstreamSyncClient, nil
+		},
+	}
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
+	}
+
+	ps := PlanetScaleSource{
+		Database: "connect-test",
+	}
+	cs := ConfiguredStream{
+		Stream: Stream{
+			Name:      "products",
+			Namespace: "connect-test",
+		},
+	}
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	assert.NoError(t, err)
+	assert.NotNil(t, sc)
+	assert.Equal(t, 0, len(tal.records["connect-test.products"]))
 }
 
 func getTestMysqlAccess() *mysqlAccessMock {
@@ -782,7 +1379,7 @@ CanSyncPastStopPosition tests the following situation:
 6. We return "next VGTID position" (the first VGTID position that is after the "stop VGTID") as the "start cursor" for the next sync
 *
 */
-func TestRead_CanStopSyncPastStopPosition(t *testing.T) {
+func TestRead_FullSync_CanStopSyncPastStopPosition(t *testing.T) {
 	tma := getTestMysqlAccess()
 	tal := testAirbyteLogger{}
 	ped := PlanetScaleEdgeDatabase{
@@ -790,87 +1387,173 @@ func TestRead_CanStopSyncPastStopPosition(t *testing.T) {
 		Mysql:  tma,
 	}
 
-	stopVGTIDNumber := 7
-	currentVGTIDNumber := 8
-	nextVGTIDNumber := currentVGTIDNumber
-	stopVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", stopVGTIDNumber)
-	currentVGTIDPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", currentVGTIDNumber)
-	nextVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", nextVGTIDNumber)
 	startCursor := &psdbconnect.TableCursor{
 		Shard:    "-",
 		Keyspace: "connect-test",
 		Position: "",
 	}
+	stopVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 8)
+	nextSyncVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 9)
 
-	results := []*query.QueryResult{
-		sqltypes.ResultToProto3(sqltypes.MakeTestResult(sqltypes.MakeTestFields(
-			"pid|description",
-			"int64|varbinary"),
-			fmt.Sprintf("%v|keyboard", 1),
-			fmt.Sprintf("%v|monitor", 2),
-			fmt.Sprintf("%v|keyboard", 3),
-			fmt.Sprintf("%v|monitor", 4),
-			fmt.Sprintf("%v|keyboard", 5),
-			fmt.Sprintf("%v|monitor", 6),
-			fmt.Sprintf("%v|keyboard", 7),
-			fmt.Sprintf("%v|monitor", 8),
-			fmt.Sprintf("%v|keyboard", 9),
-			fmt.Sprintf("%v|monitor", 10),
-		)),
-	}
+	numRows := 10
+	shard := "-"
+	keyspace := "connect-test"
+	table := "customers"
+	database := "connect-test"
 
-	responses := []*psdbconnect.SyncResponse{
-		// A heartbeat response that can occur first, with the same VGTID as a response with rows
+	responses := []*vtgate.VStreamResponse{
 		{
-			Cursor: &psdbconnect.TableCursor{
-				Shard:    "-",
-				Keyspace: "connect-test",
-				Position: currentVGTIDPosition,
+			Events: []*binlogdata.VEvent{
+				{
+					Type:     binlogdata.VEventType_BEGIN,
+					Keyspace: keyspace,
+					Shard:    shard,
+				},
+				{
+					Type:     binlogdata.VEventType_VGTID,
+					Keyspace: keyspace,
+					Shard:    shard,
+					Vgtid: &binlogdata.VGtid{
+						ShardGtids: []*binlogdata.ShardGtid{
+							{
+								Keyspace: keyspace,
+								Shard:    shard,
+								Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 9),
+							},
+						},
+					},
+				},
+				{
+					Type:     binlogdata.VEventType_COMMIT,
+					Keyspace: keyspace,
+					Shard:    shard,
+				},
+				{
+					Type: binlogdata.VEventType_FIELD,
+					FieldEvent: &binlogdata.FieldEvent{
+						TableName: table,
+						Fields: []*query.Field{
+							{
+								Name:         "id",
+								Type:         query.Type_INT64,
+								Table:        table,
+								OrgTable:     table,
+								Database:     database,
+								ColumnLength: 20,
+								Charset:      63,
+								ColumnType:   "bigint",
+							},
+							{
+								Name:         "product",
+								Type:         query.Type_VARCHAR,
+								Table:        table,
+								OrgTable:     table,
+								Database:     database,
+								ColumnLength: 1024,
+								Charset:      255,
+								ColumnType:   "varchar(256)",
+							},
+						},
+					},
+				},
 			},
 		},
-		// A response with rows
-		{
-			Cursor: &psdbconnect.TableCursor{
-				Shard:    "-",
-				Keyspace: "connect-test",
-				Position: currentVGTIDPosition,
-			},
-			Result: results,
-		},
 	}
-
-	syncClient := &connectSyncClientMock{
-		syncResponses: responses,
-	}
-
-	getStopVGtidClient := &connectSyncClientMock{
-		syncResponses: []*psdbconnect.SyncResponse{
+	rowResponse := vtgate.VStreamResponse{
+		Events: []*binlogdata.VEvent{
 			{
-				Cursor: &psdbconnect.TableCursor{
-					Shard:    "-",
-					Keyspace: "connect-test",
-					Position: stopVGtidPosition,
+				Type:     binlogdata.VEventType_BEGIN,
+				Keyspace: keyspace,
+				Shard:    shard,
+			},
+		},
+	}
+	for i := 0; i < numRows; i++ {
+		event := binlogdata.VEvent{
+			Type: binlogdata.VEventType_ROW,
+			RowEvent: &binlogdata.RowEvent{
+				TableName: table,
+				RowChanges: []*binlogdata.RowChange{
+					{
+						After: &query.Row{
+							Values: []byte(fmt.Sprintf("%v,keyboard", 9)),
+						},
+					},
+				},
+			},
+		}
+		rowResponse.Events = append(rowResponse.Events, &event)
+	}
+
+	responses = append(responses, &rowResponse)
+
+	responses = append(responses, &vtgate.VStreamResponse{
+		Events: []*binlogdata.VEvent{
+			{
+				Type: binlogdata.VEventType_COPY_COMPLETED,
+			},
+		},
+	})
+
+	responses = append(responses, &vtgate.VStreamResponse{
+		Events: []*binlogdata.VEvent{
+			{
+				Type:     binlogdata.VEventType_VGTID,
+				Keyspace: keyspace,
+				Shard:    shard,
+				Vgtid: &binlogdata.VGtid{
+					ShardGtids: []*binlogdata.ShardGtid{
+						{
+							Keyspace: keyspace,
+							Shard:    shard,
+							Gtid:     "MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-10",
+						},
+					},
+				},
+			},
+		},
+	})
+
+	getCurrentVGtidClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vtgate.VStreamResponse{
+			// First sync to get stop position
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    shard,
+									Gtid:     stopVGtidPosition,
+									Keyspace: keyspace,
+								},
+							},
+						},
+					},
 				},
 			},
 		},
 	}
 
-	cc := clientConnectionMock{
-		syncFn: func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-			assert.Equal(t, psdbconnect.TabletType_primary, in.TabletType)
-			if in.Cursor.Position == "current" {
-				// Returned while fetching the "stop VGTID cursor"
-				return getStopVGtidClient, nil
-			}
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: responses,
+	}
 
-			// Returned during sync of records, after "stop VGTID cursor" is fetched
-			return syncClient, nil
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			assert.Equal(t, topodata.TabletType_PRIMARY, in.TabletType)
+			if in.Vgtid.ShardGtids[0].Gtid == "current" {
+				return getCurrentVGtidClient, nil
+			}
+			return vstreamSyncClient, nil
 		},
 	}
 
-	ped.clientFn = func(ctx context.Context, ps PlanetScaleSource) (psdbconnect.ConnectClient, error) {
-		return &cc, nil
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
 	}
+
 	ps := PlanetScaleSource{
 		Database: "connect-test",
 	}
@@ -887,14 +1570,548 @@ func TestRead_CanStopSyncPastStopPosition(t *testing.T) {
 	esc, err := TableCursorToSerializedCursor(&psdbconnect.TableCursor{
 		Shard:    "-",
 		Keyspace: "connect-test",
-		Position: nextVGtidPosition,
+		Position: nextSyncVGtidPosition,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, esc, nextSyncStartCursor)
-	assert.Equal(t, 2, cc.syncFnInvokedCount)
+	assert.Equal(t, 2, vsc.vstreamFnInvokedCount)
 
 	logLines := tal.logMessages[LOGLEVEL_INFO]
 	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records for table [customers]", 10), logLines[len(logLines)-1])
 	records := tal.records["connect-test.customers"]
 	assert.Equal(t, 10, len(records))
+}
+
+/*
+*
+CanSyncPastStopPosition tests the following situation:
+1. Full sync (no start cursor)
+2. Connector reaches out to fetch the current VGTID position as the "stop VGTID"
+3. We sync from the beginning (no start cursor) to the current VGTID position "current VGTID position"
+4. "current VGTID position" is EQUAL TO "stop VGTID"
+5. Since the "current VGTID position" is EQUAL TO "stop VGTID", we can stop the sync and flush records
+6. We return "next VGTID position" (the first VGTID position that is after the "stop VGTID") as the "start cursor" for the next sync
+*
+*/
+func TestRead_FullSync_CanStopSyncEqualToStopPosition(t *testing.T) {
+	tma := getTestMysqlAccess()
+	tal := testAirbyteLogger{}
+	ped := PlanetScaleEdgeDatabase{
+		Logger: &tal,
+		Mysql:  tma,
+	}
+
+	startCursor := &psdbconnect.TableCursor{
+		Shard:    "-",
+		Keyspace: "connect-test",
+		Position: "",
+	}
+	stopVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 8)
+	nextSyncVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 9)
+
+	numRows := 10
+	shard := "-"
+	keyspace := "connect-test"
+	table := "customers"
+	database := "connect-test"
+
+	responses := []*vtgate.VStreamResponse{
+		{
+			Events: []*binlogdata.VEvent{
+				{
+					Type:     binlogdata.VEventType_BEGIN,
+					Keyspace: keyspace,
+					Shard:    shard,
+				},
+				{
+					Type:     binlogdata.VEventType_VGTID,
+					Keyspace: keyspace,
+					Shard:    shard,
+					Vgtid: &binlogdata.VGtid{
+						ShardGtids: []*binlogdata.ShardGtid{
+							{
+								Keyspace: keyspace,
+								Shard:    shard,
+								Gtid:     stopVGtidPosition,
+							},
+						},
+					},
+				},
+				{
+					Type:     binlogdata.VEventType_COMMIT,
+					Keyspace: keyspace,
+					Shard:    shard,
+				},
+				{
+					Type: binlogdata.VEventType_FIELD,
+					FieldEvent: &binlogdata.FieldEvent{
+						TableName: table,
+						Fields: []*query.Field{
+							{
+								Name:         "id",
+								Type:         query.Type_INT64,
+								Table:        table,
+								OrgTable:     table,
+								Database:     database,
+								ColumnLength: 20,
+								Charset:      63,
+								ColumnType:   "bigint",
+							},
+							{
+								Name:         "product",
+								Type:         query.Type_VARCHAR,
+								Table:        table,
+								OrgTable:     table,
+								Database:     database,
+								ColumnLength: 1024,
+								Charset:      255,
+								ColumnType:   "varchar(256)",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	rowResponse := vtgate.VStreamResponse{
+		Events: []*binlogdata.VEvent{
+			{
+				Type:     binlogdata.VEventType_BEGIN,
+				Keyspace: keyspace,
+				Shard:    shard,
+			},
+		},
+	}
+	for i := 0; i < numRows; i++ {
+		event := binlogdata.VEvent{
+			Type: binlogdata.VEventType_ROW,
+			RowEvent: &binlogdata.RowEvent{
+				TableName: table,
+				RowChanges: []*binlogdata.RowChange{
+					{
+						After: &query.Row{
+							Values: []byte(fmt.Sprintf("%v,keyboard", 9)),
+						},
+					},
+				},
+			},
+		}
+		rowResponse.Events = append(rowResponse.Events, &event)
+	}
+
+	responses = append(responses, &rowResponse)
+
+	responses = append(responses, &vtgate.VStreamResponse{
+		Events: []*binlogdata.VEvent{
+			{
+				Type: binlogdata.VEventType_COPY_COMPLETED,
+			},
+		},
+	})
+
+	responses = append(responses, &vtgate.VStreamResponse{
+		Events: []*binlogdata.VEvent{
+			{
+				Type:     binlogdata.VEventType_VGTID,
+				Keyspace: keyspace,
+				Shard:    shard,
+				Vgtid: &binlogdata.VGtid{
+					ShardGtids: []*binlogdata.ShardGtid{
+						{
+							Keyspace: keyspace,
+							Shard:    shard,
+							Gtid:     nextSyncVGtidPosition,
+						},
+					},
+				},
+			},
+		},
+	})
+
+	getCurrentVGtidClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vtgate.VStreamResponse{
+			// First sync to get stop position
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    shard,
+									Gtid:     stopVGtidPosition,
+									Keyspace: keyspace,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: responses,
+	}
+
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			assert.Equal(t, topodata.TabletType_PRIMARY, in.TabletType)
+			if in.Vgtid.ShardGtids[0].Gtid == "current" {
+				return getCurrentVGtidClient, nil
+			}
+			return vstreamSyncClient, nil
+		},
+	}
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
+	}
+
+	ps := PlanetScaleSource{
+		Database: "connect-test",
+	}
+	cs := ConfiguredStream{
+		Stream: Stream{
+			Name:      "customers",
+			Namespace: "connect-test",
+		},
+	}
+
+	nextSyncStartCursor, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	assert.NoError(t, err)
+	// Next sync will start at the VGTID after the end of the current sync
+	esc, err := TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+		Shard:    "-",
+		Keyspace: "connect-test",
+		Position: nextSyncVGtidPosition,
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, esc, nextSyncStartCursor)
+	assert.Equal(t, 2, vsc.vstreamFnInvokedCount)
+
+	logLines := tal.logMessages[LOGLEVEL_INFO]
+	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records for table [customers]", 10), logLines[len(logLines)-1])
+	records := tal.records["connect-test.customers"]
+	assert.Equal(t, 10, len(records))
+}
+
+/*
+*
+FullSync_CopyCatchupLoop tests the following situation:
+1. Full sync (no start cursor)
+2. Dataset is large so we reach `vreplication_copy_phase_duration`, cutting COPY phase short
+3. A catchup phase is run
+4. Another COPY phase is run
+5. A catchup phase is run
+6. We reach COPY COMPLETED
+*
+*/
+func TestRead_FullSync_CopyCatchupLoop(t *testing.T) {
+	tma := getTestMysqlAccess()
+	tal := testAirbyteLogger{}
+	ped := PlanetScaleEdgeDatabase{
+		Logger: &tal,
+		Mysql:  tma,
+	}
+
+	startCursor := &psdbconnect.TableCursor{
+		Shard:    "-",
+		Keyspace: "connect-test",
+		Position: "",
+	}
+	stopVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 8)
+	nextSyncVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 10)
+
+	numRows := 10
+	shard := "-"
+	keyspace := "connect-test"
+	table := "customers"
+	database := "connect-test"
+
+	responses := []*vtgate.VStreamResponse{
+		{
+			Events: []*binlogdata.VEvent{
+				{
+					Type:     binlogdata.VEventType_BEGIN,
+					Keyspace: keyspace,
+					Shard:    shard,
+				},
+				{
+					Type:     binlogdata.VEventType_VGTID,
+					Keyspace: keyspace,
+					Shard:    shard,
+					Vgtid: &binlogdata.VGtid{
+						ShardGtids: []*binlogdata.ShardGtid{
+							{
+								Keyspace: keyspace,
+								Shard:    shard,
+								Gtid:     stopVGtidPosition,
+							},
+						},
+					},
+				},
+				{
+					Type:     binlogdata.VEventType_COMMIT,
+					Keyspace: keyspace,
+					Shard:    shard,
+				},
+				{
+					Type: binlogdata.VEventType_FIELD,
+					FieldEvent: &binlogdata.FieldEvent{
+						TableName: table,
+						Fields: []*query.Field{
+							{
+								Name:         "id",
+								Type:         query.Type_INT64,
+								Table:        table,
+								OrgTable:     table,
+								Database:     database,
+								ColumnLength: 20,
+								Charset:      63,
+								ColumnType:   "bigint",
+							},
+							{
+								Name:         "product",
+								Type:         query.Type_VARCHAR,
+								Table:        table,
+								OrgTable:     table,
+								Database:     database,
+								ColumnLength: 1024,
+								Charset:      255,
+								ColumnType:   "varchar(256)",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	copyPhase1 := vtgate.VStreamResponse{
+		Events: []*binlogdata.VEvent{
+			{
+				Type:     binlogdata.VEventType_BEGIN,
+				Keyspace: keyspace,
+				Shard:    shard,
+			},
+		},
+	}
+	for i := 0; i < numRows; i++ {
+		event := binlogdata.VEvent{
+			Type: binlogdata.VEventType_ROW,
+			RowEvent: &binlogdata.RowEvent{
+				TableName: table,
+				RowChanges: []*binlogdata.RowChange{
+					{
+						After: &query.Row{
+							Values: []byte(fmt.Sprintf("%v,keyboard", i)),
+						},
+					},
+				},
+			},
+		}
+		copyPhase1.Events = append(copyPhase1.Events, &event)
+	}
+
+	responses = append(responses, &copyPhase1)
+
+	catchupPhase1 := vtgate.VStreamResponse{
+		Events: []*binlogdata.VEvent{
+			{
+				Type:     binlogdata.VEventType_BEGIN,
+				Keyspace: "sharded",
+				Shard:    "-80",
+			},
+			{
+				Type: binlogdata.VEventType_ROW,
+				RowEvent: &binlogdata.RowEvent{
+					TableName: "sharded.t1",
+					RowChanges: []*binlogdata.RowChange{
+						{
+							After: &query.Row{
+								Values: []byte(fmt.Sprintf("%v,keyboard", 9)),
+							},
+						},
+					},
+				},
+			},
+			{
+				Type:     binlogdata.VEventType_VGTID,
+				Keyspace: keyspace,
+				Shard:    shard,
+				Vgtid: &binlogdata.VGtid{
+					ShardGtids: []*binlogdata.ShardGtid{
+						{
+							Keyspace: keyspace,
+							Shard:    shard,
+							Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", numRows),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	responses = append(responses, &catchupPhase1)
+
+	copyPhase2 := vtgate.VStreamResponse{
+		Events: []*binlogdata.VEvent{
+			{
+				Type:     binlogdata.VEventType_BEGIN,
+				Keyspace: keyspace,
+				Shard:    shard,
+			},
+		},
+	}
+	for i := numRows + 1; i < numRows+11; i++ {
+		event := binlogdata.VEvent{
+			Type: binlogdata.VEventType_ROW,
+			RowEvent: &binlogdata.RowEvent{
+				TableName: table,
+				RowChanges: []*binlogdata.RowChange{
+					{
+						After: &query.Row{
+							Values: []byte(fmt.Sprintf("%v,keyboard", i)),
+						},
+					},
+				},
+			},
+		}
+		copyPhase2.Events = append(copyPhase2.Events, &event)
+	}
+
+	responses = append(responses, &copyPhase2)
+
+	catchupPhase2 := vtgate.VStreamResponse{
+		Events: []*binlogdata.VEvent{
+			{
+				Type:     binlogdata.VEventType_BEGIN,
+				Keyspace: "sharded",
+				Shard:    "-80",
+			},
+			{
+				Type: binlogdata.VEventType_ROW,
+				RowEvent: &binlogdata.RowEvent{
+					TableName: "sharded.t1",
+					RowChanges: []*binlogdata.RowChange{
+						{
+							After: &query.Row{
+								Values: []byte(fmt.Sprintf("%v,keyboard", numRows+11)),
+							},
+						},
+					},
+				},
+			},
+			{
+				Type:     binlogdata.VEventType_VGTID,
+				Keyspace: keyspace,
+				Shard:    shard,
+				Vgtid: &binlogdata.VGtid{
+					ShardGtids: []*binlogdata.ShardGtid{
+						{
+							Keyspace: keyspace,
+							Shard:    shard,
+							Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 10),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	responses = append(responses, &catchupPhase2)
+
+	responses = append(responses, &vtgate.VStreamResponse{
+		Events: []*binlogdata.VEvent{
+			{
+				Type: binlogdata.VEventType_COPY_COMPLETED,
+			},
+		},
+	})
+
+	responses = append(responses, &vtgate.VStreamResponse{
+		Events: []*binlogdata.VEvent{
+			{
+				Type:     binlogdata.VEventType_VGTID,
+				Keyspace: keyspace,
+				Shard:    shard,
+				Vgtid: &binlogdata.VGtid{
+					ShardGtids: []*binlogdata.ShardGtid{
+						{
+							Keyspace: keyspace,
+							Shard:    shard,
+							Gtid:     nextSyncVGtidPosition,
+						},
+					},
+				},
+			},
+		},
+	})
+
+	getCurrentVGtidClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vtgate.VStreamResponse{
+			// First sync to get stop position
+			{
+				Events: []*binlogdata.VEvent{
+					{
+						Type: binlogdata.VEventType_VGTID,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Shard:    shard,
+									Gtid:     stopVGtidPosition,
+									Keyspace: keyspace,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: responses,
+	}
+
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			assert.Equal(t, topodata.TabletType_PRIMARY, in.TabletType)
+			if in.Vgtid.ShardGtids[0].Gtid == "current" {
+				return getCurrentVGtidClient, nil
+			}
+			return vstreamSyncClient, nil
+		},
+	}
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
+	}
+
+	ps := PlanetScaleSource{
+		Database: "connect-test",
+	}
+	cs := ConfiguredStream{
+		Stream: Stream{
+			Name:      "customers",
+			Namespace: "connect-test",
+		},
+	}
+
+	nextSyncStartCursor, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	assert.NoError(t, err)
+	// Next sync will start at the VGTID where COPY COMPLETED is
+	esc, err := TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+		Shard:    "-",
+		Keyspace: "connect-test",
+		Position: nextSyncVGtidPosition,
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, esc, nextSyncStartCursor)
+	assert.Equal(t, 2, vsc.vstreamFnInvokedCount)
+
+	logLines := tal.logMessages[LOGLEVEL_INFO]
+	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records for table [customers]", 22), logLines[len(logLines)-1])
+	records := tal.records["connect-test.customers"]
+	assert.Equal(t, 22, len(records))
 }

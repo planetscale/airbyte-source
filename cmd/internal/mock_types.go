@@ -3,9 +3,11 @@ package internal
 import (
 	"context"
 	"database/sql"
-	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
-	"google.golang.org/grpc"
 	"io"
+
+	"google.golang.org/grpc"
+	"vitess.io/vitess/go/vt/proto/vtgate"
+	"vitess.io/vitess/go/vt/proto/vtgateservice"
 )
 
 type testAirbyteLogger struct {
@@ -51,29 +53,54 @@ func (testAirbyteLogger) Error(error string) {
 	panic("implement me")
 }
 
-type clientConnectionMock struct {
-	syncFn             func(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error)
-	syncFnInvoked      bool
-	syncFnInvokedCount int
+type vstreamClientMock struct {
+	vstreamFn             func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error)
+	vstreamFnInvoked      bool
+	vstreamFnInvokedCount int
 }
 
-type connectSyncClientMock struct {
+type vtgateVStreamClientMock struct {
 	lastResponseSent int
-	syncResponses    []*psdbconnect.SyncResponse
+	vstreamResponses []*vtgate.VStreamResponse
 	grpc.ClientStream
 }
 
-func (x *connectSyncClientMock) Recv() (*psdbconnect.SyncResponse, error) {
-	if x.lastResponseSent >= len(x.syncResponses) {
+func (x *vtgateVStreamClientMock) Recv() (*vtgate.VStreamResponse, error) {
+	if x.lastResponseSent >= len(x.vstreamResponses) {
 		return nil, io.EOF
 	}
 	x.lastResponseSent += 1
-	return x.syncResponses[x.lastResponseSent-1], nil
+	return x.vstreamResponses[x.lastResponseSent-1], nil
 }
-func (c *clientConnectionMock) Sync(ctx context.Context, in *psdbconnect.SyncRequest, opts ...grpc.CallOption) (psdbconnect.Connect_SyncClient, error) {
-	c.syncFnInvoked = true
-	c.syncFnInvokedCount += 1
-	return c.syncFn(ctx, in, opts...)
+
+func (x *vstreamClientMock) CloseSession(context.Context, *vtgate.CloseSessionRequest, ...grpc.CallOption) (*vtgate.CloseSessionResponse, error) {
+	return nil, nil
+}
+
+func (x *vstreamClientMock) Execute(context.Context, *vtgate.ExecuteRequest, ...grpc.CallOption) (*vtgate.ExecuteResponse, error) {
+	return nil, nil
+}
+
+func (x *vstreamClientMock) ExecuteBatch(context.Context, *vtgate.ExecuteBatchRequest, ...grpc.CallOption) (*vtgate.ExecuteBatchResponse, error) {
+	return nil, nil
+}
+
+func (x *vstreamClientMock) Prepare(context.Context, *vtgate.PrepareRequest, ...grpc.CallOption) (*vtgate.PrepareResponse, error) {
+	return nil, nil
+}
+
+func (x *vstreamClientMock) ResolveTransaction(context.Context, *vtgate.ResolveTransactionRequest, ...grpc.CallOption) (*vtgate.ResolveTransactionResponse, error) {
+	return nil, nil
+}
+
+func (x *vstreamClientMock) StreamExecute(context.Context, *vtgate.StreamExecuteRequest, ...grpc.CallOption) (vtgateservice.Vitess_StreamExecuteClient, error) {
+	return nil, nil
+}
+
+func (c *vstreamClientMock) VStream(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+	c.vstreamFnInvoked = true
+	c.vstreamFnInvokedCount += 1
+	return c.vstreamFn(ctx, in, opts...)
 }
 
 type mysqlAccessMock struct {

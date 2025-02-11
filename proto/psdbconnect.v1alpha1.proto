@@ -3,7 +3,6 @@ syntax = "proto3";
 package psdbconnect.v1alpha1;
 
 import "query.proto";
-import "vtrpc.proto";
 
 option go_package = "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1;psdbconnectv1alpha1";
 
@@ -25,19 +24,6 @@ enum TabletType {
 
 }
 
-message SyncRequest {
-  string table_name = 1;
-  TableCursor cursor = 2;
-  TabletType tablet_type = 3;
-  bool include_inserts  = 4;
-  bool include_updates  = 5;
-  bool include_deletes = 6;
-  repeated string columns = 7;
-  // if specified, these cells are used to pick source tablets from.
-  // defaults to the cell of the vtgate serving the VStream API.
-  repeated string cells = 8;
-}
-
 message DeletedRow {
   query.QueryResult result = 1;
 }
@@ -47,22 +33,9 @@ message UpdatedRow {
   query.QueryResult after = 2;
 }
 
-message SyncResponse {
-  repeated query.QueryResult result = 1;
-  TableCursor cursor = 2;
-  vtrpc.RPCError error = 3;
-  repeated DeletedRow deletes = 4;
-  repeated UpdatedRow updates = 5;
-}
-
 message TableCursor {
   string shard = 1;
   string keyspace = 2;
   string position = 3;
   query.QueryResult last_known_pk = 4;
 }
-
-service Connect {
-  rpc Sync(SyncRequest) returns (stream SyncResponse) {}
-}
-
