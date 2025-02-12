@@ -10,6 +10,8 @@ import (
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/proto/binlogdata"
 	"vitess.io/vitess/go/vt/proto/query"
@@ -2200,4 +2202,316 @@ func TestRead_FullSync_CopyCatchupLoop(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records after 1 syncs for table [customers]", 22), logLines[len(logLines)-1])
 	records := tal.records["connect-test.customers"]
 	assert.Equal(t, 22, len(records))
+}
+
+/*
+*
+FullSync_CopyCatchupLoop tests the following situation:
+ 1. Full sync (no start cursor) with max retries set to 3
+ 2. The following happens twice:
+    a. Source times out (deadline exceeded)
+    b. We retry sync from an updated cursor since max retries is not reached
+ 3. Source times out a 3rd time, we don't retry and exit sync with updated cursor
+
+*
+*/
+func TestRead_FullSync_MaxRetries(t *testing.T) {
+	tma := getTestMysqlAccess()
+	tal := testAirbyteLogger{}
+	ped := PlanetScaleEdgeDatabase{
+		Logger: &tal,
+		Mysql:  tma,
+	}
+
+	startCursor := &psdbconnect.TableCursor{
+		Shard:    "-",
+		Keyspace: "connect-test",
+		Position: "",
+	}
+	stopVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 8)
+	nextSyncVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 10)
+
+	totalRows := 30
+	rowsRecorded := 0
+	shard := "-"
+	keyspace := "connect-test"
+	table := "customers"
+	database := "connect-test"
+
+	responses := []*vstreamResponse{
+		{
+			response: &vtgate.VStreamResponse{
+				Events: []*binlogdata.VEvent{
+					{
+						Type:     binlogdata.VEventType_BEGIN,
+						Keyspace: keyspace,
+						Shard:    shard,
+					},
+					{
+						Type:     binlogdata.VEventType_VGTID,
+						Keyspace: keyspace,
+						Shard:    shard,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Keyspace: keyspace,
+									Shard:    shard,
+									Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 8),
+								},
+							},
+						},
+					},
+					{
+						Type:     binlogdata.VEventType_COMMIT,
+						Keyspace: keyspace,
+						Shard:    shard,
+					},
+					{
+						Type: binlogdata.VEventType_FIELD,
+						FieldEvent: &binlogdata.FieldEvent{
+							TableName: table,
+							Fields: []*query.Field{
+								{
+									Name:         "id",
+									Type:         query.Type_INT64,
+									Table:        table,
+									OrgTable:     table,
+									Database:     database,
+									ColumnLength: 20,
+									Charset:      63,
+									ColumnType:   "bigint",
+								},
+								{
+									Name:         "product",
+									Type:         query.Type_VARCHAR,
+									Table:        table,
+									OrgTable:     table,
+									Database:     database,
+									ColumnLength: 1024,
+									Charset:      255,
+									ColumnType:   "varchar(256)",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	copyPhase1 := vstreamResponse{
+		response: &vtgate.VStreamResponse{
+			Events: []*binlogdata.VEvent{
+				{
+					Type:     binlogdata.VEventType_BEGIN,
+					Keyspace: keyspace,
+					Shard:    shard,
+				},
+			},
+		},
+	}
+	for rowsRecorded < 10 {
+		event := binlogdata.VEvent{
+			Type: binlogdata.VEventType_ROW,
+			RowEvent: &binlogdata.RowEvent{
+				TableName: table,
+				RowChanges: []*binlogdata.RowChange{
+					{
+						After: &query.Row{
+							Values: []byte(fmt.Sprintf("%v,keyboard", rowsRecorded)),
+						},
+					},
+				},
+			},
+		}
+		rowsRecorded++
+		copyPhase1.response.Events = append(copyPhase1.response.Events, &event)
+	}
+
+	responses = append(responses, &copyPhase1)
+
+	// First error
+	responses = append(responses, &vstreamResponse{
+		err: status.Error(codes.DeadlineExceeded, "deadline exceeded"),
+	})
+
+	copyPhase2 := vstreamResponse{
+		response: &vtgate.VStreamResponse{
+			Events: []*binlogdata.VEvent{
+				{
+					Type:     binlogdata.VEventType_BEGIN,
+					Keyspace: keyspace,
+					Shard:    shard,
+				},
+				{
+					Type:     binlogdata.VEventType_VGTID,
+					Keyspace: keyspace,
+					Shard:    shard,
+					Vgtid: &binlogdata.VGtid{
+						ShardGtids: []*binlogdata.ShardGtid{
+							{
+								Keyspace: keyspace,
+								Shard:    shard,
+								Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 9),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	for rowsRecorded < 20 {
+		event := binlogdata.VEvent{
+			Type: binlogdata.VEventType_ROW,
+			RowEvent: &binlogdata.RowEvent{
+				TableName: table,
+				RowChanges: []*binlogdata.RowChange{
+					{
+						After: &query.Row{
+							Values: []byte(fmt.Sprintf("%v,keyboard", rowsRecorded)),
+						},
+					},
+				},
+			},
+		}
+		rowsRecorded++
+		copyPhase2.response.Events = append(copyPhase2.response.Events, &event)
+	}
+
+	responses = append(responses, &copyPhase2)
+
+	// Second error
+	responses = append(responses, &vstreamResponse{
+		err: status.Error(codes.DeadlineExceeded, "deadline exceeded"),
+	})
+
+	copyPhase3 := vstreamResponse{
+		response: &vtgate.VStreamResponse{
+			Events: []*binlogdata.VEvent{
+				{
+					Type:     binlogdata.VEventType_BEGIN,
+					Keyspace: keyspace,
+					Shard:    shard,
+				},
+				{
+					Type:     binlogdata.VEventType_VGTID,
+					Keyspace: keyspace,
+					Shard:    shard,
+					Vgtid: &binlogdata.VGtid{
+						ShardGtids: []*binlogdata.ShardGtid{
+							{
+								Keyspace: keyspace,
+								Shard:    shard,
+								Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 10),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	for rowsRecorded < totalRows {
+		event := binlogdata.VEvent{
+			Type: binlogdata.VEventType_ROW,
+			RowEvent: &binlogdata.RowEvent{
+				TableName: table,
+				RowChanges: []*binlogdata.RowChange{
+					{
+						After: &query.Row{
+							Values: []byte(fmt.Sprintf("%v,keyboard", rowsRecorded)),
+						},
+					},
+				},
+			},
+		}
+		rowsRecorded++
+		copyPhase3.response.Events = append(copyPhase3.response.Events, &event)
+	}
+
+	responses = append(responses, &copyPhase3)
+
+	// Third error
+	responses = append(responses, &vstreamResponse{
+		err: status.Error(codes.DeadlineExceeded, "deadline exceeded"),
+	})
+
+	// Will never reach copy completed
+	responses = append(responses, &vstreamResponse{
+		response: &vtgate.VStreamResponse{
+			Events: []*binlogdata.VEvent{
+				{
+					Type: binlogdata.VEventType_COPY_COMPLETED,
+				},
+			},
+		},
+	})
+
+	getCurrentVGtidClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vstreamResponse{
+			// First sync to get stop position
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    shard,
+										Gtid:     stopVGtidPosition,
+										Keyspace: keyspace,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: responses,
+	}
+
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			assert.Equal(t, topodata.TabletType_PRIMARY, in.TabletType)
+			if in.Vgtid.ShardGtids[0].Gtid == "current" {
+				return getCurrentVGtidClient, nil
+			}
+			return vstreamSyncClient, nil
+		},
+	}
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
+	}
+
+	ps := PlanetScaleSource{
+		Database:   "connect-test",
+		MaxRetries: 3,
+	}
+	cs := ConfiguredStream{
+		Stream: Stream{
+			Name:      "customers",
+			Namespace: "connect-test",
+		},
+	}
+
+	nextSyncStartCursor, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	assert.NoError(t, err)
+	// Next sync will start at the VGTID where COPY COMPLETED is
+	esc, err := TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+		Shard:    "-",
+		Keyspace: "connect-test",
+		Position: nextSyncVGtidPosition,
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, esc, nextSyncStartCursor)
+	assert.Equal(t, 4, vsc.vstreamFnInvokedCount)
+
+	logLines := tal.logMessages[LOGLEVEL_INFO]
+	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] %v records synced after 3 syncs. Got error [DeadlineExceeded], returning with cursor [shard:\"-\" keyspace:\"connect-test\" position:\"MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-10\"] after gRPC error", 30), logLines[len(logLines)-1])
+	records := tal.records["connect-test.customers"]
+	assert.Equal(t, 30, len(records))
 }
