@@ -960,7 +960,7 @@ func TestRead_IncrementalSync_CanStopAtWellKnownCursor(t *testing.T) {
 	assert.Equal(t, 10, len(responses))
 	logLines := tal.logMessages[LOGLEVEL_INFO]
 	// But only the first 8 (with VGtids <= stop position) will be synced
-	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records for table [customers]", 8), logLines[len(logLines)-1])
+	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records after 1 syncs for table [customers]", 8), logLines[len(logLines)-1])
 	records := tal.records["connect-test.customers"]
 	assert.Equal(t, 8, len(records))
 }
@@ -1577,7 +1577,7 @@ func TestRead_FullSync_CanStopSyncPastStopPosition(t *testing.T) {
 	assert.Equal(t, 2, vsc.vstreamFnInvokedCount)
 
 	logLines := tal.logMessages[LOGLEVEL_INFO]
-	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records for table [customers]", 10), logLines[len(logLines)-1])
+	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records after 1 syncs for table [customers]", 10), logLines[len(logLines)-1])
 	records := tal.records["connect-test.customers"]
 	assert.Equal(t, 10, len(records))
 }
@@ -1791,7 +1791,7 @@ func TestRead_FullSync_CanStopSyncEqualToStopPosition(t *testing.T) {
 	assert.Equal(t, 2, vsc.vstreamFnInvokedCount)
 
 	logLines := tal.logMessages[LOGLEVEL_INFO]
-	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records for table [customers]", 10), logLines[len(logLines)-1])
+	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records after 1 syncs for table [customers]", 10), logLines[len(logLines)-1])
 	records := tal.records["connect-test.customers"]
 	assert.Equal(t, 10, len(records))
 }
@@ -2111,7 +2111,7 @@ func TestRead_FullSync_CopyCatchupLoop(t *testing.T) {
 	assert.Equal(t, 2, vsc.vstreamFnInvokedCount)
 
 	logLines := tal.logMessages[LOGLEVEL_INFO]
-	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records for table [customers]", 22), logLines[len(logLines)-1])
+	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records after 1 syncs for table [customers]", 22), logLines[len(logLines)-1])
 	records := tal.records["connect-test.customers"]
 	assert.Equal(t, 22, len(records))
 }
