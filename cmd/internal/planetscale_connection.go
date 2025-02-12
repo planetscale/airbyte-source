@@ -21,6 +21,7 @@ type PlanetScaleSource struct {
 	UseRdonly     bool                `json:"use_rdonly"`
 	StartingGtids string              `json:"starting_gtids"`
 	Options       CustomSourceOptions `json:"options"`
+	MaxRetries    uint                `json:"max_retries"`
 }
 
 type CustomSourceOptions struct {
