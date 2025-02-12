@@ -66,6 +66,13 @@
           "description": "A JSON string containing start GTIDs for every { keyspace: { shard: starting_gtid } }",
           "order": 7
         },
+        "max_retries": {
+          "type": "integer",
+          "title": "Max retries",
+          "default": 3,
+          "description": "The max number of times we continue syncing after potential errors",
+          "order": 8
+        },
         "options": {
           "type": "object",
           "title": "Customize serialization",
