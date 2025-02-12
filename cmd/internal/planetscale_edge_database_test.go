@@ -32,22 +32,24 @@ func TestRead_CanPeekBeforeRead(t *testing.T) {
 	}
 
 	vstreamSyncClient := &vtgateVStreamClientMock{
-		vstreamResponses: []*vtgate.VStreamResponse{
+		vstreamResponses: []*vstreamResponse{
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    "-",
-									Gtid:     "THIS_IS_A_SHARD_GTID",
-									Keyspace: "connect-test",
-								},
-								{
-									Shard:    "-",
-									Gtid:     "THIS_IS_A_SHARD_GTID",
-									Keyspace: "connect-test",
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    "-",
+										Gtid:     "THIS_IS_A_SHARD_GTID",
+										Keyspace: "connect-test",
+									},
+									{
+										Shard:    "-",
+										Gtid:     "THIS_IS_A_SHARD_GTID",
+										Keyspace: "connect-test",
+									},
 								},
 							},
 						},
@@ -98,22 +100,24 @@ func TestRead_CanEarlyExitIfNoNewVGtidInPeek(t *testing.T) {
 	}
 
 	vstreamSyncClient := &vtgateVStreamClientMock{
-		vstreamResponses: []*vtgate.VStreamResponse{
+		vstreamResponses: []*vstreamResponse{
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    "-",
-									Gtid:     "THIS_IS_A_SHARD_GTID",
-									Keyspace: "connect-test",
-								},
-								{
-									Shard:    "-",
-									Gtid:     "THIS_IS_A_SHARD_GTID",
-									Keyspace: "connect-test",
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    "-",
+										Gtid:     "THIS_IS_A_SHARD_GTID",
+										Keyspace: "connect-test",
+									},
+									{
+										Shard:    "-",
+										Gtid:     "THIS_IS_A_SHARD_GTID",
+										Keyspace: "connect-test",
+									},
 								},
 							},
 						},
@@ -162,17 +166,19 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 	}
 
 	vstreamSyncClient := &vtgateVStreamClientMock{
-		vstreamResponses: []*vtgate.VStreamResponse{
+		vstreamResponses: []*vstreamResponse{
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    tc.Shard,
-									Gtid:     tc.Position,
-									Keyspace: tc.Keyspace,
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    tc.Shard,
+										Gtid:     tc.Position,
+										Keyspace: tc.Keyspace,
+									},
 								},
 							},
 						},
@@ -227,17 +233,19 @@ func TestRead_CanPickReplicaForShardedKeyspaces(t *testing.T) {
 	}
 
 	vstreamSyncClient := &vtgateVStreamClientMock{
-		vstreamResponses: []*vtgate.VStreamResponse{
+		vstreamResponses: []*vstreamResponse{
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    tc.Shard,
-									Gtid:     tc.Position,
-									Keyspace: tc.Keyspace,
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    tc.Shard,
+										Gtid:     tc.Position,
+										Keyspace: tc.Keyspace,
+									},
 								},
 							},
 						},
@@ -292,17 +300,19 @@ func TestRead_CanPickRdonlyForShardedKeyspaces(t *testing.T) {
 	}
 
 	vstreamSyncClient := &vtgateVStreamClientMock{
-		vstreamResponses: []*vtgate.VStreamResponse{
+		vstreamResponses: []*vstreamResponse{
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    tc.Shard,
-									Gtid:     tc.Position,
-									Keyspace: tc.Keyspace,
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    tc.Shard,
+										Gtid:     tc.Position,
+										Keyspace: tc.Keyspace,
+									},
 								},
 							},
 						},
@@ -486,17 +496,19 @@ func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 	}
 
 	vstreamSyncClient := &vtgateVStreamClientMock{
-		vstreamResponses: []*vtgate.VStreamResponse{
+		vstreamResponses: []*vstreamResponse{
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    tc.Shard,
-									Gtid:     tc.Position,
-									Keyspace: tc.Keyspace,
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    tc.Shard,
+										Gtid:     tc.Position,
+										Keyspace: tc.Keyspace,
+									},
 								},
 							},
 						},
@@ -550,17 +562,19 @@ func TestRead_CanPickReplicaForUnshardedKeyspaces(t *testing.T) {
 	}
 
 	vstreamSyncClient := &vtgateVStreamClientMock{
-		vstreamResponses: []*vtgate.VStreamResponse{
+		vstreamResponses: []*vstreamResponse{
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    tc.Shard,
-									Gtid:     tc.Position,
-									Keyspace: tc.Keyspace,
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    tc.Shard,
+										Gtid:     tc.Position,
+										Keyspace: tc.Keyspace,
+									},
 								},
 							},
 						},
@@ -616,17 +630,19 @@ func TestRead_IncrementalSync_CanReturnOriginalCursorIfNoNewFound(t *testing.T) 
 	}
 
 	vstreamSyncClient := &vtgateVStreamClientMock{
-		vstreamResponses: []*vtgate.VStreamResponse{
+		vstreamResponses: []*vstreamResponse{
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    tc.Shard,
-									Gtid:     tc.Position,
-									Keyspace: tc.Keyspace,
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    tc.Shard,
+										Gtid:     tc.Position,
+										Keyspace: tc.Keyspace,
+									},
 								},
 							},
 						},
@@ -684,18 +700,19 @@ func TestRead_IncrementalSync_CanReturnNewCursorIfNewFound(t *testing.T) {
 	}
 
 	vstreamSyncClient := &vtgateVStreamClientMock{
-		vstreamResponses: []*vtgate.VStreamResponse{
-			// First sync to get end position
+		vstreamResponses: []*vstreamResponse{
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    newTC.Shard,
-									Gtid:     newTC.Position,
-									Keyspace: newTC.Keyspace,
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    newTC.Shard,
+										Gtid:     newTC.Position,
+										Keyspace: newTC.Keyspace,
+									},
 								},
 							},
 						},
@@ -704,15 +721,17 @@ func TestRead_IncrementalSync_CanReturnNewCursorIfNewFound(t *testing.T) {
 			},
 			// First recv() of second sync for rows
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    newTC.Shard,
-									Gtid:     newTC.Position,
-									Keyspace: newTC.Keyspace,
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    newTC.Shard,
+										Gtid:     newTC.Position,
+										Keyspace: newTC.Keyspace,
+									},
 								},
 							},
 						},
@@ -721,16 +740,18 @@ func TestRead_IncrementalSync_CanReturnNewCursorIfNewFound(t *testing.T) {
 			},
 			// Second recv() of second sync for rows
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_ROW,
-						RowEvent: &binlogdata.RowEvent{
-							TableName: "customers",
-							Keyspace:  newTC.Keyspace,
-							Shard:     newTC.Shard,
-							RowChanges: []*binlogdata.RowChange{
-								{
-									After: &query.Row{Values: []byte("1,my_name")},
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_ROW,
+							RowEvent: &binlogdata.RowEvent{
+								TableName: "customers",
+								Keyspace:  newTC.Keyspace,
+								Shard:     newTC.Shard,
+								RowChanges: []*binlogdata.RowChange{
+									{
+										After: &query.Row{Values: []byte("1,my_name")},
+									},
 								},
 							},
 						},
@@ -783,57 +804,59 @@ func TestRead_IncrementalSync_CanStopAtWellKnownCursor(t *testing.T) {
 	keyspace := "connect-test"
 	table := "customers"
 	database := "connect-test"
-	responses := []*vtgate.VStreamResponse{
+	responses := []*vstreamResponse{
 		{
-			Events: []*binlogdata.VEvent{
-				{
-					Type:     binlogdata.VEventType_BEGIN,
-					Keyspace: keyspace,
-					Shard:    shard,
-				},
-				{
-					Type:     binlogdata.VEventType_VGTID,
-					Keyspace: keyspace,
-					Shard:    shard,
-					Vgtid: &binlogdata.VGtid{
-						ShardGtids: []*binlogdata.ShardGtid{
-							{
-								Keyspace: keyspace,
-								Shard:    shard,
-								Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 0),
+			response: &vtgate.VStreamResponse{
+				Events: []*binlogdata.VEvent{
+					{
+						Type:     binlogdata.VEventType_BEGIN,
+						Keyspace: keyspace,
+						Shard:    shard,
+					},
+					{
+						Type:     binlogdata.VEventType_VGTID,
+						Keyspace: keyspace,
+						Shard:    shard,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Keyspace: keyspace,
+									Shard:    shard,
+									Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 0),
+								},
 							},
 						},
 					},
-				},
-				{
-					Type:     binlogdata.VEventType_COMMIT,
-					Keyspace: keyspace,
-					Shard:    shard,
-				},
-				{
-					Type: binlogdata.VEventType_FIELD,
-					FieldEvent: &binlogdata.FieldEvent{
-						TableName: table,
-						Fields: []*query.Field{
-							{
-								Name:         "id",
-								Type:         query.Type_INT64,
-								Table:        table,
-								OrgTable:     table,
-								Database:     database,
-								ColumnLength: 20,
-								Charset:      63,
-								ColumnType:   "bigint",
-							},
-							{
-								Name:         "product",
-								Type:         query.Type_VARCHAR,
-								Table:        table,
-								OrgTable:     table,
-								Database:     database,
-								ColumnLength: 1024,
-								Charset:      255,
-								ColumnType:   "varchar(256)",
+					{
+						Type:     binlogdata.VEventType_COMMIT,
+						Keyspace: keyspace,
+						Shard:    shard,
+					},
+					{
+						Type: binlogdata.VEventType_FIELD,
+						FieldEvent: &binlogdata.FieldEvent{
+							TableName: table,
+							Fields: []*query.Field{
+								{
+									Name:         "id",
+									Type:         query.Type_INT64,
+									Table:        table,
+									OrgTable:     table,
+									Database:     database,
+									ColumnLength: 20,
+									Charset:      63,
+									ColumnType:   "bigint",
+								},
+								{
+									Name:         "product",
+									Type:         query.Type_VARCHAR,
+									Table:        table,
+									OrgTable:     table,
+									Database:     database,
+									ColumnLength: 1024,
+									Charset:      255,
+									ColumnType:   "varchar(256)",
+								},
 							},
 						},
 					},
@@ -842,63 +865,66 @@ func TestRead_IncrementalSync_CanStopAtWellKnownCursor(t *testing.T) {
 		},
 	}
 	for i := 1; i < numRows; i++ {
-		response := vtgate.VStreamResponse{
-			Events: []*binlogdata.VEvent{
-				{
-					Type:     binlogdata.VEventType_BEGIN,
-					Keyspace: keyspace,
-					Shard:    shard,
-				},
-				{
-					Type: binlogdata.VEventType_ROW,
-					RowEvent: &binlogdata.RowEvent{
-						TableName: table,
-						RowChanges: []*binlogdata.RowChange{
-							{
-								After: &query.Row{
-									Values: []byte(fmt.Sprintf("%v,keyboard", i)),
+		response := &vstreamResponse{
+			response: &vtgate.VStreamResponse{
+				Events: []*binlogdata.VEvent{
+					{
+						Type:     binlogdata.VEventType_BEGIN,
+						Keyspace: keyspace,
+						Shard:    shard,
+					},
+					{
+						Type: binlogdata.VEventType_ROW,
+						RowEvent: &binlogdata.RowEvent{
+							TableName: table,
+							RowChanges: []*binlogdata.RowChange{
+								{
+									After: &query.Row{
+										Values: []byte(fmt.Sprintf("%v,keyboard", i)),
+									},
 								},
 							},
 						},
 					},
-				},
-				{
-					Type:     binlogdata.VEventType_VGTID,
-					Keyspace: keyspace,
-					Shard:    shard,
-					Vgtid: &binlogdata.VGtid{
-						ShardGtids: []*binlogdata.ShardGtid{
-							{
-								Keyspace: keyspace,
-								Shard:    shard,
-								Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", i),
-							},
-						},
-					},
-				},
-				{
-					Type:     binlogdata.VEventType_COMMIT,
-					Keyspace: keyspace,
-					Shard:    shard,
-				},
-			},
-		}
-		responses = append(responses, &response)
-	}
-
-	getCurrentVGtidClient := &vtgateVStreamClientMock{
-		vstreamResponses: []*vtgate.VStreamResponse{
-			// First sync to get stop position
-			{
-				Events: []*binlogdata.VEvent{
 					{
-						Type: binlogdata.VEventType_VGTID,
+						Type:     binlogdata.VEventType_VGTID,
+						Keyspace: keyspace,
+						Shard:    shard,
 						Vgtid: &binlogdata.VGtid{
 							ShardGtids: []*binlogdata.ShardGtid{
 								{
-									Shard:    shard,
-									Gtid:     stopVGtidPosition,
 									Keyspace: keyspace,
+									Shard:    shard,
+									Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", i),
+								},
+							},
+						},
+					},
+					{
+						Type:     binlogdata.VEventType_COMMIT,
+						Keyspace: keyspace,
+						Shard:    shard,
+					},
+				},
+			},
+		}
+		responses = append(responses, response)
+	}
+
+	getCurrentVGtidClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vstreamResponse{
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    shard,
+										Gtid:     stopVGtidPosition,
+										Keyspace: keyspace,
+									},
 								},
 							},
 						},
@@ -988,18 +1014,20 @@ func TestRead_IncrementalSync_CanLogResults(t *testing.T) {
 	}
 
 	vstreamSyncClient := &vtgateVStreamClientMock{
-		vstreamResponses: []*vtgate.VStreamResponse{
+		vstreamResponses: []*vstreamResponse{
 			// First sync to get stop position
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    shard,
-									Gtid:     stopVGtid,
-									Keyspace: keyspace,
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    shard,
+										Gtid:     stopVGtid,
+										Keyspace: keyspace,
+									},
 								},
 							},
 						},
@@ -1008,15 +1036,17 @@ func TestRead_IncrementalSync_CanLogResults(t *testing.T) {
 			},
 			// 1st recv() of second sync for rows to get start VGtid
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    shard,
-									Gtid:     startVGtid,
-									Keyspace: keyspace,
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    shard,
+										Gtid:     startVGtid,
+										Keyspace: keyspace,
+									},
 								},
 							},
 						},
@@ -1025,15 +1055,17 @@ func TestRead_IncrementalSync_CanLogResults(t *testing.T) {
 			},
 			// 2nd recv() of second sync for rows to get stop VGtid
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    shard,
-									Gtid:     stopVGtid,
-									Keyspace: keyspace,
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    shard,
+										Gtid:     stopVGtid,
+										Keyspace: keyspace,
+									},
 								},
 							},
 						},
@@ -1042,31 +1074,33 @@ func TestRead_IncrementalSync_CanLogResults(t *testing.T) {
 			},
 			// 3rd recv() for second sync for rows to get fields
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_FIELD,
-						FieldEvent: &binlogdata.FieldEvent{
-							TableName: table,
-							Fields: []*query.Field{
-								{
-									Name:         "pid",
-									Type:         query.Type_INT64,
-									Table:        table,
-									OrgTable:     table,
-									Database:     keyspace,
-									ColumnLength: 20,
-									Charset:      63,
-									ColumnType:   "bigint",
-								},
-								{
-									Name:         "description",
-									Type:         query.Type_VARCHAR,
-									Table:        table,
-									OrgTable:     table,
-									Database:     keyspace,
-									ColumnLength: 1024,
-									Charset:      255,
-									ColumnType:   "varchar(256)",
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_FIELD,
+							FieldEvent: &binlogdata.FieldEvent{
+								TableName: table,
+								Fields: []*query.Field{
+									{
+										Name:         "pid",
+										Type:         query.Type_INT64,
+										Table:        table,
+										OrgTable:     table,
+										Database:     keyspace,
+										ColumnLength: 20,
+										Charset:      63,
+										ColumnType:   "bigint",
+									},
+									{
+										Name:         "description",
+										Type:         query.Type_VARCHAR,
+										Table:        table,
+										OrgTable:     table,
+										Database:     keyspace,
+										ColumnLength: 1024,
+										Charset:      255,
+										ColumnType:   "varchar(256)",
+									},
 								},
 							},
 						},
@@ -1075,24 +1109,26 @@ func TestRead_IncrementalSync_CanLogResults(t *testing.T) {
 			},
 			// 4th recv() of second sync for rows to get records
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_ROW,
-						RowEvent: &binlogdata.RowEvent{
-							TableName: table,
-							Keyspace:  keyspace,
-							Shard:     shard,
-							RowChanges: []*binlogdata.RowChange{
-								{
-									After: &query.Row{
-										Lengths: []int64{1, 8},
-										Values:  []byte("1keyboard"),
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_ROW,
+							RowEvent: &binlogdata.RowEvent{
+								TableName: table,
+								Keyspace:  keyspace,
+								Shard:     shard,
+								RowChanges: []*binlogdata.RowChange{
+									{
+										After: &query.Row{
+											Lengths: []int64{1, 8},
+											Values:  []byte("1keyboard"),
+										},
 									},
-								},
-								{
-									After: &query.Row{
-										Lengths: []int64{1, 7},
-										Values:  []byte("2monitor"),
+									{
+										After: &query.Row{
+											Lengths: []int64{1, 7},
+											Values:  []byte("2monitor"),
+										},
 									},
 								},
 							},
@@ -1102,15 +1138,17 @@ func TestRead_IncrementalSync_CanLogResults(t *testing.T) {
 			},
 			// 5th recv() of second sync for rows to advance GTid past stop position
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    shard,
-									Gtid:     nextVGtid,
-									Keyspace: keyspace,
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    shard,
+										Gtid:     nextVGtid,
+										Keyspace: keyspace,
+									},
 								},
 							},
 						},
@@ -1119,24 +1157,26 @@ func TestRead_IncrementalSync_CanLogResults(t *testing.T) {
 			},
 			// Will not reach this event since stop position passed
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_ROW,
-						RowEvent: &binlogdata.RowEvent{
-							TableName: table,
-							Keyspace:  keyspace,
-							Shard:     shard,
-							RowChanges: []*binlogdata.RowChange{
-								{
-									After: &query.Row{
-										Lengths: []int64{1, 8},
-										Values:  []byte("1keyboard"),
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_ROW,
+							RowEvent: &binlogdata.RowEvent{
+								TableName: table,
+								Keyspace:  keyspace,
+								Shard:     shard,
+								RowChanges: []*binlogdata.RowChange{
+									{
+										After: &query.Row{
+											Lengths: []int64{1, 8},
+											Values:  []byte("1keyboard"),
+										},
 									},
-								},
-								{
-									After: &query.Row{
-										Lengths: []int64{1, 7},
-										Values:  []byte("2monitor"),
+									{
+										After: &query.Row{
+											Lengths: []int64{1, 7},
+											Values:  []byte("2monitor"),
+										},
 									},
 								},
 							},
@@ -1216,18 +1256,20 @@ func TestRead_IncrementalSync_CanStopIfNoRows(t *testing.T) {
 	}
 
 	vstreamSyncClient := &vtgateVStreamClientMock{
-		vstreamResponses: []*vtgate.VStreamResponse{
+		vstreamResponses: []*vstreamResponse{
 			// First sync to get stop position
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    shard,
-									Gtid:     stopVGtid,
-									Keyspace: keyspace,
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    shard,
+										Gtid:     stopVGtid,
+										Keyspace: keyspace,
+									},
 								},
 							},
 						},
@@ -1236,15 +1278,17 @@ func TestRead_IncrementalSync_CanStopIfNoRows(t *testing.T) {
 			},
 			// 1st recv() of second sync for rows to get start VGtid
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    shard,
-									Gtid:     startVGtid,
-									Keyspace: keyspace,
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    shard,
+										Gtid:     startVGtid,
+										Keyspace: keyspace,
+									},
 								},
 							},
 						},
@@ -1253,15 +1297,17 @@ func TestRead_IncrementalSync_CanStopIfNoRows(t *testing.T) {
 			},
 			// 2nd recv() of second sync for rows to get stop VGtid
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    shard,
-									Gtid:     stopVGtid,
-									Keyspace: keyspace,
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    shard,
+										Gtid:     stopVGtid,
+										Keyspace: keyspace,
+									},
 								},
 							},
 						},
@@ -1270,15 +1316,17 @@ func TestRead_IncrementalSync_CanStopIfNoRows(t *testing.T) {
 			},
 			// 3rd recv() of second sync for rows to advance GTid past stop position
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    shard,
-									Gtid:     nextVGtid,
-									Keyspace: keyspace,
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    shard,
+										Gtid:     nextVGtid,
+										Keyspace: keyspace,
+									},
 								},
 							},
 						},
@@ -1287,24 +1335,26 @@ func TestRead_IncrementalSync_CanStopIfNoRows(t *testing.T) {
 			},
 			// Will not reach this event since stop position passed
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_ROW,
-						RowEvent: &binlogdata.RowEvent{
-							TableName: table,
-							Keyspace:  keyspace,
-							Shard:     shard,
-							RowChanges: []*binlogdata.RowChange{
-								{
-									After: &query.Row{
-										Lengths: []int64{1, 8},
-										Values:  []byte("1keyboard"),
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_ROW,
+							RowEvent: &binlogdata.RowEvent{
+								TableName: table,
+								Keyspace:  keyspace,
+								Shard:     shard,
+								RowChanges: []*binlogdata.RowChange{
+									{
+										After: &query.Row{
+											Lengths: []int64{1, 8},
+											Values:  []byte("1keyboard"),
+										},
 									},
-								},
-								{
-									After: &query.Row{
-										Lengths: []int64{1, 7},
-										Values:  []byte("2monitor"),
+									{
+										After: &query.Row{
+											Lengths: []int64{1, 7},
+											Values:  []byte("2monitor"),
+										},
 									},
 								},
 							},
@@ -1401,57 +1451,59 @@ func TestRead_FullSync_CanStopSyncPastStopPosition(t *testing.T) {
 	table := "customers"
 	database := "connect-test"
 
-	responses := []*vtgate.VStreamResponse{
+	responses := []*vstreamResponse{
 		{
-			Events: []*binlogdata.VEvent{
-				{
-					Type:     binlogdata.VEventType_BEGIN,
-					Keyspace: keyspace,
-					Shard:    shard,
-				},
-				{
-					Type:     binlogdata.VEventType_VGTID,
-					Keyspace: keyspace,
-					Shard:    shard,
-					Vgtid: &binlogdata.VGtid{
-						ShardGtids: []*binlogdata.ShardGtid{
-							{
-								Keyspace: keyspace,
-								Shard:    shard,
-								Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 9),
+			response: &vtgate.VStreamResponse{
+				Events: []*binlogdata.VEvent{
+					{
+						Type:     binlogdata.VEventType_BEGIN,
+						Keyspace: keyspace,
+						Shard:    shard,
+					},
+					{
+						Type:     binlogdata.VEventType_VGTID,
+						Keyspace: keyspace,
+						Shard:    shard,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Keyspace: keyspace,
+									Shard:    shard,
+									Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 9),
+								},
 							},
 						},
 					},
-				},
-				{
-					Type:     binlogdata.VEventType_COMMIT,
-					Keyspace: keyspace,
-					Shard:    shard,
-				},
-				{
-					Type: binlogdata.VEventType_FIELD,
-					FieldEvent: &binlogdata.FieldEvent{
-						TableName: table,
-						Fields: []*query.Field{
-							{
-								Name:         "id",
-								Type:         query.Type_INT64,
-								Table:        table,
-								OrgTable:     table,
-								Database:     database,
-								ColumnLength: 20,
-								Charset:      63,
-								ColumnType:   "bigint",
-							},
-							{
-								Name:         "product",
-								Type:         query.Type_VARCHAR,
-								Table:        table,
-								OrgTable:     table,
-								Database:     database,
-								ColumnLength: 1024,
-								Charset:      255,
-								ColumnType:   "varchar(256)",
+					{
+						Type:     binlogdata.VEventType_COMMIT,
+						Keyspace: keyspace,
+						Shard:    shard,
+					},
+					{
+						Type: binlogdata.VEventType_FIELD,
+						FieldEvent: &binlogdata.FieldEvent{
+							TableName: table,
+							Fields: []*query.Field{
+								{
+									Name:         "id",
+									Type:         query.Type_INT64,
+									Table:        table,
+									OrgTable:     table,
+									Database:     database,
+									ColumnLength: 20,
+									Charset:      63,
+									ColumnType:   "bigint",
+								},
+								{
+									Name:         "product",
+									Type:         query.Type_VARCHAR,
+									Table:        table,
+									OrgTable:     table,
+									Database:     database,
+									ColumnLength: 1024,
+									Charset:      255,
+									ColumnType:   "varchar(256)",
+								},
 							},
 						},
 					},
@@ -1459,12 +1511,14 @@ func TestRead_FullSync_CanStopSyncPastStopPosition(t *testing.T) {
 			},
 		},
 	}
-	rowResponse := vtgate.VStreamResponse{
-		Events: []*binlogdata.VEvent{
-			{
-				Type:     binlogdata.VEventType_BEGIN,
-				Keyspace: keyspace,
-				Shard:    shard,
+	rowResponse := vstreamResponse{
+		response: &vtgate.VStreamResponse{
+			Events: []*binlogdata.VEvent{
+				{
+					Type:     binlogdata.VEventType_BEGIN,
+					Keyspace: keyspace,
+					Shard:    shard,
+				},
 			},
 		},
 	}
@@ -1482,31 +1536,35 @@ func TestRead_FullSync_CanStopSyncPastStopPosition(t *testing.T) {
 				},
 			},
 		}
-		rowResponse.Events = append(rowResponse.Events, &event)
+		rowResponse.response.Events = append(rowResponse.response.Events, &event)
 	}
 
 	responses = append(responses, &rowResponse)
 
-	responses = append(responses, &vtgate.VStreamResponse{
-		Events: []*binlogdata.VEvent{
-			{
-				Type: binlogdata.VEventType_COPY_COMPLETED,
+	responses = append(responses, &vstreamResponse{
+		response: &vtgate.VStreamResponse{
+			Events: []*binlogdata.VEvent{
+				{
+					Type: binlogdata.VEventType_COPY_COMPLETED,
+				},
 			},
 		},
 	})
 
-	responses = append(responses, &vtgate.VStreamResponse{
-		Events: []*binlogdata.VEvent{
-			{
-				Type:     binlogdata.VEventType_VGTID,
-				Keyspace: keyspace,
-				Shard:    shard,
-				Vgtid: &binlogdata.VGtid{
-					ShardGtids: []*binlogdata.ShardGtid{
-						{
-							Keyspace: keyspace,
-							Shard:    shard,
-							Gtid:     "MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-10",
+	responses = append(responses, &vstreamResponse{
+		response: &vtgate.VStreamResponse{
+			Events: []*binlogdata.VEvent{
+				{
+					Type:     binlogdata.VEventType_VGTID,
+					Keyspace: keyspace,
+					Shard:    shard,
+					Vgtid: &binlogdata.VGtid{
+						ShardGtids: []*binlogdata.ShardGtid{
+							{
+								Keyspace: keyspace,
+								Shard:    shard,
+								Gtid:     "MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-10",
+							},
 						},
 					},
 				},
@@ -1515,18 +1573,20 @@ func TestRead_FullSync_CanStopSyncPastStopPosition(t *testing.T) {
 	})
 
 	getCurrentVGtidClient := &vtgateVStreamClientMock{
-		vstreamResponses: []*vtgate.VStreamResponse{
+		vstreamResponses: []*vstreamResponse{
 			// First sync to get stop position
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    shard,
-									Gtid:     stopVGtidPosition,
-									Keyspace: keyspace,
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    shard,
+										Gtid:     stopVGtidPosition,
+										Keyspace: keyspace,
+									},
 								},
 							},
 						},
@@ -1615,57 +1675,59 @@ func TestRead_FullSync_CanStopSyncEqualToStopPosition(t *testing.T) {
 	table := "customers"
 	database := "connect-test"
 
-	responses := []*vtgate.VStreamResponse{
+	responses := []*vstreamResponse{
 		{
-			Events: []*binlogdata.VEvent{
-				{
-					Type:     binlogdata.VEventType_BEGIN,
-					Keyspace: keyspace,
-					Shard:    shard,
-				},
-				{
-					Type:     binlogdata.VEventType_VGTID,
-					Keyspace: keyspace,
-					Shard:    shard,
-					Vgtid: &binlogdata.VGtid{
-						ShardGtids: []*binlogdata.ShardGtid{
-							{
-								Keyspace: keyspace,
-								Shard:    shard,
-								Gtid:     stopVGtidPosition,
+			response: &vtgate.VStreamResponse{
+				Events: []*binlogdata.VEvent{
+					{
+						Type:     binlogdata.VEventType_BEGIN,
+						Keyspace: keyspace,
+						Shard:    shard,
+					},
+					{
+						Type:     binlogdata.VEventType_VGTID,
+						Keyspace: keyspace,
+						Shard:    shard,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Keyspace: keyspace,
+									Shard:    shard,
+									Gtid:     stopVGtidPosition,
+								},
 							},
 						},
 					},
-				},
-				{
-					Type:     binlogdata.VEventType_COMMIT,
-					Keyspace: keyspace,
-					Shard:    shard,
-				},
-				{
-					Type: binlogdata.VEventType_FIELD,
-					FieldEvent: &binlogdata.FieldEvent{
-						TableName: table,
-						Fields: []*query.Field{
-							{
-								Name:         "id",
-								Type:         query.Type_INT64,
-								Table:        table,
-								OrgTable:     table,
-								Database:     database,
-								ColumnLength: 20,
-								Charset:      63,
-								ColumnType:   "bigint",
-							},
-							{
-								Name:         "product",
-								Type:         query.Type_VARCHAR,
-								Table:        table,
-								OrgTable:     table,
-								Database:     database,
-								ColumnLength: 1024,
-								Charset:      255,
-								ColumnType:   "varchar(256)",
+					{
+						Type:     binlogdata.VEventType_COMMIT,
+						Keyspace: keyspace,
+						Shard:    shard,
+					},
+					{
+						Type: binlogdata.VEventType_FIELD,
+						FieldEvent: &binlogdata.FieldEvent{
+							TableName: table,
+							Fields: []*query.Field{
+								{
+									Name:         "id",
+									Type:         query.Type_INT64,
+									Table:        table,
+									OrgTable:     table,
+									Database:     database,
+									ColumnLength: 20,
+									Charset:      63,
+									ColumnType:   "bigint",
+								},
+								{
+									Name:         "product",
+									Type:         query.Type_VARCHAR,
+									Table:        table,
+									OrgTable:     table,
+									Database:     database,
+									ColumnLength: 1024,
+									Charset:      255,
+									ColumnType:   "varchar(256)",
+								},
 							},
 						},
 					},
@@ -1673,12 +1735,14 @@ func TestRead_FullSync_CanStopSyncEqualToStopPosition(t *testing.T) {
 			},
 		},
 	}
-	rowResponse := vtgate.VStreamResponse{
-		Events: []*binlogdata.VEvent{
-			{
-				Type:     binlogdata.VEventType_BEGIN,
-				Keyspace: keyspace,
-				Shard:    shard,
+	rowResponse := vstreamResponse{
+		response: &vtgate.VStreamResponse{
+			Events: []*binlogdata.VEvent{
+				{
+					Type:     binlogdata.VEventType_BEGIN,
+					Keyspace: keyspace,
+					Shard:    shard,
+				},
 			},
 		},
 	}
@@ -1696,31 +1760,35 @@ func TestRead_FullSync_CanStopSyncEqualToStopPosition(t *testing.T) {
 				},
 			},
 		}
-		rowResponse.Events = append(rowResponse.Events, &event)
+		rowResponse.response.Events = append(rowResponse.response.Events, &event)
 	}
 
 	responses = append(responses, &rowResponse)
 
-	responses = append(responses, &vtgate.VStreamResponse{
-		Events: []*binlogdata.VEvent{
-			{
-				Type: binlogdata.VEventType_COPY_COMPLETED,
+	responses = append(responses, &vstreamResponse{
+		response: &vtgate.VStreamResponse{
+			Events: []*binlogdata.VEvent{
+				{
+					Type: binlogdata.VEventType_COPY_COMPLETED,
+				},
 			},
 		},
 	})
 
-	responses = append(responses, &vtgate.VStreamResponse{
-		Events: []*binlogdata.VEvent{
-			{
-				Type:     binlogdata.VEventType_VGTID,
-				Keyspace: keyspace,
-				Shard:    shard,
-				Vgtid: &binlogdata.VGtid{
-					ShardGtids: []*binlogdata.ShardGtid{
-						{
-							Keyspace: keyspace,
-							Shard:    shard,
-							Gtid:     nextSyncVGtidPosition,
+	responses = append(responses, &vstreamResponse{
+		response: &vtgate.VStreamResponse{
+			Events: []*binlogdata.VEvent{
+				{
+					Type:     binlogdata.VEventType_VGTID,
+					Keyspace: keyspace,
+					Shard:    shard,
+					Vgtid: &binlogdata.VGtid{
+						ShardGtids: []*binlogdata.ShardGtid{
+							{
+								Keyspace: keyspace,
+								Shard:    shard,
+								Gtid:     nextSyncVGtidPosition,
+							},
 						},
 					},
 				},
@@ -1729,18 +1797,20 @@ func TestRead_FullSync_CanStopSyncEqualToStopPosition(t *testing.T) {
 	})
 
 	getCurrentVGtidClient := &vtgateVStreamClientMock{
-		vstreamResponses: []*vtgate.VStreamResponse{
+		vstreamResponses: []*vstreamResponse{
 			// First sync to get stop position
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    shard,
-									Gtid:     stopVGtidPosition,
-									Keyspace: keyspace,
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    shard,
+										Gtid:     stopVGtidPosition,
+										Keyspace: keyspace,
+									},
 								},
 							},
 						},
@@ -1829,57 +1899,59 @@ func TestRead_FullSync_CopyCatchupLoop(t *testing.T) {
 	table := "customers"
 	database := "connect-test"
 
-	responses := []*vtgate.VStreamResponse{
+	responses := []*vstreamResponse{
 		{
-			Events: []*binlogdata.VEvent{
-				{
-					Type:     binlogdata.VEventType_BEGIN,
-					Keyspace: keyspace,
-					Shard:    shard,
-				},
-				{
-					Type:     binlogdata.VEventType_VGTID,
-					Keyspace: keyspace,
-					Shard:    shard,
-					Vgtid: &binlogdata.VGtid{
-						ShardGtids: []*binlogdata.ShardGtid{
-							{
-								Keyspace: keyspace,
-								Shard:    shard,
-								Gtid:     stopVGtidPosition,
+			response: &vtgate.VStreamResponse{
+				Events: []*binlogdata.VEvent{
+					{
+						Type:     binlogdata.VEventType_BEGIN,
+						Keyspace: keyspace,
+						Shard:    shard,
+					},
+					{
+						Type:     binlogdata.VEventType_VGTID,
+						Keyspace: keyspace,
+						Shard:    shard,
+						Vgtid: &binlogdata.VGtid{
+							ShardGtids: []*binlogdata.ShardGtid{
+								{
+									Keyspace: keyspace,
+									Shard:    shard,
+									Gtid:     stopVGtidPosition,
+								},
 							},
 						},
 					},
-				},
-				{
-					Type:     binlogdata.VEventType_COMMIT,
-					Keyspace: keyspace,
-					Shard:    shard,
-				},
-				{
-					Type: binlogdata.VEventType_FIELD,
-					FieldEvent: &binlogdata.FieldEvent{
-						TableName: table,
-						Fields: []*query.Field{
-							{
-								Name:         "id",
-								Type:         query.Type_INT64,
-								Table:        table,
-								OrgTable:     table,
-								Database:     database,
-								ColumnLength: 20,
-								Charset:      63,
-								ColumnType:   "bigint",
-							},
-							{
-								Name:         "product",
-								Type:         query.Type_VARCHAR,
-								Table:        table,
-								OrgTable:     table,
-								Database:     database,
-								ColumnLength: 1024,
-								Charset:      255,
-								ColumnType:   "varchar(256)",
+					{
+						Type:     binlogdata.VEventType_COMMIT,
+						Keyspace: keyspace,
+						Shard:    shard,
+					},
+					{
+						Type: binlogdata.VEventType_FIELD,
+						FieldEvent: &binlogdata.FieldEvent{
+							TableName: table,
+							Fields: []*query.Field{
+								{
+									Name:         "id",
+									Type:         query.Type_INT64,
+									Table:        table,
+									OrgTable:     table,
+									Database:     database,
+									ColumnLength: 20,
+									Charset:      63,
+									ColumnType:   "bigint",
+								},
+								{
+									Name:         "product",
+									Type:         query.Type_VARCHAR,
+									Table:        table,
+									OrgTable:     table,
+									Database:     database,
+									ColumnLength: 1024,
+									Charset:      255,
+									ColumnType:   "varchar(256)",
+								},
 							},
 						},
 					},
@@ -1887,12 +1959,14 @@ func TestRead_FullSync_CopyCatchupLoop(t *testing.T) {
 			},
 		},
 	}
-	copyPhase1 := vtgate.VStreamResponse{
-		Events: []*binlogdata.VEvent{
-			{
-				Type:     binlogdata.VEventType_BEGIN,
-				Keyspace: keyspace,
-				Shard:    shard,
+	copyPhase1 := vstreamResponse{
+		response: &vtgate.VStreamResponse{
+			Events: []*binlogdata.VEvent{
+				{
+					Type:     binlogdata.VEventType_BEGIN,
+					Keyspace: keyspace,
+					Shard:    shard,
+				},
 			},
 		},
 	}
@@ -1910,41 +1984,43 @@ func TestRead_FullSync_CopyCatchupLoop(t *testing.T) {
 				},
 			},
 		}
-		copyPhase1.Events = append(copyPhase1.Events, &event)
+		copyPhase1.response.Events = append(copyPhase1.response.Events, &event)
 	}
 
 	responses = append(responses, &copyPhase1)
 
-	catchupPhase1 := vtgate.VStreamResponse{
-		Events: []*binlogdata.VEvent{
-			{
-				Type:     binlogdata.VEventType_BEGIN,
-				Keyspace: "sharded",
-				Shard:    "-80",
-			},
-			{
-				Type: binlogdata.VEventType_ROW,
-				RowEvent: &binlogdata.RowEvent{
-					TableName: "sharded.t1",
-					RowChanges: []*binlogdata.RowChange{
-						{
-							After: &query.Row{
-								Values: []byte(fmt.Sprintf("%v,keyboard", 9)),
+	catchupPhase1 := vstreamResponse{
+		response: &vtgate.VStreamResponse{
+			Events: []*binlogdata.VEvent{
+				{
+					Type:     binlogdata.VEventType_BEGIN,
+					Keyspace: "sharded",
+					Shard:    "-80",
+				},
+				{
+					Type: binlogdata.VEventType_ROW,
+					RowEvent: &binlogdata.RowEvent{
+						TableName: "sharded.t1",
+						RowChanges: []*binlogdata.RowChange{
+							{
+								After: &query.Row{
+									Values: []byte(fmt.Sprintf("%v,keyboard", 9)),
+								},
 							},
 						},
 					},
 				},
-			},
-			{
-				Type:     binlogdata.VEventType_VGTID,
-				Keyspace: keyspace,
-				Shard:    shard,
-				Vgtid: &binlogdata.VGtid{
-					ShardGtids: []*binlogdata.ShardGtid{
-						{
-							Keyspace: keyspace,
-							Shard:    shard,
-							Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", numRows),
+				{
+					Type:     binlogdata.VEventType_VGTID,
+					Keyspace: keyspace,
+					Shard:    shard,
+					Vgtid: &binlogdata.VGtid{
+						ShardGtids: []*binlogdata.ShardGtid{
+							{
+								Keyspace: keyspace,
+								Shard:    shard,
+								Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", numRows),
+							},
 						},
 					},
 				},
@@ -1954,12 +2030,14 @@ func TestRead_FullSync_CopyCatchupLoop(t *testing.T) {
 
 	responses = append(responses, &catchupPhase1)
 
-	copyPhase2 := vtgate.VStreamResponse{
-		Events: []*binlogdata.VEvent{
-			{
-				Type:     binlogdata.VEventType_BEGIN,
-				Keyspace: keyspace,
-				Shard:    shard,
+	copyPhase2 := vstreamResponse{
+		response: &vtgate.VStreamResponse{
+			Events: []*binlogdata.VEvent{
+				{
+					Type:     binlogdata.VEventType_BEGIN,
+					Keyspace: keyspace,
+					Shard:    shard,
+				},
 			},
 		},
 	}
@@ -1977,41 +2055,43 @@ func TestRead_FullSync_CopyCatchupLoop(t *testing.T) {
 				},
 			},
 		}
-		copyPhase2.Events = append(copyPhase2.Events, &event)
+		copyPhase2.response.Events = append(copyPhase2.response.Events, &event)
 	}
 
 	responses = append(responses, &copyPhase2)
 
-	catchupPhase2 := vtgate.VStreamResponse{
-		Events: []*binlogdata.VEvent{
-			{
-				Type:     binlogdata.VEventType_BEGIN,
-				Keyspace: "sharded",
-				Shard:    "-80",
-			},
-			{
-				Type: binlogdata.VEventType_ROW,
-				RowEvent: &binlogdata.RowEvent{
-					TableName: "sharded.t1",
-					RowChanges: []*binlogdata.RowChange{
-						{
-							After: &query.Row{
-								Values: []byte(fmt.Sprintf("%v,keyboard", numRows+11)),
+	catchupPhase2 := vstreamResponse{
+		response: &vtgate.VStreamResponse{
+			Events: []*binlogdata.VEvent{
+				{
+					Type:     binlogdata.VEventType_BEGIN,
+					Keyspace: "sharded",
+					Shard:    "-80",
+				},
+				{
+					Type: binlogdata.VEventType_ROW,
+					RowEvent: &binlogdata.RowEvent{
+						TableName: "sharded.t1",
+						RowChanges: []*binlogdata.RowChange{
+							{
+								After: &query.Row{
+									Values: []byte(fmt.Sprintf("%v,keyboard", numRows+11)),
+								},
 							},
 						},
 					},
 				},
-			},
-			{
-				Type:     binlogdata.VEventType_VGTID,
-				Keyspace: keyspace,
-				Shard:    shard,
-				Vgtid: &binlogdata.VGtid{
-					ShardGtids: []*binlogdata.ShardGtid{
-						{
-							Keyspace: keyspace,
-							Shard:    shard,
-							Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 10),
+				{
+					Type:     binlogdata.VEventType_VGTID,
+					Keyspace: keyspace,
+					Shard:    shard,
+					Vgtid: &binlogdata.VGtid{
+						ShardGtids: []*binlogdata.ShardGtid{
+							{
+								Keyspace: keyspace,
+								Shard:    shard,
+								Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 10),
+							},
 						},
 					},
 				},
@@ -2021,26 +2101,30 @@ func TestRead_FullSync_CopyCatchupLoop(t *testing.T) {
 
 	responses = append(responses, &catchupPhase2)
 
-	responses = append(responses, &vtgate.VStreamResponse{
-		Events: []*binlogdata.VEvent{
-			{
-				Type: binlogdata.VEventType_COPY_COMPLETED,
+	responses = append(responses, &vstreamResponse{
+		response: &vtgate.VStreamResponse{
+			Events: []*binlogdata.VEvent{
+				{
+					Type: binlogdata.VEventType_COPY_COMPLETED,
+				},
 			},
 		},
 	})
 
-	responses = append(responses, &vtgate.VStreamResponse{
-		Events: []*binlogdata.VEvent{
-			{
-				Type:     binlogdata.VEventType_VGTID,
-				Keyspace: keyspace,
-				Shard:    shard,
-				Vgtid: &binlogdata.VGtid{
-					ShardGtids: []*binlogdata.ShardGtid{
-						{
-							Keyspace: keyspace,
-							Shard:    shard,
-							Gtid:     nextSyncVGtidPosition,
+	responses = append(responses, &vstreamResponse{
+		response: &vtgate.VStreamResponse{
+			Events: []*binlogdata.VEvent{
+				{
+					Type:     binlogdata.VEventType_VGTID,
+					Keyspace: keyspace,
+					Shard:    shard,
+					Vgtid: &binlogdata.VGtid{
+						ShardGtids: []*binlogdata.ShardGtid{
+							{
+								Keyspace: keyspace,
+								Shard:    shard,
+								Gtid:     nextSyncVGtidPosition,
+							},
 						},
 					},
 				},
@@ -2049,18 +2133,20 @@ func TestRead_FullSync_CopyCatchupLoop(t *testing.T) {
 	})
 
 	getCurrentVGtidClient := &vtgateVStreamClientMock{
-		vstreamResponses: []*vtgate.VStreamResponse{
+		vstreamResponses: []*vstreamResponse{
 			// First sync to get stop position
 			{
-				Events: []*binlogdata.VEvent{
-					{
-						Type: binlogdata.VEventType_VGTID,
-						Vgtid: &binlogdata.VGtid{
-							ShardGtids: []*binlogdata.ShardGtid{
-								{
-									Shard:    shard,
-									Gtid:     stopVGtidPosition,
-									Keyspace: keyspace,
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    shard,
+										Gtid:     stopVGtidPosition,
+										Keyspace: keyspace,
+									},
 								},
 							},
 						},

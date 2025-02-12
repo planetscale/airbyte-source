@@ -59,9 +59,14 @@ type vstreamClientMock struct {
 	vstreamFnInvokedCount int
 }
 
+type vstreamResponse struct {
+	response *vtgate.VStreamResponse
+	err      error
+}
+
 type vtgateVStreamClientMock struct {
 	lastResponseSent int
-	vstreamResponses []*vtgate.VStreamResponse
+	vstreamResponses []*vstreamResponse
 	grpc.ClientStream
 }
 
@@ -70,7 +75,7 @@ func (x *vtgateVStreamClientMock) Recv() (*vtgate.VStreamResponse, error) {
 		return nil, io.EOF
 	}
 	x.lastResponseSent += 1
-	return x.vstreamResponses[x.lastResponseSent-1], nil
+	return x.vstreamResponses[x.lastResponseSent-1].response, x.vstreamResponses[x.lastResponseSent-1].err
 }
 
 func (x *vstreamClientMock) CloseSession(context.Context, *vtgate.CloseSessionRequest, ...grpc.CallOption) (*vtgate.CloseSessionResponse, error) {
