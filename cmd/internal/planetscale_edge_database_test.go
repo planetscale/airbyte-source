@@ -2257,6 +2257,27 @@ func TestRead_FullSync_MaxRetries(t *testing.T) {
 									Keyspace: keyspace,
 									Shard:    shard,
 									Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 8),
+									TablePKs: []*binlogdata.TableLastPK{
+										{
+											TableName: table,
+											Lastpk: &query.QueryResult{
+												Fields: []*query.Field{
+													{
+														Name:    "id",
+														Type:    query.Type_INT64,
+														Charset: 63,
+														Flags:   53251,
+													},
+												},
+												Rows: []*query.Row{
+													{
+														Lengths: []int64{4},
+														Values:  []byte("10"),
+													},
+												},
+											},
+										},
+									},
 								},
 							},
 						},
@@ -2352,6 +2373,27 @@ func TestRead_FullSync_MaxRetries(t *testing.T) {
 								Keyspace: keyspace,
 								Shard:    shard,
 								Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 9),
+								TablePKs: []*binlogdata.TableLastPK{
+									{
+										TableName: table,
+										Lastpk: &query.QueryResult{
+											Fields: []*query.Field{
+												{
+													Name:    "id",
+													Type:    query.Type_INT64,
+													Charset: 63,
+													Flags:   53251,
+												},
+											},
+											Rows: []*query.Row{
+												{
+													Lengths: []int64{4},
+													Values:  []byte("20"),
+												},
+											},
+										},
+									},
+								},
 							},
 						},
 					},
@@ -2402,6 +2444,27 @@ func TestRead_FullSync_MaxRetries(t *testing.T) {
 								Keyspace: keyspace,
 								Shard:    shard,
 								Gtid:     fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 10),
+								TablePKs: []*binlogdata.TableLastPK{
+									{
+										TableName: table,
+										Lastpk: &query.QueryResult{
+											Fields: []*query.Field{
+												{
+													Name:    "id",
+													Type:    query.Type_INT64,
+													Charset: 63,
+													Flags:   53251,
+												},
+											},
+											Rows: []*query.Row{
+												{
+													Lengths: []int64{4},
+													Values:  []byte("30"),
+												},
+											},
+										},
+									},
+								},
 							},
 						},
 					},
@@ -2473,11 +2536,18 @@ func TestRead_FullSync_MaxRetries(t *testing.T) {
 		vstreamResponses: responses,
 	}
 
+	callCount := 0
 	vsc := vstreamClientMock{
 		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
 			assert.Equal(t, topodata.TabletType_PRIMARY, in.TabletType)
+			callCount += 1
 			if in.Vgtid.ShardGtids[0].Gtid == "current" {
+				assert.Nil(t, in.Vgtid.ShardGtids[0].TablePKs)
 				return getCurrentVGtidClient, nil
+			}
+
+			if callCount > 2 {
+				assert.NotEmpty(t, in.Vgtid.ShardGtids[0].TablePKs)
 			}
 			return vstreamSyncClient, nil
 		},
@@ -2505,13 +2575,29 @@ func TestRead_FullSync_MaxRetries(t *testing.T) {
 		Shard:    "-",
 		Keyspace: "connect-test",
 		Position: nextSyncVGtidPosition,
+		LastKnownPk: &query.QueryResult{
+			Fields: []*query.Field{
+				{
+					Name:    "id",
+					Type:    query.Type_INT64,
+					Charset: 63,
+					Flags:   53251,
+				},
+			},
+			Rows: []*query.Row{
+				{
+					Lengths: []int64{4},
+					Values:  []byte("30"),
+				},
+			},
+		},
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, esc, nextSyncStartCursor)
 	assert.Equal(t, 4, vsc.vstreamFnInvokedCount)
 
 	logLines := tal.logMessages[LOGLEVEL_INFO]
-	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] %v records synced after 3 syncs. Got error [DeadlineExceeded], returning with cursor [shard:\"-\"  keyspace:\"connect-test\"  position:\"MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-10\"] after gRPC error", 30), logLines[len(logLines)-1])
+	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] %v records synced after 3 syncs. Got error [DeadlineExceeded], returning with cursor [shard:\"-\"  keyspace:\"connect-test\"  position:\"MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-10\"  last_known_pk:{fields:{name:\"id\"  type:INT64  charset:63  flags:53251}  rows:{lengths:4  values:\"30\"}}] after gRPC error", 30), logLines[len(logLines)-1])
 	records := tal.records["connect-test.customers"]
 	assert.Equal(t, 30, len(records))
 }

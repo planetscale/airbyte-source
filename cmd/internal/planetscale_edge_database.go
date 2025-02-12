@@ -222,7 +222,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	for {
 		syncCount += 1
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sStarting sync #%v", preamble, syncCount))
-		newPosition, newStopPosition, recordCount, err := p.sync(ctx, syncMode, currentPosition, stopPosition, table, ps, tabletType, readDuration)
+		newPosition, recordCount, err := p.sync(ctx, syncMode, currentPosition, stopPosition, table, ps, tabletType, readDuration)
 		totalRecordCount += recordCount
 		currentSerializedCursor, sErr = TableCursorToSerializedCursor(currentPosition)
 		if sErr != nil {
@@ -244,12 +244,11 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 			}
 		}
 		currentPosition = newPosition
-		stopPosition = newStopPosition
-		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%vContinuing to next sync #%v. Set next sync start position to [%+v] and next stop position to [%+v]", preamble, syncCount+1, currentPosition, stopPosition))
+		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%vContinuing to next sync #%v. Set next sync start position to [%+v].", preamble, syncCount+1, currentPosition))
 	}
 }
 
-func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *psdbconnect.TableCursor, stopPosition string, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType, readDuration time.Duration) (*psdbconnect.TableCursor, string, int, error) {
+func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *psdbconnect.TableCursor, stopPosition string, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType, readDuration time.Duration) (*psdbconnect.TableCursor, int, error) {
 	preamble := fmt.Sprintf("[%v:%v:%v shard : %v] ", s.Namespace, TabletTypeToString(tabletType), s.Name, tc.Shard)
 
 	defer p.Logger.Flush()
@@ -264,7 +263,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 
 	vtgateClient, conn, err := p.initializeVTGateClient(ctx, ps)
 	if err != nil {
-		return tc, stopPosition, 0, err
+		return tc, 0, err
 	}
 	if conn != nil {
 		defer conn.Close()
@@ -280,7 +279,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 
 	if err != nil {
 		p.Logger.Log(LOGLEVEL_ERROR, fmt.Sprintf("%sExiting sync due to client sync error: %+v", preamble, err))
-		return tc, stopPosition, 0, err
+		return tc, 0, err
 	}
 
 	keyspaceOrDatabase := s.Namespace
@@ -300,14 +299,14 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 			if s, ok := status.FromError(err); ok && s.Code() == codes.DeadlineExceeded {
 				// No next VGTID found
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because no new VGTID found after last position or deadline exceeded %+v", preamble, tc))
-				return tc, stopPosition, resultCount, err
+				return tc, resultCount, err
 			} else if err == io.EOF {
 				// EOF is an acceptable error indicating VStream is finished.
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because EOF encountered at position %+v", preamble, tc))
-				return tc, stopPosition, resultCount, io.EOF
+				return tc, resultCount, io.EOF
 			} else {
 				p.Logger.Log(LOGLEVEL_ERROR, fmt.Sprintf("%sExiting sync and flushing records due to error: %+v", preamble, err))
-				return tc, stopPosition, resultCount, err
+				return tc, resultCount, err
 			}
 		}
 
@@ -327,6 +326,8 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 						} else {
 							tc.LastKnownPk = nil
 						}
+					} else {
+						tc.LastKnownPk = nil
 					}
 				}
 			case binlogdata.VEventType_LASTPK:
@@ -373,7 +374,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 		// Exit sync and flush records once the VGTID position is past the desired stop position, and we're no longer waiting for COPY phase to complete
 		if canFinishSync && positionAfter(tc.Position, stopPosition) {
 			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because current position %+v has passed stop position %+v", preamble, tc.Position, stopPosition))
-			return tc, stopPosition, resultCount, io.EOF
+			return tc, resultCount, io.EOF
 		}
 
 		if len(rows) > 0 {
@@ -483,7 +484,7 @@ func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableName
 }
 
 func buildVStreamRequest(tabletType psdbconnect.TabletType, table string, shard string, keyspace string, gtid string, lastKnownPk *query.QueryResult) *vtgate.VStreamRequest {
-	return &vtgate.VStreamRequest{
+	req := &vtgate.VStreamRequest{
 		TabletType: toTopoTabletType(tabletType),
 		Vgtid: &binlogdata.VGtid{
 			ShardGtids: []*binlogdata.ShardGtid{
@@ -491,12 +492,6 @@ func buildVStreamRequest(tabletType psdbconnect.TabletType, table string, shard 
 					Shard:    shard,
 					Keyspace: keyspace,
 					Gtid:     gtid,
-					TablePKs: []*binlogdata.TableLastPK{
-						{
-							TableName: table,
-							Lastpk:    lastKnownPk,
-						},
-					},
 				},
 			},
 		},
@@ -511,6 +506,17 @@ func buildVStreamRequest(tabletType psdbconnect.TabletType, table string, shard 
 			}},
 		},
 	}
+
+	if lastKnownPk != nil {
+		req.Vgtid.ShardGtids[0].TablePKs = []*binlogdata.TableLastPK{
+			{
+				TableName: table,
+				Lastpk:    lastKnownPk,
+			},
+		}
+	}
+
+	return req
 }
 
 // positionEqual returns true if position `a` is equal to or after position `b`
