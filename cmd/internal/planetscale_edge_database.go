@@ -273,8 +273,16 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 		tc.Position = ""
 	}
 
+	isFullSync := syncMode == "full"
 	vtgateReq := buildVStreamRequest(tabletType, s.Name, tc.Shard, tc.Keyspace, tc.Position, tc.LastKnownPk)
 	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sRequesting VStream with %+v", preamble, vtgateReq))
+
+	if isFullSync {
+		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sWill stop once COPY COMPLETED event is seen.", preamble))
+	} else {
+		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sWill stop once stop position [%+v] is found.", preamble, stopPosition))
+	}
+
 	c, err := vtgateClient.VStream(ctx, vtgateReq)
 
 	if err != nil {
@@ -287,7 +295,6 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 		keyspaceOrDatabase = ps.Database
 	}
 
-	isFullSync := syncMode == "full"
 	copyCompletedSeen := false
 	// Can finish sync once we've synced to the stop position, or finished the VStream COPY phase
 	canFinishSync := false

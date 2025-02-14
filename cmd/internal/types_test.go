@@ -108,3 +108,29 @@ func TestCanMapEnumAndSetValues(t *testing.T) {
 	assert.Equal(t, "active", secondRow["status"].(sqltypes.Value).ToString())
 	assert.Equal(t, "San Francisco,Oakland", secondRow["locations"].(sqltypes.Value).ToString())
 }
+
+func TestCanFormatISO8601Values(t *testing.T) {
+	datetimeValue, err := sqltypes.NewValue(query.Type_DATETIME, []byte("2025-02-14 08:08:08"))
+	assert.NoError(t, err)
+	dateValue, err := sqltypes.NewValue(query.Type_DATE, []byte("2025-02-14"))
+	assert.NoError(t, err)
+	timestampValue, err := sqltypes.NewValue(query.Type_TIMESTAMP, []byte("2025-02-14 08:08:08"))
+	assert.NoError(t, err)
+	input := sqltypes.Result{
+		Fields: []*query.Field{
+			{Name: "datetime_created_at", Type: sqltypes.Datetime, ColumnType: "datetime"},
+			{Name: "date_created_at", Type: sqltypes.Date, ColumnType: "date"},
+			{Name: "timestamp_created_at", Type: sqltypes.Set, ColumnType: "timestamp"},
+		},
+		Rows: [][]sqltypes.Value{
+			{datetimeValue, dateValue, timestampValue},
+		},
+	}
+
+	output := QueryResultToRecords(&input)
+	assert.Equal(t, 1, len(output))
+	row := output[0]
+	assert.Equal(t, "2025-02-14T08:08:08Z", row["datetime_created_at"].(sqltypes.Value).ToString())
+	assert.Equal(t, "2025-02-14T00:00:00Z", row["date_created_at"].(sqltypes.Value).ToString())
+	assert.Equal(t, "2025-02-14T08:08:08Z", row["timestamp_created_at"].(sqltypes.Value).ToString())
+}
