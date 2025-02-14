@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
@@ -160,6 +161,8 @@ func parseValue(val sqltypes.Value, columnType string) sqltypes.Value {
 	} else if strings.HasPrefix(columnType, "set") {
 		values := parseEnumOrSetValues(columnType)
 		return mapSetValue(val, values)
+	} else if lowerCased := strings.ToLower(columnType); strings.HasPrefix(lowerCased, "time") || strings.HasPrefix(lowerCased, "date") {
+		return formatISO8601(lowerCased, val)
 	}
 
 	return val
@@ -179,6 +182,25 @@ func parseEnumOrSetValues(columnType string) []string {
 	}
 
 	return values
+}
+
+func formatISO8601(mysqlType string, value sqltypes.Value) sqltypes.Value {
+	parsedDatetime := value.ToString()
+
+	var formatString string
+	if mysqlType == "date" {
+		formatString = "2006-01-02"
+	} else {
+		formatString = "2006-01-02 15:04:05"
+	}
+	mysqlTime, err := time.Parse(formatString, parsedDatetime)
+	if err != nil {
+		// fallback to default value if datetime is not parseable
+		return value
+	}
+	iso8601Datetime := mysqlTime.Format(time.RFC3339)
+	formattedValue, _ := sqltypes.NewValue(value.Type(), []byte(iso8601Datetime))
+	return formattedValue
 }
 
 func mapSetValue(value sqltypes.Value, values []string) sqltypes.Value {
