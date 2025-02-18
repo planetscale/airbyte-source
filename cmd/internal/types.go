@@ -11,6 +11,7 @@ import (
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/planetscale/psdb/core/codec"
 	"vitess.io/vitess/go/sqltypes"
+	"vitess.io/vitess/go/vt/proto/query"
 )
 
 const (
@@ -143,7 +144,7 @@ func QueryResultToRecords(qr *sqltypes.Result) []map[string]interface{} {
 		record := make(map[string]interface{})
 		for idx, val := range row {
 			if idx < len(columns) {
-				record[columns[idx]] = parseValue(val, qr.Fields[idx].GetColumnType())
+				record[columns[idx]] = parseValue(val, qr.Fields[idx].GetColumnType(), qr.Fields[idx].GetType())
 			}
 		}
 		data = append(data, record)
@@ -154,15 +155,15 @@ func QueryResultToRecords(qr *sqltypes.Result) []map[string]interface{} {
 
 // After the initial COPY phase, enum and set values may appear as an index instead of a value.
 // For example, a value might look like a "1" instead of "apple" in an enum('apple','banana','orange') column)
-func parseValue(val sqltypes.Value, columnType string) sqltypes.Value {
-	if strings.HasPrefix(columnType, "enum") {
+func parseValue(val sqltypes.Value, columnType string, queryColumnType query.Type) sqltypes.Value {
+	if queryColumnType == query.Type_DATETIME || queryColumnType == query.Type_DATE || queryColumnType == query.Type_TIME {
+		return formatISO8601(queryColumnType, val)
+	} else if queryColumnType == query.Type_ENUM {
 		values := parseEnumOrSetValues(columnType)
 		return mapEnumValue(val, values)
-	} else if strings.HasPrefix(columnType, "set") {
+	} else if queryColumnType == query.Type_SET {
 		values := parseEnumOrSetValues(columnType)
 		return mapSetValue(val, values)
-	} else if lowerCased := strings.ToLower(columnType); strings.HasPrefix(lowerCased, "time") || strings.HasPrefix(lowerCased, "date") {
-		return formatISO8601(lowerCased, val)
 	}
 
 	return val
@@ -184,12 +185,12 @@ func parseEnumOrSetValues(columnType string) []string {
 	return values
 }
 
-func formatISO8601(mysqlType string, value sqltypes.Value) sqltypes.Value {
+func formatISO8601(mysqlType query.Type, value sqltypes.Value) sqltypes.Value {
 	parsedDatetime := value.ToString()
 
 	var formatString string
 	var layout string
-	if mysqlType == "date" {
+	if mysqlType == query.Type_DATE {
 		formatString = "2006-01-02"
 		layout = time.DateOnly
 	} else {

@@ -120,7 +120,7 @@ func TestCanFormatISO8601Values(t *testing.T) {
 		Fields: []*query.Field{
 			{Name: "datetime_created_at", Type: sqltypes.Datetime, ColumnType: "datetime"},
 			{Name: "date_created_at", Type: sqltypes.Date, ColumnType: "date"},
-			{Name: "timestamp_created_at", Type: sqltypes.Set, ColumnType: "timestamp"},
+			{Name: "timestamp_created_at", Type: sqltypes.Time, ColumnType: "timestamp"},
 		},
 		Rows: [][]sqltypes.Value{
 			{datetimeValue, dateValue, timestampValue},
