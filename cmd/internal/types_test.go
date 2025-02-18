@@ -131,6 +131,6 @@ func TestCanFormatISO8601Values(t *testing.T) {
 	assert.Equal(t, 1, len(output))
 	row := output[0]
 	assert.Equal(t, "2025-02-14T08:08:08Z", row["datetime_created_at"].(sqltypes.Value).ToString())
-	assert.Equal(t, "2025-02-14T00:00:00Z", row["date_created_at"].(sqltypes.Value).ToString())
+	assert.Equal(t, "2025-02-14", row["date_created_at"].(sqltypes.Value).ToString())
 	assert.Equal(t, "2025-02-14T08:08:08Z", row["timestamp_created_at"].(sqltypes.Value).ToString())
 }

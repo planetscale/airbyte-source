@@ -188,17 +188,20 @@ func formatISO8601(mysqlType string, value sqltypes.Value) sqltypes.Value {
 	parsedDatetime := value.ToString()
 
 	var formatString string
+	var layout string
 	if mysqlType == "date" {
 		formatString = "2006-01-02"
+		layout = time.DateOnly
 	} else {
 		formatString = "2006-01-02 15:04:05"
+		layout = time.RFC3339
 	}
 	mysqlTime, err := time.Parse(formatString, parsedDatetime)
 	if err != nil {
 		// fallback to default value if datetime is not parseable
 		return value
 	}
-	iso8601Datetime := mysqlTime.Format(time.RFC3339)
+	iso8601Datetime := mysqlTime.Format(layout)
 	formattedValue, _ := sqltypes.NewValue(value.Type(), []byte(iso8601Datetime))
 	return formattedValue
 }
