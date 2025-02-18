@@ -5,11 +5,13 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/planetscale/psdb/core/codec"
 	"vitess.io/vitess/go/sqltypes"
+	"vitess.io/vitess/go/vt/proto/query"
 )
 
 const (
@@ -142,7 +144,7 @@ func QueryResultToRecords(qr *sqltypes.Result) []map[string]interface{} {
 		record := make(map[string]interface{})
 		for idx, val := range row {
 			if idx < len(columns) {
-				record[columns[idx]] = parseValue(val, qr.Fields[idx].GetColumnType())
+				record[columns[idx]] = parseValue(val, qr.Fields[idx].GetColumnType(), qr.Fields[idx].GetType())
 			}
 		}
 		data = append(data, record)
@@ -153,11 +155,14 @@ func QueryResultToRecords(qr *sqltypes.Result) []map[string]interface{} {
 
 // After the initial COPY phase, enum and set values may appear as an index instead of a value.
 // For example, a value might look like a "1" instead of "apple" in an enum('apple','banana','orange') column)
-func parseValue(val sqltypes.Value, columnType string) sqltypes.Value {
-	if strings.HasPrefix(columnType, "enum") {
+func parseValue(val sqltypes.Value, columnType string, queryColumnType query.Type) sqltypes.Value {
+	switch queryColumnType {
+	case query.Type_DATETIME, query.Type_DATE, query.Type_TIME:
+		return formatISO8601(queryColumnType, val)
+	case query.Type_ENUM:
 		values := parseEnumOrSetValues(columnType)
 		return mapEnumValue(val, values)
-	} else if strings.HasPrefix(columnType, "set") {
+	case query.Type_SET:
 		values := parseEnumOrSetValues(columnType)
 		return mapSetValue(val, values)
 	}
@@ -179,6 +184,28 @@ func parseEnumOrSetValues(columnType string) []string {
 	}
 
 	return values
+}
+
+func formatISO8601(mysqlType query.Type, value sqltypes.Value) sqltypes.Value {
+	parsedDatetime := value.ToString()
+
+	var formatString string
+	var layout string
+	if mysqlType == query.Type_DATE {
+		formatString = "2006-01-02"
+		layout = time.DateOnly
+	} else {
+		formatString = "2006-01-02 15:04:05"
+		layout = time.RFC3339
+	}
+	mysqlTime, err := time.Parse(formatString, parsedDatetime)
+	if err != nil {
+		// fallback to default value if datetime is not parseable
+		return value
+	}
+	iso8601Datetime := mysqlTime.Format(layout)
+	formattedValue, _ := sqltypes.NewValue(value.Type(), []byte(iso8601Datetime))
+	return formattedValue
 }
 
 func mapSetValue(value sqltypes.Value, values []string) sqltypes.Value {
