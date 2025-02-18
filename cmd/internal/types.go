@@ -156,12 +156,13 @@ func QueryResultToRecords(qr *sqltypes.Result) []map[string]interface{} {
 // After the initial COPY phase, enum and set values may appear as an index instead of a value.
 // For example, a value might look like a "1" instead of "apple" in an enum('apple','banana','orange') column)
 func parseValue(val sqltypes.Value, columnType string, queryColumnType query.Type) sqltypes.Value {
-	if queryColumnType == query.Type_DATETIME || queryColumnType == query.Type_DATE || queryColumnType == query.Type_TIME {
+	switch queryColumnType {
+	case query.Type_DATETIME, query.Type_DATE, query.Type_TIME:
 		return formatISO8601(queryColumnType, val)
-	} else if queryColumnType == query.Type_ENUM {
+	case query.Type_ENUM:
 		values := parseEnumOrSetValues(columnType)
 		return mapEnumValue(val, values)
-	} else if queryColumnType == query.Type_SET {
+	case query.Type_SET:
 		values := parseEnumOrSetValues(columnType)
 		return mapSetValue(val, values)
 	}
