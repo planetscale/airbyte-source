@@ -132,28 +132,37 @@ func (p PlanetScaleEdgeDatabase) getStreamForTable(ctx context.Context, psc Plan
 }
 
 // Convert columnType to Airbyte type.
-func getJsonSchemaType(mysqlType string, treatTinyIntAsBoolean bool) PropertyType {
+func getJsonSchemaType(mysqlType string, treatTinyIntAsBoolean bool, nullable string) PropertyType {
 	// Support custom airbyte types documented here :
 	// https://docs.airbyte.com/understanding-airbyte/supported-data-types/#the-types
+	var propertyType PropertyType
+
 	switch {
 	case strings.HasPrefix(mysqlType, "tinyint(1)"):
 		if treatTinyIntAsBoolean {
-			return PropertyType{Type: "boolean"}
+			propertyType = PropertyType{Type: []string{"boolean"}}
+		} else {
+			propertyType = PropertyType{Type: []string{"number"}, AirbyteType: "integer"}
 		}
-		return PropertyType{Type: "number", AirbyteType: "integer"}
 	case strings.HasPrefix(mysqlType, "int"), strings.HasPrefix(mysqlType, "smallint"), strings.HasPrefix(mysqlType, "mediumint"), strings.HasPrefix(mysqlType, "bigint"), strings.HasPrefix(mysqlType, "tinyint"):
-		return PropertyType{Type: "number", AirbyteType: "integer"}
+		propertyType = PropertyType{Type: []string{"number"}, AirbyteType: "integer"}
 	case strings.HasPrefix(mysqlType, "decimal"), strings.HasPrefix(mysqlType, "double"), strings.HasPrefix(mysqlType, "float"):
-		return PropertyType{Type: "number"}
+		propertyType = PropertyType{Type: []string{"number"}}
 	case strings.HasPrefix(mysqlType, "datetime"), strings.HasPrefix(mysqlType, "timestamp"):
-		return PropertyType{Type: "string", CustomFormat: "date-time", AirbyteType: "timestamp_without_timezone"}
+		propertyType = PropertyType{Type: []string{"string"}, CustomFormat: "date-time", AirbyteType: "timestamp_without_timezone"}
 	case strings.HasPrefix(mysqlType, "date"):
-		return PropertyType{Type: "string", CustomFormat: "date", AirbyteType: "date"}
+		propertyType = PropertyType{Type: []string{"string"}, CustomFormat: "date", AirbyteType: "date"}
 	case strings.HasPrefix(mysqlType, "time"):
-		return PropertyType{Type: "string", CustomFormat: "time", AirbyteType: "time_without_timezone"}
+		propertyType = PropertyType{Type: []string{"string"}, CustomFormat: "time", AirbyteType: "time_without_timezone"}
 	default:
-		return PropertyType{Type: "string"}
+		propertyType = PropertyType{Type: []string{"string"}}
 	}
+
+	if strings.ToLower(nullable) == "yes" {
+		propertyType.Type = append(propertyType.Type, "null")
+	}
+
+	return propertyType
 }
 
 func (p PlanetScaleEdgeDatabase) Close() error {

@@ -478,7 +478,7 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 	for _, typeTest := range tests {
 
 		t.Run(fmt.Sprintf("mysql_type_%v", typeTest.MysqlType), func(t *testing.T) {
-			p := getJsonSchemaType(typeTest.MysqlType, typeTest.TreatTinyIntAsBoolean)
+			p := getJsonSchemaType(typeTest.MysqlType, typeTest.TreatTinyIntAsBoolean, "NO")
 			assert.Equal(t, typeTest.AirbyteType, p.AirbyteType)
 			assert.Equal(t, typeTest.JSONSchemaType, p.Type)
 		})

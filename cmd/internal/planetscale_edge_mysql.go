@@ -157,7 +157,7 @@ func (p planetScaleEdgeMySQLAccess) GetTableSchema(ctx context.Context, psc Plan
 
 	columnNamesQR, err := p.db.QueryContext(
 		ctx,
-		"select column_name, column_type from information_schema.columns where table_name=? AND table_schema=?;",
+		"select column_name, column_type, is_nullable from information_schema.columns where table_name=? AND table_schema=?;",
 		tableName, psc.Database,
 	)
 	if err != nil {
@@ -168,12 +168,13 @@ func (p planetScaleEdgeMySQLAccess) GetTableSchema(ctx context.Context, psc Plan
 		var (
 			name       string
 			columnType string
+			nullable   string
 		)
 		if err = columnNamesQR.Scan(&name, &columnType); err != nil {
 			return properties, errors.Wrapf(err, "Unable to scan row for column names & types of table %v", tableName)
 		}
 
-		properties[name] = getJsonSchemaType(columnType, !psc.Options.DoNotTreatTinyIntAsBoolean)
+		properties[name] = getJsonSchemaType(columnType, !psc.Options.DoNotTreatTinyIntAsBoolean, nullable)
 	}
 
 	if err := columnNamesQR.Err(); err != nil {
