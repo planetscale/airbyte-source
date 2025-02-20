@@ -64,7 +64,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 
 			catalog, err := readCatalog(readSourceCatalogPath)
 			if err != nil {
-				ch.Logger.Error("Unable to read catalog")
+				ch.Logger.Error(fmt.Sprintf("Unable to read catalog: %+v", err))
 				os.Exit(1)
 			}
 

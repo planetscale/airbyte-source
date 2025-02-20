@@ -359,118 +359,125 @@ func TestRead_CanPickRdonlyForShardedKeyspaces(t *testing.T) {
 func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 	var tests = []struct {
 		MysqlType             string
-		JSONSchemaType        string
+		JSONSchemaType        []string
 		AirbyteType           string
 		TreatTinyIntAsBoolean bool
+		IsNullable            string
 	}{
 		{
 			MysqlType:      "int(11)",
-			JSONSchemaType: "number",
+			JSONSchemaType: []string{"number"},
 			AirbyteType:    "integer",
 		},
 		{
 			MysqlType:      "smallint(4)",
-			JSONSchemaType: "number",
+			JSONSchemaType: []string{"number"},
 			AirbyteType:    "integer",
 		},
 		{
 			MysqlType:      "mediumint(8)",
-			JSONSchemaType: "number",
+			JSONSchemaType: []string{"number"},
 			AirbyteType:    "integer",
 		},
 		{
 			MysqlType:             "tinyint",
-			JSONSchemaType:        "number",
+			JSONSchemaType:        []string{"number"},
 			AirbyteType:           "integer",
 			TreatTinyIntAsBoolean: true,
 		},
 		{
 			MysqlType:             "tinyint(1)",
-			JSONSchemaType:        "boolean",
+			JSONSchemaType:        []string{"boolean"},
 			AirbyteType:           "",
 			TreatTinyIntAsBoolean: true,
 		},
 		{
 			MysqlType:             "tinyint(1) unsigned",
-			JSONSchemaType:        "boolean",
+			JSONSchemaType:        []string{"boolean"},
 			AirbyteType:           "",
 			TreatTinyIntAsBoolean: true,
 		},
 		{
 			MysqlType:             "tinyint(1)",
-			JSONSchemaType:        "number",
+			JSONSchemaType:        []string{"number"},
 			AirbyteType:           "integer",
 			TreatTinyIntAsBoolean: false,
 		},
 		{
 			MysqlType:             "tinyint(1) unsigned",
-			JSONSchemaType:        "number",
+			JSONSchemaType:        []string{"number"},
 			AirbyteType:           "integer",
 			TreatTinyIntAsBoolean: false,
 		},
 		{
 			MysqlType:      "bigint(16)",
-			JSONSchemaType: "number",
+			JSONSchemaType: []string{"number"},
 			AirbyteType:    "integer",
 		},
 		{
 			MysqlType:      "bigint unsigned",
-			JSONSchemaType: "number",
+			JSONSchemaType: []string{"number"},
 			AirbyteType:    "integer",
 		},
 		{
 			MysqlType:      "bigint zerofill",
-			JSONSchemaType: "number",
+			JSONSchemaType: []string{"number"},
 			AirbyteType:    "integer",
 		},
 		{
 			MysqlType:      "datetime",
-			JSONSchemaType: "string",
+			JSONSchemaType: []string{"string"},
 			AirbyteType:    "timestamp_without_timezone",
 		},
 		{
 			MysqlType:      "datetime(6)",
-			JSONSchemaType: "string",
+			JSONSchemaType: []string{"string"},
 			AirbyteType:    "timestamp_without_timezone",
 		},
 		{
 			MysqlType:      "time",
-			JSONSchemaType: "string",
+			JSONSchemaType: []string{"string"},
 			AirbyteType:    "time_without_timezone",
 		},
 		{
 			MysqlType:      "time(6)",
-			JSONSchemaType: "string",
+			JSONSchemaType: []string{"string"},
 			AirbyteType:    "time_without_timezone",
 		},
 		{
 			MysqlType:      "date",
-			JSONSchemaType: "string",
+			JSONSchemaType: []string{"string"},
 			AirbyteType:    "date",
 		},
 		{
 			MysqlType:      "text",
-			JSONSchemaType: "string",
+			JSONSchemaType: []string{"string"},
 			AirbyteType:    "",
 		},
 		{
 			MysqlType:      "varchar(256)",
-			JSONSchemaType: "string",
+			JSONSchemaType: []string{"string"},
 			AirbyteType:    "",
 		},
 		{
+			MysqlType:      "varchar(256)",
+			JSONSchemaType: []string{"string", "null"},
+			AirbyteType:    "",
+			IsNullable:     "YES",
+		},
+		{
 			MysqlType:      "decimal(12,5)",
-			JSONSchemaType: "number",
+			JSONSchemaType: []string{"number"},
 			AirbyteType:    "",
 		},
 		{
 			MysqlType:      "double",
-			JSONSchemaType: "number",
+			JSONSchemaType: []string{"number"},
 			AirbyteType:    "",
 		},
 		{
 			MysqlType:      "float(30)",
-			JSONSchemaType: "number",
+			JSONSchemaType: []string{"number"},
 			AirbyteType:    "",
 		},
 	}
@@ -478,7 +485,7 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 	for _, typeTest := range tests {
 
 		t.Run(fmt.Sprintf("mysql_type_%v", typeTest.MysqlType), func(t *testing.T) {
-			p := getJsonSchemaType(typeTest.MysqlType, typeTest.TreatTinyIntAsBoolean)
+			p := getJsonSchemaType(typeTest.MysqlType, typeTest.TreatTinyIntAsBoolean, typeTest.IsNullable)
 			assert.Equal(t, typeTest.AirbyteType, p.AirbyteType)
 			assert.Equal(t, typeTest.JSONSchemaType, p.Type)
 		})

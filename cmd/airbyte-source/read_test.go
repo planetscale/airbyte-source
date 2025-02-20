@@ -28,7 +28,7 @@ func TestRead_StartingGtidsAndState(t *testing.T) {
 					Type: "object",
 					Properties: map[string]internal.PropertyType{
 						"id": {
-							Type:        "number",
+							Type:        []string{"number"},
 							AirbyteType: "integer",
 						},
 					},
@@ -55,7 +55,7 @@ func TestRead_StartingGtidsAndState(t *testing.T) {
 					Type: "object",
 					Properties: map[string]internal.PropertyType{
 						"id": {
-							Type:        "number",
+							Type:        []string{"number"},
 							AirbyteType: "integer",
 						},
 					},
