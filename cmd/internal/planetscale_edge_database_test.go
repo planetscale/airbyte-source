@@ -362,6 +362,7 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 		JSONSchemaType        []string
 		AirbyteType           string
 		TreatTinyIntAsBoolean bool
+		IsNullable            string
 	}{
 		{
 			MysqlType:      "int(11)",
@@ -459,6 +460,12 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 			AirbyteType:    "",
 		},
 		{
+			MysqlType:      "varchar(256)",
+			JSONSchemaType: []string{"string", "null"},
+			AirbyteType:    "",
+			IsNullable:     "YES",
+		},
+		{
 			MysqlType:      "decimal(12,5)",
 			JSONSchemaType: []string{"number"},
 			AirbyteType:    "",
@@ -478,7 +485,7 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 	for _, typeTest := range tests {
 
 		t.Run(fmt.Sprintf("mysql_type_%v", typeTest.MysqlType), func(t *testing.T) {
-			p := getJsonSchemaType(typeTest.MysqlType, typeTest.TreatTinyIntAsBoolean, "NO")
+			p := getJsonSchemaType(typeTest.MysqlType, typeTest.TreatTinyIntAsBoolean, typeTest.IsNullable)
 			assert.Equal(t, typeTest.AirbyteType, p.AirbyteType)
 			assert.Equal(t, typeTest.JSONSchemaType, p.Type)
 		})
