@@ -170,7 +170,7 @@ func (p planetScaleEdgeMySQLAccess) GetTableSchema(ctx context.Context, psc Plan
 			columnType string
 			nullable   string
 		)
-		if err = columnNamesQR.Scan(&name, &columnType); err != nil {
+		if err = columnNamesQR.Scan(&name, &columnType, &nullable); err != nil {
 			return properties, errors.Wrapf(err, "Unable to scan row for column names & types of table %v", tableName)
 		}
 
