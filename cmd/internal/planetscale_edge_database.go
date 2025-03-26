@@ -139,7 +139,6 @@ func getJsonSchemaType(mysqlType string, treatTinyIntAsBoolean bool, nullable st
 		jsonSchemaType string
 		customFormat   string
 		airbyteType    string
-		oneOf          []OneOfType
 	)
 
 	switch {
@@ -172,19 +171,13 @@ func getJsonSchemaType(mysqlType string, treatTinyIntAsBoolean bool, nullable st
 	}
 
 	propertyType := PropertyType{
-		Type:         &jsonSchemaType,
+		Type:         []string{jsonSchemaType},
 		CustomFormat: customFormat,
 		AirbyteType:  airbyteType,
 	}
 
 	if strings.ToLower(nullable) == "yes" {
-		oneOf = []OneOfType{
-			{Type: jsonSchemaType},
-			{Type: "null"},
-		}
-
-		propertyType.Type = nil
-		propertyType.OneOf = oneOf
+		propertyType.Type = []string{"null", propertyType.Type[0]}
 	}
 
 	return propertyType

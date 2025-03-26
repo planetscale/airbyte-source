@@ -3,8 +3,8 @@
 ARG GO_VERSION=1.22.11
 FROM pscale.dev/wolfi-prod/go:${GO_VERSION} AS build
 
-RUN apk add --no-cache openssl openssl-dev libxcrypt ruby-3.2 ruby-3.2-dev
-RUN gem install openssl license_finder
+# RUN apk add --no-cache build-base openssl openssl-dev libxcrypt ruby-3.2 ruby-3.2-dev
+# RUN gem install openssl license_finder
 
 ENTRYPOINT []
 WORKDIR /airbyte-source
