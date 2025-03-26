@@ -135,31 +135,56 @@ func (p PlanetScaleEdgeDatabase) getStreamForTable(ctx context.Context, psc Plan
 func getJsonSchemaType(mysqlType string, treatTinyIntAsBoolean bool, nullable string) PropertyType {
 	// Support custom airbyte types documented here :
 	// https://docs.airbyte.com/understanding-airbyte/supported-data-types/#the-types
-	var propertyType PropertyType
+	var (
+		jsonSchemaType string
+		customFormat   string
+		airbyteType    string
+		oneOf          []OneOfType
+	)
 
 	switch {
 	case strings.HasPrefix(mysqlType, "tinyint(1)"):
 		if treatTinyIntAsBoolean {
-			propertyType = PropertyType{Type: []string{"boolean"}}
+			jsonSchemaType = "boolean"
 		} else {
-			propertyType = PropertyType{Type: []string{"number"}, AirbyteType: "integer"}
+			jsonSchemaType = "number"
+			airbyteType = "integer"
 		}
 	case strings.HasPrefix(mysqlType, "int"), strings.HasPrefix(mysqlType, "smallint"), strings.HasPrefix(mysqlType, "mediumint"), strings.HasPrefix(mysqlType, "bigint"), strings.HasPrefix(mysqlType, "tinyint"):
-		propertyType = PropertyType{Type: []string{"number"}, AirbyteType: "integer"}
+		jsonSchemaType = "number"
+		airbyteType = "integer"
 	case strings.HasPrefix(mysqlType, "decimal"), strings.HasPrefix(mysqlType, "double"), strings.HasPrefix(mysqlType, "float"):
-		propertyType = PropertyType{Type: []string{"number"}}
+		jsonSchemaType = "number"
 	case strings.HasPrefix(mysqlType, "datetime"), strings.HasPrefix(mysqlType, "timestamp"):
-		propertyType = PropertyType{Type: []string{"string"}, CustomFormat: "date-time", AirbyteType: "timestamp_without_timezone"}
+		jsonSchemaType = "string"
+		customFormat = "date-time"
+		airbyteType = "timestamp_without_timezone"
 	case strings.HasPrefix(mysqlType, "date"):
-		propertyType = PropertyType{Type: []string{"string"}, CustomFormat: "date", AirbyteType: "date"}
+		jsonSchemaType = "string"
+		customFormat = "date"
+		airbyteType = "date"
 	case strings.HasPrefix(mysqlType, "time"):
-		propertyType = PropertyType{Type: []string{"string"}, CustomFormat: "time", AirbyteType: "time_without_timezone"}
+		jsonSchemaType = "string"
+		customFormat = "time"
+		airbyteType = "time_without_timezone"
 	default:
-		propertyType = PropertyType{Type: []string{"string"}}
+		jsonSchemaType = "string"
+	}
+
+	propertyType := PropertyType{
+		Type:         &jsonSchemaType,
+		CustomFormat: customFormat,
+		AirbyteType:  airbyteType,
 	}
 
 	if strings.ToLower(nullable) == "yes" {
-		propertyType.Type = []string{"null", propertyType.Type[0]}
+		oneOf = []OneOfType{
+			{Type: "null"},
+			{Type: jsonSchemaType},
+		}
+
+		propertyType.Type = nil
+		propertyType.OneOf = oneOf
 	}
 
 	return propertyType
