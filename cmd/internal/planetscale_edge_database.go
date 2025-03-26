@@ -135,56 +135,31 @@ func (p PlanetScaleEdgeDatabase) getStreamForTable(ctx context.Context, psc Plan
 func getJsonSchemaType(mysqlType string, treatTinyIntAsBoolean bool, nullable string) PropertyType {
 	// Support custom airbyte types documented here :
 	// https://docs.airbyte.com/understanding-airbyte/supported-data-types/#the-types
-	var (
-		jsonSchemaType string
-		customFormat   string
-		airbyteType    string
-		oneOf          []OneOfType
-	)
+	var propertyType PropertyType
 
 	switch {
 	case strings.HasPrefix(mysqlType, "tinyint(1)"):
 		if treatTinyIntAsBoolean {
-			jsonSchemaType = "boolean"
+			propertyType = PropertyType{Type: []string{"boolean"}}
 		} else {
-			jsonSchemaType = "number"
-			airbyteType = "integer"
+			propertyType = PropertyType{Type: []string{"number"}, AirbyteType: "integer"}
 		}
 	case strings.HasPrefix(mysqlType, "int"), strings.HasPrefix(mysqlType, "smallint"), strings.HasPrefix(mysqlType, "mediumint"), strings.HasPrefix(mysqlType, "bigint"), strings.HasPrefix(mysqlType, "tinyint"):
-		jsonSchemaType = "number"
-		airbyteType = "integer"
+		propertyType = PropertyType{Type: []string{"number"}, AirbyteType: "integer"}
 	case strings.HasPrefix(mysqlType, "decimal"), strings.HasPrefix(mysqlType, "double"), strings.HasPrefix(mysqlType, "float"):
-		jsonSchemaType = "number"
+		propertyType = PropertyType{Type: []string{"number"}}
 	case strings.HasPrefix(mysqlType, "datetime"), strings.HasPrefix(mysqlType, "timestamp"):
-		jsonSchemaType = "string"
-		customFormat = "date-time"
-		airbyteType = "timestamp_without_timezone"
+		propertyType = PropertyType{Type: []string{"string"}, CustomFormat: "date-time", AirbyteType: "timestamp_without_timezone"}
 	case strings.HasPrefix(mysqlType, "date"):
-		jsonSchemaType = "string"
-		customFormat = "date"
-		airbyteType = "date"
+		propertyType = PropertyType{Type: []string{"string"}, CustomFormat: "date", AirbyteType: "date"}
 	case strings.HasPrefix(mysqlType, "time"):
-		jsonSchemaType = "string"
-		customFormat = "time"
-		airbyteType = "time_without_timezone"
+		propertyType = PropertyType{Type: []string{"string"}, CustomFormat: "time", AirbyteType: "time_without_timezone"}
 	default:
-		jsonSchemaType = "string"
-	}
-
-	propertyType := PropertyType{
-		Type:         &jsonSchemaType,
-		CustomFormat: customFormat,
-		AirbyteType:  airbyteType,
+		propertyType = PropertyType{Type: []string{"string"}}
 	}
 
 	if strings.ToLower(nullable) == "yes" {
-		oneOf = []OneOfType{
-			{Type: "null"},
-			{Type: jsonSchemaType},
-		}
-
-		propertyType.Type = nil
-		propertyType.OneOf = oneOf
+		propertyType.Type = []string{"null", propertyType.Type[0]}
 	}
 
 	return propertyType

@@ -357,135 +357,127 @@ func TestRead_CanPickRdonlyForShardedKeyspaces(t *testing.T) {
 }
 
 func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
-	numberType := "number"
-	booleanType := "boolean"
-	stringType := "string"
-
 	var tests = []struct {
 		MysqlType             string
-		JSONSchemaType        *string
-		OneOf                 []OneOfType
+		JSONSchemaType        []string
 		AirbyteType           string
 		TreatTinyIntAsBoolean bool
 		IsNullable            string
 	}{
 		{
 			MysqlType:      "int(11)",
-			JSONSchemaType: &numberType,
+			JSONSchemaType: []string{"number"},
 			AirbyteType:    "integer",
 		},
 		{
 			MysqlType:      "smallint(4)",
-			JSONSchemaType: &numberType,
+			JSONSchemaType: []string{"number"},
 			AirbyteType:    "integer",
 		},
 		{
 			MysqlType:      "mediumint(8)",
-			JSONSchemaType: &numberType,
+			JSONSchemaType: []string{"number"},
 			AirbyteType:    "integer",
 		},
 		{
 			MysqlType:             "tinyint",
-			JSONSchemaType:        &numberType,
+			JSONSchemaType:        []string{"number"},
 			AirbyteType:           "integer",
 			TreatTinyIntAsBoolean: true,
 		},
 		{
 			MysqlType:             "tinyint(1)",
-			JSONSchemaType:        &booleanType,
+			JSONSchemaType:        []string{"boolean"},
 			AirbyteType:           "",
 			TreatTinyIntAsBoolean: true,
 		},
 		{
 			MysqlType:             "tinyint(1) unsigned",
-			JSONSchemaType:        &booleanType,
+			JSONSchemaType:        []string{"boolean"},
 			AirbyteType:           "",
 			TreatTinyIntAsBoolean: true,
 		},
 		{
 			MysqlType:             "tinyint(1)",
-			JSONSchemaType:        &numberType,
+			JSONSchemaType:        []string{"number"},
 			AirbyteType:           "integer",
 			TreatTinyIntAsBoolean: false,
 		},
 		{
 			MysqlType:             "tinyint(1) unsigned",
-			JSONSchemaType:        &numberType,
+			JSONSchemaType:        []string{"number"},
 			AirbyteType:           "integer",
 			TreatTinyIntAsBoolean: false,
 		},
 		{
 			MysqlType:      "bigint(16)",
-			JSONSchemaType: &numberType,
+			JSONSchemaType: []string{"number"},
 			AirbyteType:    "integer",
 		},
 		{
 			MysqlType:      "bigint unsigned",
-			JSONSchemaType: &numberType,
+			JSONSchemaType: []string{"number"},
 			AirbyteType:    "integer",
 		},
 		{
 			MysqlType:      "bigint zerofill",
-			JSONSchemaType: &numberType,
+			JSONSchemaType: []string{"number"},
 			AirbyteType:    "integer",
 		},
 		{
 			MysqlType:      "datetime",
-			JSONSchemaType: &stringType,
+			JSONSchemaType: []string{"string"},
 			AirbyteType:    "timestamp_without_timezone",
 		},
 		{
 			MysqlType:      "datetime(6)",
-			JSONSchemaType: &stringType,
+			JSONSchemaType: []string{"string"},
 			AirbyteType:    "timestamp_without_timezone",
 		},
 		{
 			MysqlType:      "time",
-			JSONSchemaType: &stringType,
+			JSONSchemaType: []string{"string"},
 			AirbyteType:    "time_without_timezone",
 		},
 		{
 			MysqlType:      "time(6)",
-			JSONSchemaType: &stringType,
+			JSONSchemaType: []string{"string"},
 			AirbyteType:    "time_without_timezone",
 		},
 		{
 			MysqlType:      "date",
-			JSONSchemaType: &stringType,
+			JSONSchemaType: []string{"string"},
 			AirbyteType:    "date",
 		},
 		{
 			MysqlType:      "text",
-			JSONSchemaType: &stringType,
+			JSONSchemaType: []string{"string"},
 			AirbyteType:    "",
 		},
 		{
 			MysqlType:      "varchar(256)",
-			JSONSchemaType: &stringType,
+			JSONSchemaType: []string{"string"},
 			AirbyteType:    "",
 		},
 		{
-			MysqlType:   "varchar(256)",
-			AirbyteType: "",
-			IsNullable:  "YES",
-			OneOf: []OneOfType{
-				{Type: "null"},
-				{Type: "string"},
-			},
+			MysqlType:      "varchar(256)",
+			JSONSchemaType: []string{"null", "string"},
+			AirbyteType:    "",
+			IsNullable:     "YES",
 		},
 		{
 			MysqlType:      "decimal(12,5)",
-			JSONSchemaType: &numberType,
+			JSONSchemaType: []string{"number"},
 			AirbyteType:    "",
 		},
 		{
 			MysqlType:      "double",
-			JSONSchemaType: &numberType,
+			JSONSchemaType: []string{"number"},
 			AirbyteType:    "",
 		},
 		{
 			MysqlType:      "float(30)",
-			JSONSchemaType: &numberType,
+			JSONSchemaType: []string{"number"},
 			AirbyteType:    "",
 		},
 	}
@@ -496,7 +488,6 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 			p := getJsonSchemaType(typeTest.MysqlType, typeTest.TreatTinyIntAsBoolean, typeTest.IsNullable)
 			assert.Equal(t, typeTest.AirbyteType, p.AirbyteType)
 			assert.Equal(t, typeTest.JSONSchemaType, p.Type)
-			assert.Equal(t, typeTest.OneOf, p.OneOf)
 		})
 	}
 }

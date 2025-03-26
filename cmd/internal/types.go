@@ -54,7 +54,7 @@ const (
 )
 
 type PropertyType struct {
-	Type         *string     `json:"type,omitempty"`
+	Type         []string    `json:"type,omitempty"`
 	CustomFormat string      `json:"format,omitempty"`
 	AirbyteType  string      `json:"airbyte_type,omitempty"`
 	OneOf        []OneOfType `json:"oneOf,omitempty"`
