@@ -21,8 +21,6 @@ func TestRead_StartingGtidsAndState(t *testing.T) {
 		StartingGtids: "{\"sharded\": {\"-80\": \"MySQL56/MyGTID:1-3\"}}",
 	}
 
-	numberType := "number"
-
 	streams := []internal.ConfiguredStream{
 		{
 			Stream: internal.Stream{
@@ -31,7 +29,7 @@ func TestRead_StartingGtidsAndState(t *testing.T) {
 					Type: "object",
 					Properties: map[string]internal.PropertyType{
 						"id": {
-							Type:        &numberType,
+							Type:        []string{"number"},
 							AirbyteType: "integer",
 						},
 					},
@@ -58,7 +56,7 @@ func TestRead_StartingGtidsAndState(t *testing.T) {
 					Type: "object",
 					Properties: map[string]internal.PropertyType{
 						"id": {
-							Type:        &numberType,
+							Type:        []string{"number"},
 							AirbyteType: "integer",
 						},
 					},
