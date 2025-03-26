@@ -159,7 +159,7 @@ func getJsonSchemaType(mysqlType string, treatTinyIntAsBoolean bool, nullable st
 	}
 
 	if strings.ToLower(nullable) == "yes" {
-		propertyType.Type = append(propertyType.Type, "null")
+		propertyType.Type = []string{"null", propertyType.Type[0]}
 	}
 
 	return propertyType

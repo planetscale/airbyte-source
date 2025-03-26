@@ -461,7 +461,7 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 		},
 		{
 			MysqlType:      "varchar(256)",
-			JSONSchemaType: []string{"string", "null"},
+			JSONSchemaType: []string{"null", "string"},
 			AirbyteType:    "",
 			IsNullable:     "YES",
 		},
