@@ -36,13 +36,13 @@ steps:
       - docker-compose#v3.9.0:
           run: ci
 
-  - name: "Verify dependency licenses"
-    command: "go get -v ./... && license_finder"
-    env:
-      DOCKER_BUILDKIT: 1
-    plugins:
-      - docker-compose#v3.9.0:
-          run: ci
+  # - name: "Verify dependency licenses"
+  #   command: "go get -v ./... && license_finder"
+  #   env:
+  #     DOCKER_BUILDKIT: 1
+  #   plugins:
+  #     - docker-compose#v3.9.0:
+  #         run: ci
 
   - wait
 

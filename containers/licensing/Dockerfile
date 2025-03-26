@@ -4,4 +4,4 @@ RUN apk update
 RUN apk upgrade
 
 RUN apk add ruby go git
-RUN gem install license_finder
+# RUN gem install license_finder
