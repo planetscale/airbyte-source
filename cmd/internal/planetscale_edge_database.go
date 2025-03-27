@@ -421,7 +421,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 					}
 					sqlResult.Rows = append(sqlResult.Rows, row)
 					// Results queued to Airbyte here, and flushed at the end of sync()
-					p.printQueryResult(sqlResult, keyspaceOrDatabase, s.Name)
+					p.printQueryResult(sqlResult, keyspaceOrDatabase, s.Name, &ps)
 				}
 			}
 		}
@@ -509,8 +509,8 @@ func (p PlanetScaleEdgeDatabase) initializeVTGateClient(ctx context.Context, ps 
 
 // printQueryResult will pretty-print an AirbyteRecordMessage to the logger.
 // Copied from vtctl/query.go
-func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableNamespace, tableName string) {
-	data := QueryResultToRecords(qr)
+func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableNamespace, tableName string, ps *PlanetScaleSource) {
+	data := QueryResultToRecords(qr, ps)
 
 	for _, record := range data {
 		p.Logger.Record(tableNamespace, tableName, record)

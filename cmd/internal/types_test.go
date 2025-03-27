@@ -99,7 +99,7 @@ func TestCanMapEnumAndSetValues(t *testing.T) {
 		},
 	}
 
-	output := QueryResultToRecords(&input)
+	output := QueryResultToRecords(&input, &PlanetScaleSource{})
 	assert.Equal(t, 2, len(output))
 	firstRow := output[0]
 	assert.Equal(t, "active", firstRow["status"].(sqltypes.Value).ToString())
@@ -107,6 +107,52 @@ func TestCanMapEnumAndSetValues(t *testing.T) {
 	secondRow := output[1]
 	assert.Equal(t, "active", secondRow["status"].(sqltypes.Value).ToString())
 	assert.Equal(t, "San Francisco,Oakland", secondRow["locations"].(sqltypes.Value).ToString())
+}
+
+func TestCanMapTinyIntValues(t *testing.T) {
+	input := sqltypes.Result{
+		Fields: []*query.Field{
+			{Name: "verified", Type: query.Type_INT8, ColumnType: "tinyint(1)"},
+		},
+		Rows: [][]sqltypes.Value{
+			{sqltypes.NewInt8(1)},
+			{sqltypes.NewInt8(0)},
+		},
+	}
+
+	output := QueryResultToRecords(&input, &PlanetScaleSource{
+		Options: CustomSourceOptions{
+			DoNotTreatTinyIntAsBoolean: false,
+		},
+	})
+
+	assert.Equal(t, 2, len(output))
+	firstRow := output[0]
+	assert.Equal(t, true, firstRow["verified"].(bool))
+	secondRow := output[1]
+	assert.Equal(t, false, secondRow["verified"].(bool))
+
+	input = sqltypes.Result{
+		Fields: []*query.Field{
+			{Name: "verified", Type: query.Type_INT8, ColumnType: "tinyint(1)"},
+		},
+		Rows: [][]sqltypes.Value{
+			{sqltypes.NewInt8(1)},
+			{sqltypes.NewInt8(0)},
+		},
+	}
+
+	output = QueryResultToRecords(&input, &PlanetScaleSource{
+		Options: CustomSourceOptions{
+			DoNotTreatTinyIntAsBoolean: true,
+		},
+	})
+
+	assert.Equal(t, 2, len(output))
+	firstRow = output[0]
+	assert.Equal(t, sqltypes.NewInt8(1), firstRow["verified"])
+	secondRow = output[1]
+	assert.Equal(t, sqltypes.NewInt8(0), secondRow["verified"])
 }
 
 func TestCanFormatISO8601Values(t *testing.T) {
@@ -127,7 +173,7 @@ func TestCanFormatISO8601Values(t *testing.T) {
 		},
 	}
 
-	output := QueryResultToRecords(&input)
+	output := QueryResultToRecords(&input, &PlanetScaleSource{})
 	assert.Equal(t, 1, len(output))
 	row := output[0]
 	assert.Equal(t, "2025-02-14T08:08:08Z", row["datetime_created_at"].(sqltypes.Value).ToString())
