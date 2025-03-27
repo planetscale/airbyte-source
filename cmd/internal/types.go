@@ -230,8 +230,6 @@ func parseEnumOrSetValues(columnType string) []string {
 }
 
 func formatISO8601(mysqlType query.Type, value sqltypes.Value) sqltypes.Value {
-	parsedDatetime := value.ToString()
-
 	var formatString string
 	var layout string
 	if mysqlType == query.Type_DATE {
@@ -241,13 +239,24 @@ func formatISO8601(mysqlType query.Type, value sqltypes.Value) sqltypes.Value {
 		formatString = "2006-01-02 15:04:05"
 		layout = time.RFC3339
 	}
-	mysqlTime, err := time.Parse(formatString, parsedDatetime)
-	if err != nil {
-		// fallback to default value if datetime is not parseable
-		return value
+
+	var (
+		mysqlTime time.Time
+		err       error
+	)
+
+	if !value.IsNull() {
+		parsedDatetime := value.ToString()
+		mysqlTime, err = time.Parse(formatString, parsedDatetime)
+		if err != nil {
+			// fallback to default value if datetime is not parseable
+			return value
+		}
 	}
+
 	iso8601Datetime := mysqlTime.Format(layout)
-	formattedValue, _ := sqltypes.NewValue(value.Type(), []byte(iso8601Datetime))
+	formattedValue, _ := sqltypes.NewValue(mysqlType, []byte(iso8601Datetime))
+
 	return formattedValue
 }
 

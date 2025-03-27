@@ -170,13 +170,18 @@ func TestCanFormatISO8601Values(t *testing.T) {
 		},
 		Rows: [][]sqltypes.Value{
 			{datetimeValue, dateValue, timestampValue},
+			{sqltypes.NULL, sqltypes.NULL, sqltypes.NULL},
 		},
 	}
 
 	output := QueryResultToRecords(&input, &PlanetScaleSource{})
-	assert.Equal(t, 1, len(output))
+	assert.Equal(t, 2, len(output))
 	row := output[0]
 	assert.Equal(t, "2025-02-14T08:08:08Z", row["datetime_created_at"].(sqltypes.Value).ToString())
 	assert.Equal(t, "2025-02-14", row["date_created_at"].(sqltypes.Value).ToString())
 	assert.Equal(t, "2025-02-14T08:08:08Z", row["timestamp_created_at"].(sqltypes.Value).ToString())
+	nullRow := output[1]
+	assert.Equal(t, "0001-01-01T00:00:00Z", nullRow["datetime_created_at"].(sqltypes.Value).ToString())
+	assert.Equal(t, "0001-01-01", nullRow["date_created_at"].(sqltypes.Value).ToString())
+	assert.Equal(t, "0001-01-01T00:00:00Z", nullRow["timestamp_created_at"].(sqltypes.Value).ToString())
 }
