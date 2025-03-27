@@ -99,7 +99,7 @@ func TestCanMapEnumAndSetValues(t *testing.T) {
 		},
 	}
 
-	output := QueryResultToRecords(&input)
+	output := QueryResultToRecords(&input, &PlanetScaleSource{})
 	assert.Equal(t, 2, len(output))
 	firstRow := output[0]
 	assert.Equal(t, "active", firstRow["status"].(sqltypes.Value).ToString())
@@ -109,12 +109,64 @@ func TestCanMapEnumAndSetValues(t *testing.T) {
 	assert.Equal(t, "San Francisco,Oakland", secondRow["locations"].(sqltypes.Value).ToString())
 }
 
+func TestCanMapTinyIntValues(t *testing.T) {
+	input := sqltypes.Result{
+		Fields: []*query.Field{
+			{Name: "verified", Type: query.Type_INT8, ColumnType: "tinyint(1)"},
+		},
+		Rows: [][]sqltypes.Value{
+			{sqltypes.NewInt8(1)},
+			{sqltypes.NewInt8(0)},
+		},
+	}
+
+	output := QueryResultToRecords(&input, &PlanetScaleSource{
+		Options: CustomSourceOptions{
+			DoNotTreatTinyIntAsBoolean: false,
+		},
+	})
+
+	assert.Equal(t, 2, len(output))
+	firstRow := output[0]
+	assert.Equal(t, true, firstRow["verified"].(bool))
+	secondRow := output[1]
+	assert.Equal(t, false, secondRow["verified"].(bool))
+
+	input = sqltypes.Result{
+		Fields: []*query.Field{
+			{Name: "verified", Type: query.Type_INT8, ColumnType: "tinyint(1)"},
+		},
+		Rows: [][]sqltypes.Value{
+			{sqltypes.NewInt8(1)},
+			{sqltypes.NewInt8(0)},
+		},
+	}
+
+	output = QueryResultToRecords(&input, &PlanetScaleSource{
+		Options: CustomSourceOptions{
+			DoNotTreatTinyIntAsBoolean: true,
+		},
+	})
+
+	assert.Equal(t, 2, len(output))
+	firstRow = output[0]
+	assert.Equal(t, sqltypes.NewInt8(1), firstRow["verified"])
+	secondRow = output[1]
+	assert.Equal(t, sqltypes.NewInt8(0), secondRow["verified"])
+}
+
 func TestCanFormatISO8601Values(t *testing.T) {
 	datetimeValue, err := sqltypes.NewValue(query.Type_DATETIME, []byte("2025-02-14 08:08:08"))
 	assert.NoError(t, err)
 	dateValue, err := sqltypes.NewValue(query.Type_DATE, []byte("2025-02-14"))
 	assert.NoError(t, err)
 	timestampValue, err := sqltypes.NewValue(query.Type_TIMESTAMP, []byte("2025-02-14 08:08:08"))
+	assert.NoError(t, err)
+	zeroDatetimeValue, err := sqltypes.NewValue(query.Type_DATETIME, []byte("0000-00-00 00:00:00"))
+	assert.NoError(t, err)
+	zeroDateValue, err := sqltypes.NewValue(query.Type_DATE, []byte("0000-00-00"))
+	assert.NoError(t, err)
+	zeroTimestampValue, err := sqltypes.NewValue(query.Type_TIMESTAMP, []byte("0000-00-00 00:00:00"))
 	assert.NoError(t, err)
 	input := sqltypes.Result{
 		Fields: []*query.Field{
@@ -124,13 +176,23 @@ func TestCanFormatISO8601Values(t *testing.T) {
 		},
 		Rows: [][]sqltypes.Value{
 			{datetimeValue, dateValue, timestampValue},
+			{sqltypes.NULL, sqltypes.NULL, sqltypes.NULL},
+			{zeroDatetimeValue, zeroDateValue, zeroTimestampValue},
 		},
 	}
 
-	output := QueryResultToRecords(&input)
-	assert.Equal(t, 1, len(output))
+	output := QueryResultToRecords(&input, &PlanetScaleSource{})
+	assert.Equal(t, 3, len(output))
 	row := output[0]
 	assert.Equal(t, "2025-02-14T08:08:08Z", row["datetime_created_at"].(sqltypes.Value).ToString())
 	assert.Equal(t, "2025-02-14", row["date_created_at"].(sqltypes.Value).ToString())
 	assert.Equal(t, "2025-02-14T08:08:08Z", row["timestamp_created_at"].(sqltypes.Value).ToString())
+	nullRow := output[1]
+	assert.Equal(t, nil, nullRow["datetime_created_at"])
+	assert.Equal(t, nil, nullRow["date_created_at"])
+	assert.Equal(t, nil, nullRow["timestamp_created_at"])
+	zeroRow := output[2]
+	assert.Equal(t, "1970-01-01T00:00:00Z", zeroRow["datetime_created_at"].(sqltypes.Value).ToString())
+	assert.Equal(t, "1970-01-01", zeroRow["date_created_at"].(sqltypes.Value).ToString())
+	assert.Equal(t, "1970-01-01T00:00:00Z", zeroRow["timestamp_created_at"].(sqltypes.Value).ToString())
 }

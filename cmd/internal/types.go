@@ -137,7 +137,7 @@ func TableCursorToSerializedCursor(cursor *psdbconnect.TableCursor) (*Serialized
 	return sc, nil
 }
 
-func QueryResultToRecords(qr *sqltypes.Result) []map[string]interface{} {
+func QueryResultToRecords(qr *sqltypes.Result, ps *PlanetScaleSource) []map[string]interface{} {
 	data := make([]map[string]interface{}, 0, len(qr.Rows))
 	columns := make([]string, 0, len(qr.Fields))
 	for _, field := range qr.Fields {
@@ -148,7 +148,14 @@ func QueryResultToRecords(qr *sqltypes.Result) []map[string]interface{} {
 		record := make(map[string]interface{})
 		for idx, val := range row {
 			if idx < len(columns) {
-				record[columns[idx]] = parseValue(val, qr.Fields[idx].GetColumnType(), qr.Fields[idx].GetType())
+				parsedValue := parseValue(val, qr.Fields[idx].GetColumnType(), qr.Fields[idx].GetType(), ps)
+				if parsedValue.isBool {
+					record[columns[idx]] = parsedValue.boolValue
+				} else if parsedValue.isNull {
+					record[columns[idx]] = nil
+				} else {
+					record[columns[idx]] = parsedValue.sqlValue
+				}
 			}
 		}
 		data = append(data, record)
@@ -157,21 +164,60 @@ func QueryResultToRecords(qr *sqltypes.Result) []map[string]interface{} {
 	return data
 }
 
+type Value struct {
+	sqlValue  sqltypes.Value
+	boolValue bool
+	isBool    bool
+	isNull    bool
+}
+
 // After the initial COPY phase, enum and set values may appear as an index instead of a value.
 // For example, a value might look like a "1" instead of "apple" in an enum('apple','banana','orange') column)
-func parseValue(val sqltypes.Value, columnType string, queryColumnType query.Type) sqltypes.Value {
+func parseValue(val sqltypes.Value, columnType string, queryColumnType query.Type, ps *PlanetScaleSource) Value {
+	if val.IsNull() {
+		return Value{
+			isNull: true,
+		}
+	}
+
 	switch queryColumnType {
 	case query.Type_DATETIME, query.Type_DATE, query.Type_TIME:
 		return formatISO8601(queryColumnType, val)
 	case query.Type_ENUM:
 		values := parseEnumOrSetValues(columnType)
-		return mapEnumValue(val, values)
+		return Value{
+			sqlValue: mapEnumValue(val, values),
+		}
 	case query.Type_SET:
 		values := parseEnumOrSetValues(columnType)
-		return mapSetValue(val, values)
+		return Value{
+			sqlValue: mapSetValue(val, values),
+		}
 	}
 
-	return val
+	if strings.ToLower(columnType) == "tinyint(1)" && !ps.Options.DoNotTreatTinyIntAsBoolean {
+		return mapTinyIntToBool(val)
+	}
+
+	return Value{
+		sqlValue: val,
+	}
+}
+
+func mapTinyIntToBool(val sqltypes.Value) Value {
+	sqlVal, err := val.ToBool()
+
+	// Fallback to the original value if we can't convert to bool
+	if err != nil {
+		return Value{
+			sqlValue: val,
+		}
+	}
+
+	return Value{
+		boolValue: sqlVal,
+		isBool:    true,
+	}
 }
 
 // Takes enum or set column type like ENUM('a','b','c') or SET('a','b','c')
@@ -190,9 +236,7 @@ func parseEnumOrSetValues(columnType string) []string {
 	return values
 }
 
-func formatISO8601(mysqlType query.Type, value sqltypes.Value) sqltypes.Value {
-	parsedDatetime := value.ToString()
-
+func formatISO8601(mysqlType query.Type, value sqltypes.Value) Value {
 	var formatString string
 	var layout string
 	if mysqlType == query.Type_DATE {
@@ -202,14 +246,36 @@ func formatISO8601(mysqlType query.Type, value sqltypes.Value) sqltypes.Value {
 		formatString = "2006-01-02 15:04:05"
 		layout = time.RFC3339
 	}
-	mysqlTime, err := time.Parse(formatString, parsedDatetime)
-	if err != nil {
-		// fallback to default value if datetime is not parseable
-		return value
+
+	var (
+		mysqlTime time.Time
+		err       error
+	)
+
+	if !value.IsNull() {
+		parsedDatetime := value.ToString()
+		// Check for zero date
+		if parsedDatetime == "0000-00-00 00:00:00" || parsedDatetime == "0000-00-00" {
+			// Use zero epoch time to represent non-null zero date
+			mysqlTime = time.Unix(0, 0).UTC()
+		} else {
+			mysqlTime, err = time.Parse(formatString, parsedDatetime)
+			if err != nil {
+				// fallback to default value if datetime is not parseable
+				return Value{
+					sqlValue: value,
+				}
+			}
+		}
+
 	}
+
 	iso8601Datetime := mysqlTime.Format(layout)
-	formattedValue, _ := sqltypes.NewValue(value.Type(), []byte(iso8601Datetime))
-	return formattedValue
+	formattedValue, _ := sqltypes.NewValue(mysqlType, []byte(iso8601Datetime))
+
+	return Value{
+		sqlValue: formattedValue,
+	}
 }
 
 func mapSetValue(value sqltypes.Value, values []string) sqltypes.Value {
