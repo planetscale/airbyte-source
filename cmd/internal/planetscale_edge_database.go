@@ -154,10 +154,14 @@ func getJsonSchemaType(mysqlType string, treatTinyIntAsBoolean bool, nullable st
 		airbyteType = "integer"
 	case strings.HasPrefix(mysqlType, "decimal"), strings.HasPrefix(mysqlType, "double"), strings.HasPrefix(mysqlType, "float"):
 		jsonSchemaType = "number"
-	case strings.HasPrefix(mysqlType, "datetime"), strings.HasPrefix(mysqlType, "timestamp"):
+	case strings.HasPrefix(mysqlType, "datetime"):
 		jsonSchemaType = "string"
 		customFormat = "date-time"
 		airbyteType = "timestamp_without_timezone"
+	case strings.HasPrefix(mysqlType, "timestamp"):
+		jsonSchemaType = "string"
+		customFormat = "date-time"
+		airbyteType = "timestamp_with_timezone"
 	case strings.HasPrefix(mysqlType, "date"):
 		jsonSchemaType = "string"
 		customFormat = "date"
@@ -165,7 +169,7 @@ func getJsonSchemaType(mysqlType string, treatTinyIntAsBoolean bool, nullable st
 	case strings.HasPrefix(mysqlType, "time"):
 		jsonSchemaType = "string"
 		customFormat = "time"
-		airbyteType = "time_without_timezone"
+		airbyteType = "time_with_timezone"
 	default:
 		jsonSchemaType = "string"
 	}
