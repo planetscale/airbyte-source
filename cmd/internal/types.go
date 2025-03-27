@@ -151,6 +151,8 @@ func QueryResultToRecords(qr *sqltypes.Result, ps *PlanetScaleSource) []map[stri
 				parsedValue := parseValue(val, qr.Fields[idx].GetColumnType(), qr.Fields[idx].GetType(), ps)
 				if parsedValue.isBool {
 					record[columns[idx]] = parsedValue.boolValue
+				} else if parsedValue.isNull {
+					record[columns[idx]] = nil
 				} else {
 					record[columns[idx]] = parsedValue.sqlValue
 				}
@@ -166,16 +168,21 @@ type Value struct {
 	sqlValue  sqltypes.Value
 	boolValue bool
 	isBool    bool
+	isNull    bool
 }
 
 // After the initial COPY phase, enum and set values may appear as an index instead of a value.
 // For example, a value might look like a "1" instead of "apple" in an enum('apple','banana','orange') column)
 func parseValue(val sqltypes.Value, columnType string, queryColumnType query.Type, ps *PlanetScaleSource) Value {
+	if val.IsNull() {
+		return Value{
+			isNull: true,
+		}
+	}
+
 	switch queryColumnType {
 	case query.Type_DATETIME, query.Type_DATE, query.Type_TIME:
-		return Value{
-			sqlValue: formatISO8601(queryColumnType, val),
-		}
+		return formatISO8601(queryColumnType, val)
 	case query.Type_ENUM:
 		values := parseEnumOrSetValues(columnType)
 		return Value{
@@ -229,7 +236,7 @@ func parseEnumOrSetValues(columnType string) []string {
 	return values
 }
 
-func formatISO8601(mysqlType query.Type, value sqltypes.Value) sqltypes.Value {
+func formatISO8601(mysqlType query.Type, value sqltypes.Value) Value {
 	var formatString string
 	var layout string
 	if mysqlType == query.Type_DATE {
@@ -247,17 +254,28 @@ func formatISO8601(mysqlType query.Type, value sqltypes.Value) sqltypes.Value {
 
 	if !value.IsNull() {
 		parsedDatetime := value.ToString()
-		mysqlTime, err = time.Parse(formatString, parsedDatetime)
-		if err != nil {
-			// fallback to default value if datetime is not parseable
-			return value
+		// Check for zero date
+		if parsedDatetime == "0000-00-00 00:00:00" || parsedDatetime == "0000-00-00" {
+			// Use zero epoch time to represent non-null zero date
+			mysqlTime = time.Unix(0, 0).UTC()
+		} else {
+			mysqlTime, err = time.Parse(formatString, parsedDatetime)
+			if err != nil {
+				// fallback to default value if datetime is not parseable
+				return Value{
+					sqlValue: value,
+				}
+			}
 		}
+
 	}
 
 	iso8601Datetime := mysqlTime.Format(layout)
 	formattedValue, _ := sqltypes.NewValue(mysqlType, []byte(iso8601Datetime))
 
-	return formattedValue
+	return Value{
+		sqlValue: formattedValue,
+	}
 }
 
 func mapSetValue(value sqltypes.Value, values []string) sqltypes.Value {

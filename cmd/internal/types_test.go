@@ -162,6 +162,12 @@ func TestCanFormatISO8601Values(t *testing.T) {
 	assert.NoError(t, err)
 	timestampValue, err := sqltypes.NewValue(query.Type_TIMESTAMP, []byte("2025-02-14 08:08:08"))
 	assert.NoError(t, err)
+	zeroDatetimeValue, err := sqltypes.NewValue(query.Type_DATETIME, []byte("0000-00-00 00:00:00"))
+	assert.NoError(t, err)
+	zeroDateValue, err := sqltypes.NewValue(query.Type_DATE, []byte("0000-00-00"))
+	assert.NoError(t, err)
+	zeroTimestampValue, err := sqltypes.NewValue(query.Type_TIMESTAMP, []byte("0000-00-00 00:00:00"))
+	assert.NoError(t, err)
 	input := sqltypes.Result{
 		Fields: []*query.Field{
 			{Name: "datetime_created_at", Type: sqltypes.Datetime, ColumnType: "datetime"},
@@ -171,17 +177,22 @@ func TestCanFormatISO8601Values(t *testing.T) {
 		Rows: [][]sqltypes.Value{
 			{datetimeValue, dateValue, timestampValue},
 			{sqltypes.NULL, sqltypes.NULL, sqltypes.NULL},
+			{zeroDatetimeValue, zeroDateValue, zeroTimestampValue},
 		},
 	}
 
 	output := QueryResultToRecords(&input, &PlanetScaleSource{})
-	assert.Equal(t, 2, len(output))
+	assert.Equal(t, 3, len(output))
 	row := output[0]
 	assert.Equal(t, "2025-02-14T08:08:08Z", row["datetime_created_at"].(sqltypes.Value).ToString())
 	assert.Equal(t, "2025-02-14", row["date_created_at"].(sqltypes.Value).ToString())
 	assert.Equal(t, "2025-02-14T08:08:08Z", row["timestamp_created_at"].(sqltypes.Value).ToString())
 	nullRow := output[1]
-	assert.Equal(t, "0001-01-01T00:00:00Z", nullRow["datetime_created_at"].(sqltypes.Value).ToString())
-	assert.Equal(t, "0001-01-01", nullRow["date_created_at"].(sqltypes.Value).ToString())
-	assert.Equal(t, "0001-01-01T00:00:00Z", nullRow["timestamp_created_at"].(sqltypes.Value).ToString())
+	assert.Equal(t, nil, nullRow["datetime_created_at"])
+	assert.Equal(t, nil, nullRow["date_created_at"])
+	assert.Equal(t, nil, nullRow["timestamp_created_at"])
+	zeroRow := output[2]
+	assert.Equal(t, "1970-01-01T00:00:00Z", zeroRow["datetime_created_at"].(sqltypes.Value).ToString())
+	assert.Equal(t, "1970-01-01", zeroRow["date_created_at"].(sqltypes.Value).ToString())
+	assert.Equal(t, "1970-01-01T00:00:00Z", zeroRow["timestamp_created_at"].(sqltypes.Value).ToString())
 }
