@@ -244,7 +244,7 @@ func formatISO8601(mysqlType query.Type, value sqltypes.Value) Value {
 		layout = time.DateOnly
 	} else {
 		formatString = "2006-01-02 15:04:05"
-		layout = time.RFC3339
+		layout = "2006-01-02T15:04:05.000000-07:00"
 	}
 
 	var (
