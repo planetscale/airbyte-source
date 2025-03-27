@@ -242,6 +242,9 @@ func formatISO8601(mysqlType query.Type, value sqltypes.Value) Value {
 	if mysqlType == query.Type_DATE {
 		formatString = "2006-01-02"
 		layout = time.DateOnly
+	} else if mysqlType == query.Type_DATETIME {
+		formatString = "2006-01-02 15:04:05"
+		layout = "2006-01-02T15:04:05.000000"
 	} else {
 		formatString = "2006-01-02 15:04:05"
 		layout = "2006-01-02T15:04:05.000000-07:00"
