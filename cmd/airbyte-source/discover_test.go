@@ -30,8 +30,8 @@ func TestDiscoverInvalidSource(t *testing.T) {
 	discover.SetArgs([]string{"config source.json"})
 
 	discover.SetOut(b)
-	discover.Flag("config").Value.Set("catalog.json")
-	discover.Execute()
+	assert.NoError(t, discover.Flag("config").Value.Set("catalog.json"))
+	assert.NoError(t, discover.Execute())
 
 	var amsg internal.AirbyteMessage
 	err := json.NewDecoder(b).Decode(&amsg)
@@ -63,8 +63,8 @@ func TestDiscoverFailed(t *testing.T) {
 	discover.SetArgs([]string{"config source.json"})
 
 	discover.SetOut(b)
-	discover.Flag("config").Value.Set("catalog.json")
-	discover.Execute()
+	assert.NoError(t, discover.Flag("config").Value.Set("catalog.json"))
+	assert.NoError(t, discover.Execute())
 	var amsg internal.AirbyteMessage
 	err := json.NewDecoder(b).Decode(&amsg)
 	require.NoError(t, err)

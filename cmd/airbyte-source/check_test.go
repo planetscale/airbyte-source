@@ -18,7 +18,7 @@ func TestCheckFailsWithoutConfig(t *testing.T) {
 	})
 	b := bytes.NewBufferString("")
 	checkCommand.SetOut(b)
-	checkCommand.Execute()
+	assert.NoError(t, checkCommand.Execute())
 	assert.Equal(t, "Please provide path to a valid configuration file\n", b.String())
 }
 
@@ -34,8 +34,8 @@ func TestCheckInvalidCatalogJSON(t *testing.T) {
 	b := bytes.NewBufferString("")
 	checkCommand.SetArgs([]string{"config source.json"})
 	checkCommand.SetOut(b)
-	checkCommand.Flag("config").Value.Set("catalog.json")
-	checkCommand.Execute()
+	assert.NoError(t, checkCommand.Flag("config").Value.Set("catalog.json"))
+	assert.NoError(t, checkCommand.Execute())
 
 	var amsg internal.AirbyteMessage
 	err := json.NewDecoder(b).Decode(&amsg)
@@ -63,8 +63,8 @@ func TestCheckCredentialsInvalid(t *testing.T) {
 	})
 	b := bytes.NewBufferString("")
 	checkCommand.SetOut(b)
-	checkCommand.Flag("config").Value.Set("catalog.json")
-	checkCommand.Execute()
+	assert.NoError(t, checkCommand.Flag("config").Value.Set("catalog.json"))
+	assert.NoError(t, checkCommand.Execute())
 
 	var amsg internal.AirbyteMessage
 	err := json.NewDecoder(b).Decode(&amsg)
@@ -94,8 +94,8 @@ func TestCheckExecuteSuccessful(t *testing.T) {
 	b := bytes.NewBufferString("")
 	checkCommand.SetOut(b)
 
-	checkCommand.Flag("config").Value.Set("catalog.json")
-	checkCommand.Execute()
+	assert.NoError(t, checkCommand.Flag("config").Value.Set("catalog.json"))
+	assert.NoError(t, checkCommand.Execute())
 
 	var amsg internal.AirbyteMessage
 	err := json.NewDecoder(b).Decode(&amsg)

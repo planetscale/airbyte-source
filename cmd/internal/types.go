@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/base64"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -109,9 +110,7 @@ type SerializedCursor struct {
 }
 
 func (s SerializedCursor) SerializedCursorToTableCursor(table ConfiguredStream) (*psdbconnect.TableCursor, error) {
-	var (
-		tc psdbconnect.TableCursor
-	)
+	var tc psdbconnect.TableCursor
 	decoded, err := base64.StdEncoding.DecodeString(s.Cursor)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to decode table cursor")
@@ -193,6 +192,18 @@ func parseValue(val sqltypes.Value, columnType string, queryColumnType query.Typ
 		return Value{
 			sqlValue: mapSetValue(val, values),
 		}
+	case query.Type_BINARY, query.Type_BIT, query.Type_BITNUM, query.Type_BLOB,
+		query.Type_CHAR, query.Type_DECIMAL, query.Type_EXPRESSION,
+		query.Type_FLOAT32, query.Type_FLOAT64, query.Type_GEOMETRY,
+		query.Type_HEXNUM, query.Type_HEXVAL, query.Type_INT16, query.Type_INT24,
+		query.Type_INT32, query.Type_INT64, query.Type_INT8, query.Type_JSON,
+		query.Type_NULL_TYPE, query.Type_TEXT, query.Type_TIMESTAMP,
+		query.Type_TUPLE, query.Type_UINT16, query.Type_UINT24, query.Type_UINT32,
+		query.Type_UINT64, query.Type_UINT8, query.Type_VARBINARY,
+		query.Type_VARCHAR, query.Type_YEAR:
+		// No special handling.
+	default:
+		panic(fmt.Sprintf("unexpected query.Type: %#v", queryColumnType))
 	}
 
 	if strings.ToLower(columnType) == "tinyint(1)" && !ps.Options.DoNotTreatTinyIntAsBoolean {
@@ -206,7 +217,6 @@ func parseValue(val sqltypes.Value, columnType string, queryColumnType query.Typ
 
 func mapTinyIntToBool(val sqltypes.Value) Value {
 	sqlVal, err := val.ToBool()
-
 	// Fallback to the original value if we can't convert to bool
 	if err != nil {
 		return Value{

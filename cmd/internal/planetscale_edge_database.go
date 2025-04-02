@@ -337,7 +337,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 				// No next VGTID found
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because no new VGTID found after last position or deadline exceeded %+v", preamble, tc))
 				return tc, resultCount, err
-			} else if err == io.EOF {
+			} else if errors.Is(err, io.EOF) {
 				// EOF is an acceptable error indicating VStream is finished.
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because EOF encountered at position %+v", preamble, tc))
 				return tc, resultCount, io.EOF
@@ -395,6 +395,17 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 			case binlogdata.VEventType_COPY_COMPLETED:
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sCOPY_COMPLETED event found, copy phase finished", preamble))
 				copyCompletedSeen = true
+			case binlogdata.VEventType_BEGIN, binlogdata.VEventType_COMMIT,
+				binlogdata.VEventType_DDL, binlogdata.VEventType_DELETE,
+				binlogdata.VEventType_GTID, binlogdata.VEventType_HEARTBEAT,
+				binlogdata.VEventType_INSERT, binlogdata.VEventType_JOURNAL,
+				binlogdata.VEventType_OTHER, binlogdata.VEventType_REPLACE,
+				binlogdata.VEventType_ROLLBACK, binlogdata.VEventType_SAVEPOINT,
+				binlogdata.VEventType_SET, binlogdata.VEventType_UNKNOWN,
+				binlogdata.VEventType_UPDATE, binlogdata.VEventType_VERSION:
+				// No special handling.
+			default:
+				panic(fmt.Sprintf("unexpected binlogdata.VEventType: %#v", event.Type))
 			}
 		}
 

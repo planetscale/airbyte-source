@@ -40,7 +40,15 @@ build:
 	@CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" ./...
 
 .PHONY: lint
-lint:
+lint: lint-golang-ci lint-static
+
+.PHONY: lint-golang-ci
+lint-golang-ci:
+	-@golangci-lint --version >/dev/null 2>&1 || { echo "golangci-lint not installed!" ; echo "https://golangci-lint.run/usage/install/"; exit 1; }
+	golangci-lint run
+
+.PHONY: lint-static
+lint-static:
 	@go install honnef.co/go/tools/cmd/staticcheck@latest
 	@$(GOBIN)/staticcheck ./...
 
