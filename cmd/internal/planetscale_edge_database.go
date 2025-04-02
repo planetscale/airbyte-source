@@ -240,8 +240,8 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		return currentSerializedCursor, errors.Wrap(err, "Unable to get latest cursor position")
 	}
 
-	// the last synced VGTID is not at least, or after the current VGTID
-	if currentPosition.Position != "" && !positionEqual(stopPosition, currentPosition.Position) && !positionAfter(stopPosition, currentPosition.Position) {
+	// the last synced VGTID is not after the current VGTID
+	if currentPosition.Position != "" && !positionAfter(stopPosition, currentPosition.Position) {
 		p.Logger.Log(LOGLEVEL_INFO, preamble+"No new GTIDs found, exiting")
 		return TableCursorToSerializedCursor(currentPosition)
 	}

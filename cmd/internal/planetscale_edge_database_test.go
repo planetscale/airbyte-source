@@ -633,7 +633,7 @@ func TestRead_CanPickReplicaForUnshardedKeyspaces(t *testing.T) {
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
-	assert.Equal(t, 2, vsc.vstreamFnInvokedCount)
+	assert.Equal(t, 1, vsc.vstreamFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
 	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
@@ -703,7 +703,7 @@ func TestRead_IncrementalSync_CanReturnOriginalCursorIfNoNewFound(t *testing.T) 
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
-	assert.Equal(t, 2, vsc.vstreamFnInvokedCount)
+	assert.Equal(t, 1, vsc.vstreamFnInvokedCount)
 }
 
 // CanReturnNewCursorIfNewFound tests returning the GTid after the stop position as the start GTid for the next sync
