@@ -407,17 +407,6 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 			canFinishSync = true
 		}
 
-		// Exit sync and flush records once the VGTID position is at or past the desired stop position, and we're no longer waiting for COPY phase to complete
-		if canFinishSync {
-			if isFullSync && copyCompletedSeen {
-				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting full sync and flushing records because COPY_COMPLETED event was seen, current position is %+v, stop position is %+v", preamble, tc.Position, stopPosition))
-			}
-			if !isFullSync && (positionEqual(tc.Position, stopPosition) || positionAfter(tc.Position, stopPosition)) {
-				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting incremental sync and flushing records because current position %+v has reached or passed stop position %+v", preamble, tc.Position, stopPosition))
-			}
-			return tc, resultCount, io.EOF
-		}
-
 		if len(rows) > 0 {
 			for _, result := range rows {
 				qr := sqltypes.Proto3ToResult(result)
@@ -431,6 +420,17 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 					p.printQueryResult(sqlResult, keyspaceOrDatabase, s.Name, &ps)
 				}
 			}
+		}
+
+		// Exit sync and flush records once the VGTID position is at or past the desired stop position, and we're no longer waiting for COPY phase to complete
+		if canFinishSync {
+			switch {
+			case isFullSync && copyCompletedSeen:
+				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting full sync and flushing records because COPY_COMPLETED event was seen, current position is %+v, stop position is %+v", preamble, tc.Position, stopPosition))
+			case !isFullSync && (positionEqual(tc.Position, stopPosition) || positionAfter(tc.Position, stopPosition)):
+				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting incremental sync and flushing records because current position %+v has reached or passed stop position %+v", preamble, tc.Position, stopPosition))
+			}
+			return tc, resultCount, io.EOF
 		}
 	}
 }
