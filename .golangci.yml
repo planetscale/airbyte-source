@@ -1,0 +1,28 @@
+version: "2"
+
+run:
+  go: 1.24.1
+  timeout: 5m
+
+linters:
+  enable:
+    - errorlint
+    - exhaustive
+    - gosec
+    - govet
+    - noctx
+    - unconvert
+  settings:
+    govet:
+      enable:
+        - unusedwrite
+  exclusions:
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - gosec
+        text: G115

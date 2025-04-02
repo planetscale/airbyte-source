@@ -2,7 +2,9 @@ package internal
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
+	"os"
 	"time"
 )
 
@@ -33,20 +35,24 @@ type airbyteLogger struct {
 }
 
 func (a *airbyteLogger) Log(level, message string) {
-	a.recordEncoder.Encode(AirbyteMessage{
+	if err := a.recordEncoder.Encode(AirbyteMessage{
 		Type: LOG,
 		Log: &AirbyteLogMessage{
 			Level:   level,
 			Message: preamble() + message,
 		},
-	})
+	}); err != nil {
+		fmt.Fprintf(os.Stderr, "%sFailed to write log message: %v", preamble(), err)
+	}
 }
 
 func (a *airbyteLogger) Catalog(catalog Catalog) {
-	a.recordEncoder.Encode(AirbyteMessage{
+	if err := a.recordEncoder.Encode(AirbyteMessage{
 		Type:    CATALOG,
 		Catalog: &catalog,
-	})
+	}); err != nil {
+		a.Error(fmt.Sprintf("catalog encoding error: %v", err))
+	}
 }
 
 func (a *airbyteLogger) Record(tableNamespace, tableName string, data map[string]interface{}) {
@@ -69,33 +75,41 @@ func (a *airbyteLogger) Record(tableNamespace, tableName string, data map[string
 
 func (a *airbyteLogger) Flush() {
 	for _, record := range a.records {
-		a.recordEncoder.Encode(record)
+		if err := a.recordEncoder.Encode(record); err != nil {
+			a.Error(fmt.Sprintf("flush encoding error: %v", err))
+		}
 	}
 	a.records = a.records[:0]
 }
 
 func (a *airbyteLogger) State(syncState SyncState) {
-	a.recordEncoder.Encode(AirbyteMessage{
+	if err := a.recordEncoder.Encode(AirbyteMessage{
 		Type:  STATE,
 		State: &AirbyteState{syncState},
-	})
+	}); err != nil {
+		a.Error(fmt.Sprintf("state encoding error: %v", err))
+	}
 }
 
 func (a *airbyteLogger) Error(error string) {
-	a.recordEncoder.Encode(AirbyteMessage{
+	if err := a.recordEncoder.Encode(AirbyteMessage{
 		Type: LOG,
 		Log: &AirbyteLogMessage{
 			Level:   LOGLEVEL_ERROR,
 			Message: error,
 		},
-	})
+	}); err != nil {
+		fmt.Fprintf(os.Stderr, "%sFailed to write error: %v", preamble(), err)
+	}
 }
 
 func (a *airbyteLogger) ConnectionStatus(status ConnectionStatus) {
-	a.recordEncoder.Encode(AirbyteMessage{
+	if err := a.recordEncoder.Encode(AirbyteMessage{
 		Type:             CONNECTION_STATUS,
 		ConnectionStatus: &status,
-	})
+	}); err != nil {
+		a.Error(fmt.Sprintf("connection status encoding error: %v", err))
+	}
 }
 
 func preamble() string {

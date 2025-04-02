@@ -29,10 +29,10 @@ func SpecCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "spec",
 		Short: "Describes inputs needed for connecting to PlanetScale databases",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			// XXX: The spec MUST be output in a single line, so we minify the actual
 			// spec before outputting, otherwise Airbyte will not be able to parse it.
-			minifyJSON(cmd.OutOrStdout(), strings.NewReader(staticSpec))
+			return minifyJSON(cmd.OutOrStdout(), strings.NewReader(staticSpec))
 		},
 	}
 }
