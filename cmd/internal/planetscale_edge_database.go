@@ -241,7 +241,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	}
 
 	// the last synced VGTID is not at least, or after the current VGTID
-	if currentPosition.Position != "" && !positionAfter(stopPosition, currentPosition.Position) {
+	if currentPosition.Position != "" && !positionEqual(stopPosition, currentPosition.Position) && !positionAfter(stopPosition, currentPosition.Position) {
 		p.Logger.Log(LOGLEVEL_INFO, preamble+"No new GTIDs found, exiting")
 		return TableCursorToSerializedCursor(currentPosition)
 	}
@@ -315,7 +315,6 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 	}
 
 	c, err := vtgateClient.VStream(ctx, vtgateReq)
-
 	if err != nil {
 		p.Logger.Log(LOGLEVEL_ERROR, fmt.Sprintf("%sExiting sync due to client sync error: %+v", preamble, err))
 		return tc, 0, err
@@ -399,7 +398,6 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 			}
 		}
 
-		// if isFullSync && copyCompletedSeen {
 		if isFullSync && copyCompletedSeen {
 			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sReady to finish sync and flush since copy phase completed or stop VGTID passed", preamble))
 			canFinishSync = true
@@ -409,9 +407,14 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 			canFinishSync = true
 		}
 
-		// Exit sync and flush records once the VGTID position is past the desired stop position, and we're no longer waiting for COPY phase to complete
-		if canFinishSync && positionAfter(tc.Position, stopPosition) {
-			p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because current position %+v has passed stop position %+v", preamble, tc.Position, stopPosition))
+		// Exit sync and flush records once the VGTID position is at or past the desired stop position, and we're no longer waiting for COPY phase to complete
+		if canFinishSync {
+			if isFullSync && copyCompletedSeen {
+				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting full sync and flushing records because COPY_COMPLETED event was seen, current position is %+v, stop position is %+v", preamble, tc.Position, stopPosition))
+			}
+			if !isFullSync && (positionEqual(tc.Position, stopPosition) || positionAfter(tc.Position, stopPosition)) {
+				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting incremental sync and flushing records because current position %+v has reached or passed stop position %+v", preamble, tc.Position, stopPosition))
+			}
 			return tc, resultCount, io.EOF
 		}
 

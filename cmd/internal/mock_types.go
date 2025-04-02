@@ -10,25 +10,32 @@ import (
 	"vitess.io/vitess/go/vt/proto/vtgateservice"
 )
 
+type testAirbyteLogEntry struct {
+	level   string
+	message string
+}
+
 type testAirbyteLogger struct {
-	logMessages map[string][]string
-	records     map[string][]map[string]interface{}
+	logMessages        []testAirbyteLogEntry
+	logMessagesByLevel map[string][]string
+	records            map[string][]map[string]interface{}
 }
 
 func (tal *testAirbyteLogger) Log(level, message string) {
-	if tal.logMessages == nil {
-		tal.logMessages = map[string][]string{}
+	if tal.logMessagesByLevel == nil {
+		tal.logMessagesByLevel = map[string][]string{}
 	}
-	tal.logMessages[level] = append(tal.logMessages[level], message)
+	tal.logMessagesByLevel[level] = append(tal.logMessagesByLevel[level], message)
+	tal.logMessages = append(tal.logMessages, testAirbyteLogEntry{level, message})
 }
 
 func (testAirbyteLogger) Catalog(catalog Catalog) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (testAirbyteLogger) ConnectionStatus(status ConnectionStatus) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
@@ -44,12 +51,12 @@ func (testAirbyteLogger) Flush() {
 }
 
 func (testAirbyteLogger) State(syncState SyncState) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (testAirbyteLogger) Error(error string) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
@@ -121,22 +128,22 @@ func (tma *mysqlAccessMock) PingContext(ctx context.Context, source PlanetScaleS
 }
 
 func (mysqlAccessMock) GetTableNames(ctx context.Context, source PlanetScaleSource) ([]string, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (mysqlAccessMock) GetTableSchema(ctx context.Context, source PlanetScaleSource, s string) (map[string]PropertyType, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (mysqlAccessMock) GetTablePrimaryKeys(ctx context.Context, source PlanetScaleSource, s string) ([]string, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (mysqlAccessMock) QueryContext(ctx context.Context, psc PlanetScaleSource, query string, args ...interface{}) (*sql.Rows, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
@@ -146,7 +153,7 @@ func (tma *mysqlAccessMock) GetVitessTablets(ctx context.Context, psc PlanetScal
 }
 
 func (mysqlAccessMock) GetVitessShards(ctx context.Context, psc PlanetScaleSource) ([]string, error) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 func (mysqlAccessMock) Close() error { return nil }

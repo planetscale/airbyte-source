@@ -3,6 +3,7 @@ package internal
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"strings"
@@ -357,7 +358,7 @@ func TestRead_CanPickRdonlyForShardedKeyspaces(t *testing.T) {
 }
 
 func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
-	var tests = []struct {
+	tests := []struct {
 		MysqlType             string
 		JSONSchemaType        []string
 		AirbyteType           string
@@ -493,7 +494,6 @@ func TestDiscover_CanPickRightAirbyteType(t *testing.T) {
 	}
 
 	for _, typeTest := range tests {
-
 		t.Run(fmt.Sprintf("mysql_type_%v", typeTest.MysqlType), func(t *testing.T) {
 			p := getJsonSchemaType(typeTest.MysqlType, typeTest.TreatTinyIntAsBoolean, typeTest.IsNullable)
 			assert.Equal(t, typeTest.AirbyteType, p.AirbyteType)
@@ -626,16 +626,19 @@ func TestRead_CanPickReplicaForUnshardedKeyspaces(t *testing.T) {
 		},
 	}
 	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	if testing.Verbose() {
+		t.Logf("airbyte logs: %s", b.String())
+	}
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
-	assert.Equal(t, 1, vsc.vstreamFnInvokedCount)
+	assert.Equal(t, 2, vsc.vstreamFnInvokedCount)
 	assert.False(t, tma.PingContextFnInvoked)
 	assert.False(t, tma.GetVitessTabletsFnInvoked)
 }
 
-// CanReturnNewCursorIfNewFound tests returning the same GTid as stop position
+// CanReturnNewCursorIfNewFound tests returning the same GTID as stop position
 func TestRead_IncrementalSync_CanReturnOriginalCursorIfNoNewFound(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
@@ -693,11 +696,14 @@ func TestRead_IncrementalSync_CanReturnOriginalCursorIfNoNewFound(t *testing.T) 
 		},
 	}
 	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	if testing.Verbose() {
+		t.Logf("airbyte logs: %s", b.String())
+	}
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
 	assert.Equal(t, esc, sc)
-	assert.Equal(t, 1, vsc.vstreamFnInvokedCount)
+	assert.Equal(t, 2, vsc.vstreamFnInvokedCount)
 }
 
 // CanReturnNewCursorIfNewFound tests returning the GTid after the stop position as the start GTid for the next sync
@@ -818,8 +824,7 @@ func TestRead_IncrementalSync_CanStopAtWellKnownCursor(t *testing.T) {
 
 	numRows := 10
 	startVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 0)
-	stopVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 8)
-	nextSyncVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 9)
+	stopVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 9)
 	shard := "-"
 	keyspace := "connect-test"
 	table := "customers"
@@ -991,7 +996,7 @@ func TestRead_IncrementalSync_CanStopAtWellKnownCursor(t *testing.T) {
 	expectedCursor := &psdbconnect.TableCursor{
 		Shard:    shard,
 		Keyspace: keyspace,
-		Position: nextSyncVGtidPosition,
+		Position: stopVGtidPosition,
 	}
 
 	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
@@ -999,12 +1004,16 @@ func TestRead_IncrementalSync_CanStopAtWellKnownCursor(t *testing.T) {
 	// Should output next VGtid after stop VGtid as cursor
 	esc, err := TableCursorToSerializedCursor(expectedCursor)
 	assert.NoError(t, err)
-	assert.Equal(t, esc, sc)
+	escDecoded, err := base64.StdEncoding.DecodeString(esc.Cursor)
+	assert.NoError(t, err)
+	scDecoded, err := base64.StdEncoding.DecodeString(sc.Cursor)
+	assert.NoError(t, err)
+	assert.Equal(t, string(escDecoded), string(scDecoded))
 	assert.Equal(t, 2, vsc.vstreamFnInvokedCount)
 
 	// There were 10 row events total
 	assert.Equal(t, 10, len(responses))
-	logLines := tal.logMessages[LOGLEVEL_INFO]
+	logLines := tal.logMessagesByLevel[LOGLEVEL_INFO]
 	// But only the first 8 (with VGtids <= stop position) will be synced
 	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records after 1 syncs for table [customers]", 8), logLines[len(logLines)-1])
 	records := tal.records["connect-test.customers"]
@@ -1024,8 +1033,8 @@ func TestRead_IncrementalSync_CanLogResults(t *testing.T) {
 	shard := "-"
 	table := "products"
 	startVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-2,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2"
-	nextVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-4,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2"
-	stopVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-3,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2"
+	middleVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-3,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2"
+	stopVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-4,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2"
 
 	startCursor := &psdbconnect.TableCursor{
 		Shard:    shard,
@@ -1073,7 +1082,7 @@ func TestRead_IncrementalSync_CanLogResults(t *testing.T) {
 					},
 				},
 			},
-			// 2nd recv() of second sync for rows to get stop VGtid
+			// 2nd recv() of second sync for rows to get intermediate GTID
 			{
 				response: &vtgate.VStreamResponse{
 					Events: []*binlogdata.VEvent{
@@ -1083,7 +1092,7 @@ func TestRead_IncrementalSync_CanLogResults(t *testing.T) {
 								ShardGtids: []*binlogdata.ShardGtid{
 									{
 										Shard:    shard,
-										Gtid:     stopVGtid,
+										Gtid:     middleVGtid,
 										Keyspace: keyspace,
 									},
 								},
@@ -1156,7 +1165,7 @@ func TestRead_IncrementalSync_CanLogResults(t *testing.T) {
 					},
 				},
 			},
-			// 5th recv() of second sync for rows to advance GTid past stop position
+			// 5th recv() of second sync for rows to advance GTid to stop position
 			{
 				response: &vtgate.VStreamResponse{
 					Events: []*binlogdata.VEvent{
@@ -1166,7 +1175,7 @@ func TestRead_IncrementalSync_CanLogResults(t *testing.T) {
 								ShardGtids: []*binlogdata.ShardGtid{
 									{
 										Shard:    shard,
-										Gtid:     nextVGtid,
+										Gtid:     stopVGtid,
 										Keyspace: keyspace,
 									},
 								},
@@ -1228,6 +1237,11 @@ func TestRead_IncrementalSync_CanLogResults(t *testing.T) {
 		},
 	}
 	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	if testing.Verbose() {
+		for _, entry := range tal.logMessages {
+			t.Logf("airbyte log entry: [%s] %s", entry.level, entry.message)
+		}
+	}
 	assert.NoError(t, err)
 	assert.NotNil(t, sc)
 	assert.Equal(t, 2, len(tal.records["connect-test.products"]))
@@ -1656,7 +1670,7 @@ func TestRead_FullSync_CanStopSyncPastStopPosition(t *testing.T) {
 	assert.Equal(t, esc, nextSyncStartCursor)
 	assert.Equal(t, 2, vsc.vstreamFnInvokedCount)
 
-	logLines := tal.logMessages[LOGLEVEL_INFO]
+	logLines := tal.logMessagesByLevel[LOGLEVEL_INFO]
 	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records after 1 syncs for table [customers]", 10), logLines[len(logLines)-1])
 	records := tal.records["connect-test.customers"]
 	assert.Equal(t, 10, len(records))
@@ -1670,7 +1684,7 @@ CanSyncPastStopPosition tests the following situation:
 3. We sync from the beginning (no start cursor) to the current VGTID position "current VGTID position"
 4. "current VGTID position" is EQUAL TO "stop VGTID"
 5. Since the "current VGTID position" is EQUAL TO "stop VGTID", we can stop the sync and flush records
-6. We return "next VGTID position" (the first VGTID position that is after the "stop VGTID") as the "start cursor" for the next sync
+6. We return "next VGTID position" (the first VGTID position that is equal to or after the "stop VGTID") as the "start cursor" for the next sync
 *
 */
 func TestRead_FullSync_CanStopSyncEqualToStopPosition(t *testing.T) {
@@ -1686,8 +1700,8 @@ func TestRead_FullSync_CanStopSyncEqualToStopPosition(t *testing.T) {
 		Keyspace: "connect-test",
 		Position: "",
 	}
-	stopVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 8)
-	nextSyncVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%v", 9)
+	stopVGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%d", 8)
+	postCopyGtidPosition := fmt.Sprintf("MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-%d", 9)
 
 	numRows := 10
 	shard := "-"
@@ -1807,7 +1821,7 @@ func TestRead_FullSync_CanStopSyncEqualToStopPosition(t *testing.T) {
 							{
 								Keyspace: keyspace,
 								Shard:    shard,
-								Gtid:     nextSyncVGtidPosition,
+								Gtid:     postCopyGtidPosition,
 							},
 						},
 					},
@@ -1869,18 +1883,27 @@ func TestRead_FullSync_CanStopSyncEqualToStopPosition(t *testing.T) {
 	}
 
 	nextSyncStartCursor, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	if testing.Verbose() {
+		for _, entry := range tal.logMessages {
+			t.Logf("airbyte log entry: [%s] %s", entry.level, entry.message)
+		}
+	}
 	assert.NoError(t, err)
-	// Next sync will start at the VGTID after the end of the current sync
+	// Next sync will start at the VGTID at the end of the current sync
 	esc, err := TableCursorToSerializedCursor(&psdbconnect.TableCursor{
 		Shard:    "-",
 		Keyspace: "connect-test",
-		Position: nextSyncVGtidPosition,
+		Position: stopVGtidPosition,
 	})
 	assert.NoError(t, err)
-	assert.Equal(t, esc, nextSyncStartCursor)
+	escDecoded, err := base64.StdEncoding.DecodeString(esc.Cursor)
+	assert.NoError(t, err)
+	nextSyncStartCursorDecoded, err := base64.StdEncoding.DecodeString(nextSyncStartCursor.Cursor)
+	assert.NoError(t, err)
+	assert.Equal(t, string(escDecoded), string(nextSyncStartCursorDecoded))
 	assert.Equal(t, 2, vsc.vstreamFnInvokedCount)
 
-	logLines := tal.logMessages[LOGLEVEL_INFO]
+	logLines := tal.logMessagesByLevel[LOGLEVEL_INFO]
 	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records after 1 syncs for table [customers]", 10), logLines[len(logLines)-1])
 	records := tal.records["connect-test.customers"]
 	assert.Equal(t, 10, len(records))
@@ -2216,7 +2239,7 @@ func TestRead_FullSync_CopyCatchupLoop(t *testing.T) {
 	assert.Equal(t, esc, nextSyncStartCursor)
 	assert.Equal(t, 2, vsc.vstreamFnInvokedCount)
 
-	logLines := tal.logMessages[LOGLEVEL_INFO]
+	logLines := tal.logMessagesByLevel[LOGLEVEL_INFO]
 	assert.Equal(t, fmt.Sprintf("[connect-test:primary:customers shard : -] Finished reading %v records after 1 syncs for table [customers]", 22), logLines[len(logLines)-1])
 	records := tal.records["connect-test.customers"]
 	assert.Equal(t, 22, len(records))
@@ -2614,7 +2637,7 @@ func TestRead_FullSync_MaxRetries(t *testing.T) {
 	assert.Equal(t, esc, nextSyncStartCursor)
 	assert.Equal(t, 4, vsc.vstreamFnInvokedCount)
 
-	logLines := tal.logMessages[LOGLEVEL_INFO]
+	logLines := tal.logMessagesByLevel[LOGLEVEL_INFO]
 	assert.Equal(t, strings.ReplaceAll(fmt.Sprintf("[connect-test:primary:customers shard : -] %v records synced after 3 syncs. Got error [DeadlineExceeded], returning with cursor [shard:\"-\"  keyspace:\"connect-test\"  position:\"MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-10\"  last_known_pk:{fields:{name:\"id\"  type:INT64  charset:63  flags:53251}  rows:{lengths:4  values:\"30\"}}] after gRPC error", 30), " ", ""), strings.ReplaceAll(logLines[len(logLines)-1], " ", ""))
 	records := tal.records["connect-test.customers"]
 	assert.Equal(t, 30, len(records))
