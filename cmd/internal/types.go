@@ -224,8 +224,14 @@ func leadDecimalWithZero(val sqltypes.Value) sqltypes.Value {
 		panic("non-decimal value")
 	}
 	valS := val.ToString()
-	if strings.HasPrefix(valS, ".") {
-		newVal, err := sqltypes.NewValue(val.Type(), fmt.Appendf(nil, "0%s", valS))
+	if strings.HasPrefix(valS, ".") || strings.HasPrefix(valS, "-.") {
+		var newVal sqltypes.Value
+		var err error
+		if strings.HasPrefix(valS, ".") {
+			newVal, err = sqltypes.NewValue(val.Type(), fmt.Appendf(nil, "0%s", valS))
+		} else {
+			newVal, err = sqltypes.NewValue(val.Type(), fmt.Appendf(nil, "-0%s", valS[1:]))
+		}
 		if err != nil {
 			panic(fmt.Sprintf("failed to reconstruct decimal with leading zero: %v", err))
 		}
