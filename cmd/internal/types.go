@@ -192,8 +192,12 @@ func parseValue(val sqltypes.Value, columnType string, queryColumnType query.Typ
 		return Value{
 			sqlValue: mapSetValue(val, values),
 		}
+	case query.Type_DECIMAL:
+		return Value{
+			sqlValue: leadDecimalWithZero(val),
+		}
 	case query.Type_BINARY, query.Type_BIT, query.Type_BITNUM, query.Type_BLOB,
-		query.Type_CHAR, query.Type_DECIMAL, query.Type_EXPRESSION,
+		query.Type_CHAR, query.Type_EXPRESSION,
 		query.Type_FLOAT32, query.Type_FLOAT64, query.Type_GEOMETRY,
 		query.Type_HEXNUM, query.Type_HEXVAL, query.Type_INT16, query.Type_INT24,
 		query.Type_INT32, query.Type_INT64, query.Type_INT8, query.Type_JSON,
@@ -213,6 +217,21 @@ func parseValue(val sqltypes.Value, columnType string, queryColumnType query.Typ
 	return Value{
 		sqlValue: val,
 	}
+}
+
+func leadDecimalWithZero(val sqltypes.Value) sqltypes.Value {
+	if !val.IsDecimal() {
+		panic("non-decimal value")
+	}
+	valS := val.ToString()
+	if strings.HasPrefix(valS, ".") {
+		newVal, err := sqltypes.NewValue(val.Type(), []byte(fmt.Sprintf("0%s", valS)))
+		if err != nil {
+			panic(fmt.Sprintf("failed to reconstruct decimal with leading zero: %v", err))
+		}
+		return newVal
+	}
+	return val
 }
 
 func mapTinyIntToBool(val sqltypes.Value) Value {
