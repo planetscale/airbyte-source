@@ -196,3 +196,47 @@ func TestCanFormatISO8601Values(t *testing.T) {
 	assert.Equal(t, "1970-01-01", zeroRow["date_created_at"].(sqltypes.Value).ToString())
 	assert.Equal(t, "1970-01-01T00:00:00.000000+00:00", zeroRow["timestamp_created_at"].(sqltypes.Value).ToString())
 }
+
+func TestCanLeadDecimalWithZero(t *testing.T) {
+	d1, err := sqltypes.NewValue(query.Type_DECIMAL, []byte("11.11"))
+	assert.NoError(t, err)
+	d2, err := sqltypes.NewValue(query.Type_DECIMAL, []byte("2.22"))
+	assert.NoError(t, err)
+	d3, err := sqltypes.NewValue(query.Type_DECIMAL, []byte(".33"))
+	assert.NoError(t, err)
+	d4, err := sqltypes.NewValue(query.Type_DECIMAL, []byte("0.4"))
+	assert.NoError(t, err)
+	d5, err := sqltypes.NewValue(query.Type_DECIMAL, []byte("-5.55"))
+	assert.NoError(t, err)
+	d6, err := sqltypes.NewValue(query.Type_DECIMAL, []byte("-0.66"))
+	assert.NoError(t, err)
+	d7, err := sqltypes.NewValue(query.Type_DECIMAL, []byte("-.77"))
+	assert.NoError(t, err)
+
+	input := sqltypes.Result{
+		Fields: []*query.Field{
+			{Name: "d1", Type: sqltypes.Decimal, ColumnType: "decimal(10,2)"},
+			{Name: "d2", Type: sqltypes.Decimal, ColumnType: "decimal(10,2)"},
+			{Name: "d3", Type: sqltypes.Decimal, ColumnType: "decimal(10,2)"},
+			{Name: "d4", Type: sqltypes.Decimal, ColumnType: "decimal(10,2)"},
+			{Name: "d5", Type: sqltypes.Decimal, ColumnType: "decimal(10,2)"},
+			{Name: "d6", Type: sqltypes.Decimal, ColumnType: "decimal(10,2)"},
+			{Name: "d7", Type: sqltypes.Decimal, ColumnType: "decimal(10,2)"},
+		},
+		Rows: [][]sqltypes.Value{
+			{d1, d2, d3, d4, d5, d6, d7},
+		},
+	}
+
+	output := QueryResultToRecords(&input, &PlanetScaleSource{})
+	assert.Equal(t, 1, len(output))
+
+	row := output[0]
+	assert.Equal(t, "11.11", row["d1"].(sqltypes.Value).ToString())
+	assert.Equal(t, "2.22", row["d2"].(sqltypes.Value).ToString())
+	assert.Equal(t, "0.33", row["d3"].(sqltypes.Value).ToString())
+	assert.Equal(t, "0.4", row["d4"].(sqltypes.Value).ToString())
+	assert.Equal(t, "-5.55", row["d5"].(sqltypes.Value).ToString())
+	assert.Equal(t, "-0.66", row["d6"].(sqltypes.Value).ToString())
+	assert.Equal(t, "-0.77", row["d7"].(sqltypes.Value).ToString())
+}
