@@ -99,7 +99,8 @@ func TestCanMapEnumAndSetValues(t *testing.T) {
 		},
 	}
 
-	output := QueryResultToRecords(&input, &PlanetScaleSource{})
+	output, err := QueryResultToRecords(&input, &PlanetScaleSource{})
+	assert.NoError(t, err)
 	assert.Equal(t, 2, len(output))
 	firstRow := output[0]
 	assert.Equal(t, "active", firstRow["status"].(sqltypes.Value).ToString())
@@ -120,11 +121,12 @@ func TestCanMapTinyIntValues(t *testing.T) {
 		},
 	}
 
-	output := QueryResultToRecords(&input, &PlanetScaleSource{
+	output, err := QueryResultToRecords(&input, &PlanetScaleSource{
 		Options: CustomSourceOptions{
 			DoNotTreatTinyIntAsBoolean: false,
 		},
 	})
+	assert.NoError(t, err)
 
 	assert.Equal(t, 2, len(output))
 	firstRow := output[0]
@@ -142,11 +144,12 @@ func TestCanMapTinyIntValues(t *testing.T) {
 		},
 	}
 
-	output = QueryResultToRecords(&input, &PlanetScaleSource{
+	output, err = QueryResultToRecords(&input, &PlanetScaleSource{
 		Options: CustomSourceOptions{
 			DoNotTreatTinyIntAsBoolean: true,
 		},
 	})
+	assert.NoError(t, err)
 
 	assert.Equal(t, 2, len(output))
 	firstRow = output[0]
@@ -181,7 +184,8 @@ func TestCanFormatISO8601Values(t *testing.T) {
 		},
 	}
 
-	output := QueryResultToRecords(&input, &PlanetScaleSource{})
+	output, err := QueryResultToRecords(&input, &PlanetScaleSource{})
+	assert.NoError(t, err)
 	assert.Equal(t, 3, len(output))
 	row := output[0]
 	assert.Equal(t, "2025-02-14T08:08:08.000000", row["datetime_created_at"].(sqltypes.Value).ToString())
@@ -228,7 +232,8 @@ func TestCanLeadDecimalWithZero(t *testing.T) {
 		},
 	}
 
-	output := QueryResultToRecords(&input, &PlanetScaleSource{})
+	output, err := QueryResultToRecords(&input, &PlanetScaleSource{})
+	assert.NoError(t, err)
 	assert.Equal(t, 1, len(output))
 
 	row := output[0]

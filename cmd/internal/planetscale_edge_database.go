@@ -381,10 +381,15 @@ func (p PlanetScaleEdgeDatabase) sync(
 			qr := sqltypes.Proto3ToResult(result)
 			for _, row := range qr.Rows {
 				nread += 1
-				data := QueryResultToRecords(&sqltypes.Result{
+
+				data, err := QueryResultToRecords(&sqltypes.Result{
 					Fields: result.Fields,
 					Rows:   []sqltypes.Row{row},
 				}, &ps)
+				if err != nil {
+					return tc, nread, fmt.Errorf("query result to records: %w", err)
+				}
+
 				for _, record := range data {
 					if p.Logger.QueueFull() {
 						if err := checkpoint(p.Logger.Flush, tc, state); err != nil {
