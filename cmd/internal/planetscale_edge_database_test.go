@@ -1420,6 +1420,11 @@ func TestRead_IncrementalSync_CanStopIfNoRows(t *testing.T) {
 		},
 	}
 	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	if testing.Verbose() {
+		for _, entry := range tal.logMessages {
+			t.Logf("airbyte log entry: [%s] %s", entry.level, entry.message)
+		}
+	}
 	assert.NoError(t, err)
 	assert.NotNil(t, sc)
 	assert.Equal(t, 0, len(tal.records["connect-test.products"]))

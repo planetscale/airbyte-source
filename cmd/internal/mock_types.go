@@ -15,10 +15,17 @@ type testAirbyteLogEntry struct {
 	message string
 }
 
+var _ AirbyteLogger = (*testAirbyteLogger)(nil)
+
 type testAirbyteLogger struct {
 	logMessages        []testAirbyteLogEntry
 	logMessagesByLevel map[string][]string
 	records            map[string][]map[string]interface{}
+}
+
+// QueueFull implements AirbyteLogger.
+func (tal *testAirbyteLogger) QueueFull() bool {
+	return len(tal.records) > 0
 }
 
 func (tal *testAirbyteLogger) Log(level, message string) {
@@ -39,15 +46,17 @@ func (testAirbyteLogger) ConnectionStatus(status ConnectionStatus) {
 	panic("implement me")
 }
 
-func (tal *testAirbyteLogger) Record(tableNamespace, tableName string, data map[string]interface{}) {
+func (tal *testAirbyteLogger) Record(tableNamespace, tableName string, data map[string]interface{}) error {
 	if tal.records == nil {
 		tal.records = map[string][]map[string]interface{}{}
 	}
 	key := tableNamespace + "." + tableName
 	tal.records[key] = append(tal.records[key], data)
+	return nil
 }
 
-func (testAirbyteLogger) Flush() {
+func (testAirbyteLogger) Flush() error {
+	return nil
 }
 
 func (testAirbyteLogger) State(syncState SyncState) {

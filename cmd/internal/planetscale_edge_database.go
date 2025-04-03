@@ -216,8 +216,8 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 		tabletType = psdbconnect.TabletType_replica
 	}
 
-	currentPosition := lastKnownPosition
-	if currentPosition.Position == "" || currentPosition.LastKnownPk != nil {
+	tc := lastKnownPosition
+	if tc.Position == "" || tc.LastKnownPk != nil {
 		syncMode = "full"
 	} else {
 		syncMode = "incremental"
@@ -227,10 +227,10 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	readDuration := 5 * time.Minute
 	maxRetries := ps.MaxRetries
 
-	preamble := fmt.Sprintf("[%v:%v:%v shard : %v] ", table.Namespace, TabletTypeToString(tabletType), table.Name, currentPosition.Shard)
+	preamble := fmt.Sprintf("[%v:%v:%v shard : %v] ", table.Namespace, TabletTypeToString(tabletType), table.Name, tc.Shard)
 
 	p.Logger.Log(LOGLEVEL_INFO, preamble+"Peeking to see if there's any new GTIDs")
-	stopPosition, lcErr := p.getStopCursorPosition(ctx, currentPosition.Shard, currentPosition.Keyspace, table, ps, tabletType)
+	stopPosition, lcErr := p.getStopCursorPosition(ctx, tc.Shard, tc.Keyspace, table, ps, tabletType)
 	if lcErr != nil {
 		p.Logger.Log(LOGLEVEL_ERROR, preamble+fmt.Sprintf("Error fetching latest cursor position: %+v", lcErr))
 		return currentSerializedCursor, errors.Wrap(err, "Unable to get latest cursor position")
@@ -241,9 +241,9 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	}
 
 	// the last synced VGTID is not after the current VGTID
-	if currentPosition.Position != "" && !positionAfter(stopPosition, currentPosition.Position) {
+	if tc.Position != "" && !positionAfter(stopPosition, tc.Position) {
 		p.Logger.Log(LOGLEVEL_INFO, preamble+"No new GTIDs found, exiting")
-		return TableCursorToSerializedCursor(currentPosition)
+		return TableCursorToSerializedCursor(tc)
 	}
 	p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf(preamble+"New GTIDs found, syncing for %v", readDuration))
 
@@ -253,16 +253,18 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	for {
 		syncCount += 1
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sStarting sync #%v", preamble, syncCount))
-		newPosition, recordCount, err := p.sync(ctx, syncMode, currentPosition, stopPosition, table, ps, tabletType, readDuration)
+		newTC, recordCount, err := p.sync(
+			ctx, syncMode, tc, stopPosition, table, ps, tabletType, readDuration,
+		)
 		totalRecordCount += recordCount
-		currentSerializedCursor, sErr = TableCursorToSerializedCursor(currentPosition)
+		currentSerializedCursor, sErr = TableCursorToSerializedCursor(tc)
 		if sErr != nil {
 			// if we failed to serialize here, we should bail.
 			return currentSerializedCursor, errors.Wrap(sErr, "unable to serialize current position")
 		}
 		if err != nil {
 			if s, ok := status.FromError(err); ok {
-				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%v%v records synced after %v syncs. Got error [%v], returning with cursor [%v] after gRPC error", preamble, totalRecordCount, syncCount, s.Code(), currentPosition))
+				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%v%v records synced after %v syncs. Got error [%v], returning with cursor [%v] after gRPC error", preamble, totalRecordCount, syncCount, s.Code(), tc))
 				if syncCount >= maxRetries {
 					return currentSerializedCursor, nil
 				}
@@ -270,13 +272,21 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%vFinished reading %v records after %v syncs for table [%v]", preamble, totalRecordCount, syncCount, table.Name))
 				return currentSerializedCursor, nil
 			} else {
-				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%v%v records synced after %v syncs. Got error [%v], returning with cursor [%v] after server timeout", preamble, totalRecordCount, syncCount, err, currentPosition))
+				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%v%v records synced after %v syncs. Got error [%v], returning with cursor [%v] after server timeout", preamble, totalRecordCount, syncCount, err, tc))
 				return currentSerializedCursor, err
 			}
 		}
-		currentPosition = newPosition
-		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%vContinuing to next sync #%v. Set next sync start position to [%+v].", preamble, syncCount+1, currentPosition))
+		tc = newTC
+		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%vContinuing to next sync #%v. Set next sync start position to [%+v].", preamble, syncCount+1, tc))
 	}
+}
+
+type syncState struct {
+	copyCompletedSeen bool
+	fields            []*query.Field
+	lastKnownPk       *query.QueryResult
+	position          string
+	results           []*query.QueryResult
 }
 
 func (p PlanetScaleEdgeDatabase) sync(
@@ -292,8 +302,6 @@ func (p PlanetScaleEdgeDatabase) sync(
 	logf := func(level, message string, args ...any) {
 		p.Logger.Log(level, fmt.Sprintf("%s%s", preamble, fmt.Sprintf(message, args...)))
 	}
-
-	defer p.Logger.Flush()
 
 	ctx, cancel := context.WithTimeout(ctx, readDuration)
 	defer cancel()
@@ -339,81 +347,100 @@ func (p PlanetScaleEdgeDatabase) sync(
 	var (
 		// Can finish sync once we've synced to the stop position, or finished the
 		// VStream COPY phase
-		canFinishSync bool
+		done bool
 
-		// Keep track of last seen lastFields. We may receive a field event in one
-		// recv call, and row events in another.
-		lastFields []*query.Field
+		// Number of rows read from VStream.
+		nread int
 
-		resultCount int
+		// As the sync progresses, it updates its state.
+		state = syncState{position: tc.Position}
 	)
 
-	for {
-		vstreamResp, err := syncRecv(logf, c)
+	for !done {
+		vstreamResp, err := recvVstream(logf, c)
 		if err != nil {
-			logf(LOGLEVEL_INFO, "Exiting sync and flushing records at position %+v: %v", tc, err)
-			return tc, resultCount, err
+			return tc, nread, err
 		}
 
-		summary, err := summarizeVStreamEvents(logf, vstreamResp.Events, lastFields)
+		err = digestVStream(logf, vstreamResp.Events, &state)
 		if err != nil {
-			return tc, resultCount, err
+			return tc, nread, err
 		}
 
-		// Keep track of last seen lastFields. We may receive a field event in one
-		// recv call, and row events in another.
-		lastFields = summary.fields
-
-		// TODO: only update these after rows have been flushed to Airbyte.
-		if summary.position != "" {
-			tc.Position = summary.position
-		}
-		if summary.lastKnownPk != nil {
-			tc.LastKnownPk = summary.lastKnownPk
-		}
-
-		if isFullSync && summary.copyCompletedSeen {
+		if isFullSync && state.copyCompletedSeen {
 			logf(LOGLEVEL_INFO, "Ready to finish sync and flush since copy phase completed or stop VGTID passed")
-			canFinishSync = true
+			done = true
 		}
 
-		if !isFullSync && positionEqual(tc.Position, stopPosition) {
+		if !isFullSync && positionEqual(state.position, stopPosition) {
 			logf(LOGLEVEL_INFO, "Ready to finish sync and flush since stop position [%+v] found", stopPosition)
-			canFinishSync = true
+			done = true
 		}
 
-		for _, result := range summary.results {
+		for _, result := range state.results {
 			qr := sqltypes.Proto3ToResult(result)
 			for _, row := range qr.Rows {
-				resultCount += 1
-				sqlResult := &sqltypes.Result{
+				nread += 1
+				data := QueryResultToRecords(&sqltypes.Result{
 					Fields: result.Fields,
 					Rows:   []sqltypes.Row{row},
+				}, &ps)
+				for _, record := range data {
+					if p.Logger.QueueFull() {
+						if err := checkpoint(p.Logger.Flush, tc, state); err != nil {
+							return tc, nread, fmt.Errorf("checkpoint while reading records: %w", err)
+						}
+					}
+					if err := p.Logger.Record(keyspaceOrDatabase, s.Name, record); err != nil {
+						return tc, nread, fmt.Errorf("record: %w", err)
+					}
 				}
-				// Results queued to Airbyte here, and flushed at the end of sync()
-				p.printQueryResult(sqlResult, keyspaceOrDatabase, s.Name, &ps)
 			}
 		}
-
-		// Exit sync and flush records once the VGTID position is at or past the
-		// desired stop position, and we're no longer waiting for COPY phase to
-		// complete
-		if canFinishSync {
-			if isFullSync {
-				logf(LOGLEVEL_INFO,
-					"Exiting full sync and flushing records because COPY_COMPLETED event was seen, current position is %+v, stop position is %+v",
-					tc.Position, stopPosition)
-			} else {
-				logf(LOGLEVEL_INFO,
-					"Exiting incremental sync and flushing records because current position %+v has reached or passed stop position %+v",
-					tc.Position, stopPosition)
-			}
-			return tc, resultCount, io.EOF
-		}
+		state.results = state.results[:0]
 	}
+
+	// Exit sync and flush records once the VGTID position is at or past the
+	// desired stop position, and we're no longer waiting for COPY phase to
+	// complete
+	if isFullSync {
+		logf(LOGLEVEL_INFO,
+			"Exiting full sync and flushing records because COPY_COMPLETED event was seen, current position is %+v, stop position is %+v",
+			tc.Position, stopPosition)
+	} else {
+		logf(LOGLEVEL_INFO,
+			"Exiting incremental sync and flushing records because current position %+v has reached or passed stop position %+v",
+			tc.Position, stopPosition)
+	}
+
+	if err := checkpoint(p.Logger.Flush, tc, state); err != nil {
+		return tc, nread, fmt.Errorf("checkpoint after all records read: %w", err)
+	}
+
+	return tc, nread, io.EOF
 }
 
-func syncRecv(
+func checkpoint(
+	flush func() error,
+	tc *psdbconnect.TableCursor,
+	state syncState,
+) error {
+	if err := flush(); err != nil {
+		return fmt.Errorf("flush: %w", err)
+	}
+
+	if state.position != "" {
+		tc.Position = state.position
+	}
+
+	if state.lastKnownPk != nil {
+		tc.LastKnownPk = state.lastKnownPk
+	}
+
+	return nil
+}
+
+func recvVstream(
 	logf func(level, message string, args ...any),
 	c vtgateservice.Vitess_VStreamClient,
 ) (*vtgate.VStreamResponse, error) {
@@ -432,63 +459,53 @@ func syncRecv(
 	return resp, err
 }
 
-type vstreamEventsSummary struct {
-	copyCompletedSeen bool
-	fields            []*query.Field
-	lastKnownPk       *query.QueryResult
-	position          string
-	results           []*query.QueryResult
-}
-
-func summarizeVStreamEvents(
+func digestVStream(
 	logf func(level, message string, args ...any),
 	events []*binlogdata.VEvent,
-	lastFields []*query.Field,
-) (vstreamEventsSummary, error) {
-	summary := vstreamEventsSummary{fields: lastFields}
-
+	state *syncState,
+) error {
 	for _, event := range events {
 		switch event.Type {
 		case binlogdata.VEventType_VGTID:
 			vgtid := event.GetVgtid().ShardGtids[0]
 			if vgtid != nil {
-				summary.position = vgtid.Gtid
+				state.position = vgtid.Gtid
 				if vgtid.TablePKs != nil {
 					tablePK := vgtid.TablePKs[0]
 					if tablePK != nil {
 						// Setting LastKnownPk allows a COPY phase to pick up where it left off
 						lastPK := tablePK.Lastpk
-						summary.lastKnownPk = lastPK
+						state.lastKnownPk = lastPK
 					} else {
-						summary.lastKnownPk = nil
+						state.lastKnownPk = nil
 					}
 				} else {
-					summary.lastKnownPk = nil
+					state.lastKnownPk = nil
 				}
 			}
 		case binlogdata.VEventType_LASTPK:
 			if event.LastPKEvent.TableLastPK != nil {
 				// Only update last PK because we're in a COPY phase
 				logf(LOGLEVEL_INFO, "LASTPK event found, setting last PK to %+v", event.LastPKEvent.TableLastPK.Lastpk)
-				summary.lastKnownPk = event.LastPKEvent.TableLastPK.Lastpk
+				state.lastKnownPk = event.LastPKEvent.TableLastPK.Lastpk
 			}
 		case binlogdata.VEventType_FIELD:
 			// Save fields for processing
 			logf(LOGLEVEL_INFO, "FIELD event found, setting fields to %+v", event.FieldEvent.Fields)
-			summary.fields = event.FieldEvent.Fields
+			state.fields = event.FieldEvent.Fields
 		case binlogdata.VEventType_ROW:
 			// Collect rows for processing
 			for _, change := range event.RowEvent.RowChanges {
 				if change.After != nil {
-					summary.results = append(summary.results, &query.QueryResult{
-						Fields: summary.fields,
+					state.results = append(state.results, &query.QueryResult{
+						Fields: state.fields,
 						Rows:   []*query.Row{change.After},
 					})
 				}
 			}
 		case binlogdata.VEventType_COPY_COMPLETED:
 			logf(LOGLEVEL_INFO, "COPY_COMPLETED event found, copy phase finished")
-			summary.copyCompletedSeen = true
+			state.copyCompletedSeen = true
 		case binlogdata.VEventType_BEGIN, binlogdata.VEventType_COMMIT,
 			binlogdata.VEventType_DDL, binlogdata.VEventType_DELETE,
 			binlogdata.VEventType_GTID, binlogdata.VEventType_HEARTBEAT,
@@ -499,11 +516,11 @@ func summarizeVStreamEvents(
 			binlogdata.VEventType_UPDATE, binlogdata.VEventType_VERSION:
 			// No special handling.
 		default:
-			return summary, fmt.Errorf("unexpected binlogdata.VEventType: %#v", event.Type)
+			return fmt.Errorf("unexpected binlogdata.VEventType: %#v", event.Type)
 		}
 	}
 
-	return summary, nil
+	return nil
 }
 
 func (p PlanetScaleEdgeDatabase) getStopCursorPosition(ctx context.Context, shard, keyspace string, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType) (string, error) {
@@ -582,16 +599,6 @@ func (p PlanetScaleEdgeDatabase) initializeVTGateClient(ctx context.Context, ps 
 			return nil, nil, err
 		}
 		return vtgateClient, nil, nil
-	}
-}
-
-// printQueryResult will pretty-print an AirbyteRecordMessage to the logger.
-// Copied from vtctl/query.go
-func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableNamespace, tableName string, ps *PlanetScaleSource) {
-	data := QueryResultToRecords(qr, ps)
-
-	for _, record := range data {
-		p.Logger.Record(tableNamespace, tableName, record)
 	}
 }
 
