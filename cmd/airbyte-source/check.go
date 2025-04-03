@@ -49,7 +49,10 @@ func CheckCommand(ch *Helper) *cobra.Command {
 				}
 			}()
 
-			cs, _ := checkConnectionStatus(ch.Database, psc)
+			cs, err := checkConnectionStatus(ch.Database, psc)
+			if err != nil {
+				fmt.Fprintf(cmd.ErrOrStderr(), "Unable to check connection status for PlanetScale Database, failed with %v", err)
+			}
 			ch.Logger.ConnectionStatus(cs)
 		},
 	}
@@ -71,7 +74,6 @@ func parseSource(reader FileReader, configFilePath string) (internal.PlanetScale
 }
 
 func checkConnectionStatus(database internal.PlanetScaleDatabase, psc internal.PlanetScaleSource) (internal.ConnectionStatus, error) {
-
 	if err := database.CanConnect(context.Background(), psc); err != nil {
 		return internal.ConnectionStatus{
 			Status:  "FAILED",

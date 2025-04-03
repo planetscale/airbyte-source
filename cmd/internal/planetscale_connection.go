@@ -101,11 +101,14 @@ func (psc PlanetScaleSource) GetInitialState(keyspaceOrDatabase string, shards [
 			}
 		}
 
-		cursor, _ := TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+		cursor, err := TableCursorToSerializedCursor(&psdbconnect.TableCursor{
 			Shard:    shard,
 			Keyspace: keyspaceOrDatabase,
 			Position: position,
 		})
+		if err != nil {
+			return shardCursors, fmt.Errorf("table cursor to serialized cursor: %w", err)
+		}
 		shardCursors.Shards[shard] = cursor
 	}
 

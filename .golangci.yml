@@ -13,6 +13,8 @@ linters:
     - noctx
     - unconvert
   settings:
+    errcheck:
+      check-blank: true
     govet:
       enable:
         - unusedwrite
