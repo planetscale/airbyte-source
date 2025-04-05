@@ -224,7 +224,10 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	}
 
 	table := s.Stream
-	timeout := time.Duration(ps.TimeoutSeconds) * time.Second
+	timeout := 5 * time.Minute
+	if timeoutSeconds := ps.TimeoutSeconds; timeoutSeconds != nil {
+		timeout = time.Duration(*timeoutSeconds) * time.Second
+	}
 	maxRetries := ps.MaxRetries
 
 	preamble := fmt.Sprintf("[%v:%v:%v shard : %v] ", table.Namespace, TabletTypeToString(tabletType), table.Name, currentPosition.Shard)
