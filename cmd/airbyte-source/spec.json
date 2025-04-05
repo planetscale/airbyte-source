@@ -73,6 +73,14 @@
           "description": "The max number of times we continue syncing after potential errors",
           "order": 8
         },
+        "timeout_seconds": {
+          "type": "integer",
+          "title": "Timeout (in seconds)",
+          "default": 300,
+          "minimum": 300,
+          "description": "Timeout in seconds for a sync attempt",
+          "order": 9
+        },
         "options": {
           "type": "object",
           "title": "Customize serialization",

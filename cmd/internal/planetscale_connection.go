@@ -22,6 +22,7 @@ type PlanetScaleSource struct {
 	StartingGtids string              `json:"starting_gtids"`
 	Options       CustomSourceOptions `json:"options"`
 	MaxRetries    uint                `json:"max_retries"`
+	TimeoutSeonds int                 `json:"timeout_seconds"`
 }
 
 type CustomSourceOptions struct {
