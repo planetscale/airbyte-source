@@ -12,17 +12,17 @@ import (
 
 // PlanetScaleSource defines a configured Airbyte Source for a PlanetScale database
 type PlanetScaleSource struct {
-	Host          string              `json:"host"`
-	Database      string              `json:"database"`
-	Username      string              `json:"username"`
-	Password      string              `json:"password"`
-	Shards        string              `json:"shards"`
-	UseReplica    bool                `json:"use_replica"`
-	UseRdonly     bool                `json:"use_rdonly"`
-	StartingGtids string              `json:"starting_gtids"`
-	Options       CustomSourceOptions `json:"options"`
-	MaxRetries    uint                `json:"max_retries"`
-	TimeoutSeonds int                 `json:"timeout_seconds"`
+	Host           string              `json:"host"`
+	Database       string              `json:"database"`
+	Username       string              `json:"username"`
+	Password       string              `json:"password"`
+	Shards         string              `json:"shards"`
+	UseReplica     bool                `json:"use_replica"`
+	UseRdonly      bool                `json:"use_rdonly"`
+	StartingGtids  string              `json:"starting_gtids"`
+	Options        CustomSourceOptions `json:"options"`
+	MaxRetries     uint                `json:"max_retries"`
+	TimeoutSeconds int                 `json:"timeout_seconds"`
 }
 
 type CustomSourceOptions struct {
