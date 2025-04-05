@@ -81,6 +81,13 @@
           "description": "Timeout in seconds for a sync attempt",
           "order": 9
         },
+        "use_gtid_with_table_pks": {
+          "type": "boolean",
+          "title": "Use GTID with table primary keys",
+          "default": false,
+          "description": "Use GTID position together with table primary keys",
+          "order": 10
+        },
         "options": {
           "type": "object",
           "title": "Customize serialization",

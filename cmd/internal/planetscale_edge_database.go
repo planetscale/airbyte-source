@@ -303,7 +303,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 		defer conn.Close()
 	}
 
-	if tc.LastKnownPk != nil {
+	if tc.LastKnownPk != nil && !ps.UseGTIDWithTablePKs {
 		tc.Position = ""
 	}
 
