@@ -112,7 +112,7 @@ func (p planetScaleEdgeMySQLAccess) PingContext(ctx context.Context, psc PlanetS
 }
 
 const (
-	gCTableNameExpression    string = `^_vt_(HOLD|PURGE|EVAC|DROP)_([0-f]{32})_([0-9]{14})$`
+	gCTableNameExpression    string = `_[0-9a-zA-Z]{8}_[0-9a-zA-Z]{4}_[0-9a-zA-Z]{4}_.*|_vt_.*`
 	vreplTableNameExpression string = `\b_(\w+|\d+)_\d+_vrepl\b`
 )
 
