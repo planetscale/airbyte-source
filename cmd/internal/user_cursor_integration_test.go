@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/base64"
 	"testing"
 	
 	"github.com/stretchr/testify/assert"
@@ -33,7 +34,7 @@ func TestUserDefinedCursorIntegration(t *testing.T) {
 				sqltypes.NewVarChar("John"),
 				sqltypes.NewVarChar("2024-01-15 12:00:00"),
 			},
-			lastCursorValue: "2024-01-15 10:00:00",
+			lastCursorValue: base64.StdEncoding.EncodeToString([]byte("2024-01-15 10:00:00")),
 			expectInclude:   true,
 			description:     "Row should be included because updated_at > last cursor",
 		},
@@ -44,7 +45,7 @@ func TestUserDefinedCursorIntegration(t *testing.T) {
 				sqltypes.NewVarChar("Jane"),
 				sqltypes.NewVarChar("2024-01-15 08:00:00"),
 			},
-			lastCursorValue: "2024-01-15 10:00:00",
+			lastCursorValue: base64.StdEncoding.EncodeToString([]byte("2024-01-15 10:00:00")),
 			expectInclude:   false,
 			description:     "Row should be excluded because updated_at < last cursor",
 		},
@@ -55,7 +56,7 @@ func TestUserDefinedCursorIntegration(t *testing.T) {
 				sqltypes.NewVarChar("Bob"),
 				sqltypes.NewVarChar("2024-01-15 10:00:00"),
 			},
-			lastCursorValue: "2024-01-15 10:00:00",
+			lastCursorValue: base64.StdEncoding.EncodeToString([]byte("2024-01-15 10:00:00")),
 			expectInclude:   false,
 			description:     "Row should be excluded because updated_at = last cursor",
 		},
@@ -77,7 +78,7 @@ func TestUserDefinedCursorIntegration(t *testing.T) {
 				sqltypes.NewVarChar("Charlie"),
 				sqltypes.NULL,
 			},
-			lastCursorValue: "2024-01-15 10:00:00",
+			lastCursorValue: base64.StdEncoding.EncodeToString([]byte("2024-01-15 10:00:00")),
 			expectInclude:   true,
 			description:     "Row with NULL updated_at should be included",
 		},
@@ -141,7 +142,7 @@ func TestCursorWithDifferentDataTypes(t *testing.T) {
 		}
 		
 		lastCursor := &SerializedCursor{
-			UserDefinedCursorValue: int64(999),
+			UserDefinedCursorValue: base64.StdEncoding.EncodeToString([]byte("999")),
 		}
 		
 		_, shouldInclude := ped.shouldIncludeRowBasedOnCursor(fields, row, "sequence_num", lastCursor)
@@ -160,7 +161,7 @@ func TestCursorWithDifferentDataTypes(t *testing.T) {
 		}
 		
 		lastCursor := &SerializedCursor{
-			UserDefinedCursorValue: "2024-01-15",
+			UserDefinedCursorValue: base64.StdEncoding.EncodeToString([]byte("2024-01-15")),
 		}
 		
 		_, shouldInclude := ped.shouldIncludeRowBasedOnCursor(fields, row, "created_date", lastCursor)
@@ -183,7 +184,7 @@ func TestMissingCursorField(t *testing.T) {
 	}
 	
 	lastCursor := &SerializedCursor{
-		UserDefinedCursorValue: "2024-01-15 10:00:00",
+		UserDefinedCursorValue: base64.StdEncoding.EncodeToString([]byte("2024-01-15 10:00:00")),
 	}
 	
 	// Should include row when cursor field not found

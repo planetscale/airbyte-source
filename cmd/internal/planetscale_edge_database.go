@@ -218,26 +218,28 @@ func (p PlanetScaleEdgeDatabase) shouldIncludeRowBasedOnCursor(fields []*query.F
 	
 	// If this is the first sync or no previous cursor value, include all rows
 	if lastCursor == nil || lastCursor.UserDefinedCursorValue == nil {
-		return cursorValue.ToString(), true
+		// Return base64-encoded value for consistency
+		return base64.StdEncoding.EncodeToString([]byte(cursorValue.ToString())), true
 	}
 	
 	// Compare cursor values
 	comparison := p.compareCursorValues(cursorValue, lastCursor.UserDefinedCursorValue, fields[cursorFieldIndex].Type)
 	
 	// Include rows where cursor value is greater than last seen value
-	return cursorValue.ToString(), comparison > 0
+	// Return base64-encoded value for consistency
+	return base64.StdEncoding.EncodeToString([]byte(cursorValue.ToString())), comparison > 0
 }
 
 // compareCursorValues compares two cursor values based on their type
 func (p PlanetScaleEdgeDatabase) compareCursorValues(newValue sqltypes.Value, lastValue interface{}, fieldType query.Type) int {
-	// Handle base64-encoded strings (from JSON serialization of byte arrays)
 	var lastValueStr string
 	switch v := lastValue.(type) {
 	case string:
-		// Try to decode base64 if it looks like base64
+		// Always expect base64-encoded values for user-defined cursors
 		if decoded, err := base64.StdEncoding.DecodeString(v); err == nil {
 			lastValueStr = string(decoded)
 		} else {
+			// If decode fails, use the string as-is (shouldn't happen with our encoding)
 			lastValueStr = v
 		}
 	case []byte:
@@ -334,7 +336,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	if len(s.CursorField) > 0 && lastCursor != nil && lastCursor.UserDefinedCursorValue != nil {
 		maxCursorValue = lastCursor.UserDefinedCursorValue
 		
-		// Handle base64-encoded values from JSON serialization
+		// Decode base64-encoded cursor value
 		if strVal, ok := maxCursorValue.(string); ok {
 			if decoded, err := base64.StdEncoding.DecodeString(strVal); err == nil {
 				maxCursorValue = string(decoded)

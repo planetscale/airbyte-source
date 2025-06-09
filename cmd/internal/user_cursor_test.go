@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/base64"
 	"testing"
 	
 	"github.com/stretchr/testify/assert"
@@ -20,19 +21,19 @@ func TestCompareCursorValues(t *testing.T) {
 		{
 			name:     "new timestamp greater than last",
 			newValue: "2024-01-02 00:00:00",
-			lastValue: "2024-01-01 00:00:00",
+			lastValue: base64.StdEncoding.EncodeToString([]byte("2024-01-01 00:00:00")),
 			expected: 1,
 		},
 		{
 			name:     "new timestamp less than last",
 			newValue: "2024-01-01 00:00:00",
-			lastValue: "2024-01-02 00:00:00",
+			lastValue: base64.StdEncoding.EncodeToString([]byte("2024-01-02 00:00:00")),
 			expected: -1,
 		},
 		{
 			name:     "timestamps equal",
 			newValue: "2024-01-01 00:00:00",
-			lastValue: "2024-01-01 00:00:00",
+			lastValue: base64.StdEncoding.EncodeToString([]byte("2024-01-01 00:00:00")),
 			expected: 0,
 		},
 	}
@@ -61,12 +62,14 @@ func TestShouldIncludeRowBasedOnCursor_Simple(t *testing.T) {
 	}
 	
 	lastCursor := &SerializedCursor{
-		UserDefinedCursorValue: []byte("2024-01-01 00:00:00"),
+		UserDefinedCursorValue: base64.StdEncoding.EncodeToString([]byte("2024-01-01 00:00:00")),
 	}
 	
 	value, include := ped.shouldIncludeRowBasedOnCursor(fields, row, "updated_at", lastCursor)
 	assert.True(t, include)
-	assert.Equal(t, "2024-01-02 00:00:00", value)
+	// Value should be base64-encoded
+	decodedValue, _ := base64.StdEncoding.DecodeString(value.(string))
+	assert.Equal(t, "2024-01-02 00:00:00", string(decodedValue))
 	
 	// Test: Exclude row when cursor value is less
 	row2 := []sqltypes.Value{
@@ -76,5 +79,7 @@ func TestShouldIncludeRowBasedOnCursor_Simple(t *testing.T) {
 	
 	value2, include2 := ped.shouldIncludeRowBasedOnCursor(fields, row2, "updated_at", lastCursor)
 	assert.False(t, include2)
-	assert.Equal(t, "2023-12-31 00:00:00", value2)
+	// Value should be base64-encoded
+	decodedValue2, _ := base64.StdEncoding.DecodeString(value2.(string))
+	assert.Equal(t, "2023-12-31 00:00:00", string(decodedValue2))
 }
