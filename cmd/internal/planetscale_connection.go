@@ -92,7 +92,7 @@ func (psc PlanetScaleSource) GetInitialState(keyspaceOrDatabase string, shards [
 	}
 
 	for _, shard := range shards {
-		var position string = ""
+		position := ""
 
 		// If a starting GTID was specified, use it
 		if startingGtids != nil {

@@ -74,8 +74,9 @@ type Catalog struct {
 }
 
 type ConfiguredStream struct {
-	Stream   Stream `json:"stream"`
-	SyncMode string `json:"sync_mode"`
+	Stream      Stream   `json:"stream"`
+	SyncMode    string   `json:"sync_mode"`
+	CursorField []string `json:"cursor_field,omitempty"`
 }
 
 func (cs ConfiguredStream) IncrementalSyncRequested() bool {
@@ -107,6 +108,8 @@ type ShardStates struct {
 
 type SerializedCursor struct {
 	Cursor string `json:"cursor"`
+	// UserDefinedCursorValue stores the last seen value of the user-defined cursor field
+	UserDefinedCursorValue interface{} `json:"user_defined_cursor_value,omitempty"`
 }
 
 func (s SerializedCursor) SerializedCursorToTableCursor(table ConfiguredStream) (*psdbconnect.TableCursor, error) {
@@ -274,15 +277,26 @@ func parseEnumOrSetValues(columnType string) []string {
 func formatISO8601(mysqlType query.Type, value sqltypes.Value) Value {
 	var formatString string
 	var layout string
-	if mysqlType == query.Type_DATE {
+	switch mysqlType {
+	case query.Type_DATE:
 		formatString = "2006-01-02"
 		layout = time.DateOnly
-	} else if mysqlType == query.Type_DATETIME {
+	case query.Type_DATETIME:
 		formatString = "2006-01-02 15:04:05"
 		layout = "2006-01-02T15:04:05.000000" // No timezone offset
-	} else {
+	case query.Type_TIME, query.Type_TIMESTAMP:
 		formatString = "2006-01-02 15:04:05"
 		layout = "2006-01-02T15:04:05.000000-07:00" // Timezone offset
+	case query.Type_NULL_TYPE, query.Type_INT8, query.Type_UINT8, query.Type_INT16, query.Type_UINT16,
+		query.Type_INT24, query.Type_UINT24, query.Type_INT32, query.Type_UINT32, query.Type_INT64,
+		query.Type_UINT64, query.Type_FLOAT32, query.Type_FLOAT64, query.Type_YEAR, query.Type_DECIMAL,
+		query.Type_TEXT, query.Type_BLOB, query.Type_VARCHAR, query.Type_VARBINARY, query.Type_CHAR,
+		query.Type_BINARY, query.Type_BIT, query.Type_ENUM, query.Type_SET, query.Type_TUPLE,
+		query.Type_GEOMETRY, query.Type_JSON, query.Type_EXPRESSION, query.Type_HEXNUM,
+		query.Type_HEXVAL, query.Type_BITNUM:
+		// This function should only be called for date/time types
+		// For other types, return the value as-is
+		return Value{sqlValue: value}
 	}
 
 	var (
