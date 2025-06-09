@@ -80,7 +80,7 @@ func TestRead_CanPeekBeforeRead(t *testing.T) {
 			Namespace: "connect-test",
 		},
 	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc, nil)
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
@@ -148,7 +148,7 @@ func TestRead_CanEarlyExitIfNoNewVGtidInPeek(t *testing.T) {
 			Namespace: "connect-test",
 		},
 	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc, nil)
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
@@ -213,7 +213,7 @@ func TestRead_CanPickPrimaryForShardedKeyspaces(t *testing.T) {
 			Namespace: "connect-test",
 		},
 	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc, nil)
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
@@ -280,7 +280,7 @@ func TestRead_CanPickReplicaForShardedKeyspaces(t *testing.T) {
 			Namespace: "connect-test",
 		},
 	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc, nil)
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
@@ -347,7 +347,7 @@ func TestRead_CanPickRdonlyForShardedKeyspaces(t *testing.T) {
 			Namespace: "connect-test",
 		},
 	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc, nil)
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
@@ -558,7 +558,7 @@ func TestRead_CanPickPrimaryForUnshardedKeyspaces(t *testing.T) {
 			Namespace: "connect-test",
 		},
 	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc, nil)
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(tc)
 	assert.NoError(t, err)
@@ -625,7 +625,7 @@ func TestRead_CanPickReplicaForUnshardedKeyspaces(t *testing.T) {
 			Namespace: "connect-test",
 		},
 	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc, nil)
 	if testing.Verbose() {
 		t.Logf("airbyte logs: %s", b.String())
 	}
@@ -695,7 +695,7 @@ func TestRead_IncrementalSync_CanReturnOriginalCursorIfNoNewFound(t *testing.T) 
 			Namespace: "connect-test",
 		},
 	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc, nil)
 	if testing.Verbose() {
 		t.Logf("airbyte logs: %s", b.String())
 	}
@@ -805,7 +805,7 @@ func TestRead_IncrementalSync_CanReturnNewCursorIfNewFound(t *testing.T) {
 			Namespace: "connect-test",
 		},
 	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc, nil)
 	assert.NoError(t, err)
 	esc, err := TableCursorToSerializedCursor(newTC)
 	assert.NoError(t, err)
@@ -999,7 +999,7 @@ func TestRead_IncrementalSync_CanStopAtWellKnownCursor(t *testing.T) {
 		Position: stopVGtidPosition,
 	}
 
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor, nil)
 	assert.NoError(t, err)
 	// Should output next VGtid after stop VGtid as cursor
 	esc, err := TableCursorToSerializedCursor(expectedCursor)
@@ -1236,7 +1236,7 @@ func TestRead_IncrementalSync_CanLogResults(t *testing.T) {
 			Namespace: "connect-test",
 		},
 	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor, nil)
 	if testing.Verbose() {
 		for _, entry := range tal.logMessages {
 			t.Logf("airbyte log entry: [%s] %s", entry.level, entry.message)
@@ -1419,7 +1419,7 @@ func TestRead_IncrementalSync_CanStopIfNoRows(t *testing.T) {
 			Namespace: "connect-test",
 		},
 	}
-	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, sc)
 	assert.Equal(t, 0, len(tal.records["connect-test.products"]))
@@ -1658,7 +1658,7 @@ func TestRead_FullSync_CanStopSyncPastStopPosition(t *testing.T) {
 		},
 	}
 
-	nextSyncStartCursor, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	nextSyncStartCursor, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor, nil)
 	assert.NoError(t, err)
 	// Next sync will start at the VGTID after the end of the current sync
 	esc, err := TableCursorToSerializedCursor(&psdbconnect.TableCursor{
@@ -1882,7 +1882,7 @@ func TestRead_FullSync_CanStopSyncEqualToStopPosition(t *testing.T) {
 		},
 	}
 
-	nextSyncStartCursor, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	nextSyncStartCursor, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor, nil)
 	if testing.Verbose() {
 		for _, entry := range tal.logMessages {
 			t.Logf("airbyte log entry: [%s] %s", entry.level, entry.message)
@@ -2227,7 +2227,7 @@ func TestRead_FullSync_CopyCatchupLoop(t *testing.T) {
 		},
 	}
 
-	nextSyncStartCursor, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	nextSyncStartCursor, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor, nil)
 	assert.NoError(t, err)
 	// Next sync will start at the VGTID where COPY COMPLETED is
 	esc, err := TableCursorToSerializedCursor(&psdbconnect.TableCursor{
@@ -2609,7 +2609,7 @@ func TestRead_FullSync_MaxRetries(t *testing.T) {
 		},
 	}
 
-	nextSyncStartCursor, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	nextSyncStartCursor, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor, nil)
 	assert.NoError(t, err)
 	// Next sync will start at the VGTID where COPY COMPLETED is
 	esc, err := TableCursorToSerializedCursor(&psdbconnect.TableCursor{

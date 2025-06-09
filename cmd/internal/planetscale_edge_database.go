@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -33,7 +34,7 @@ type PlanetScaleDatabase interface {
 	CanConnect(ctx context.Context, ps PlanetScaleSource) error
 	DiscoverSchema(ctx context.Context, ps PlanetScaleSource) (Catalog, error)
 	ListShards(ctx context.Context, ps PlanetScaleSource) ([]string, error)
-	Read(ctx context.Context, w io.Writer, ps PlanetScaleSource, s ConfiguredStream, tc *psdbconnect.TableCursor) (*SerializedCursor, error)
+	Read(ctx context.Context, w io.Writer, ps PlanetScaleSource, s ConfiguredStream, tc *psdbconnect.TableCursor, lastCursor *SerializedCursor) (*SerializedCursor, error)
 	Close() error
 }
 
@@ -127,7 +128,9 @@ func (p PlanetScaleEdgeDatabase) getStreamForTable(ctx context.Context, psc Plan
 		stream.DefaultCursorFields = append(stream.DefaultCursorFields, primaryKeys[len(primaryKeys)-1])
 	}
 
-	stream.SourceDefinedCursor = true
+	// Set SourceDefinedCursor to false to allow users to optionally define their own cursor
+	// The connector will still support source-defined cursors when no cursor_field is provided
+	stream.SourceDefinedCursor = false
 	return stream, nil
 }
 
@@ -191,6 +194,123 @@ func (p PlanetScaleEdgeDatabase) Close() error {
 	return p.Mysql.Close()
 }
 
+// shouldIncludeRowBasedOnCursor checks if a row should be included based on user-defined cursor
+func (p PlanetScaleEdgeDatabase) shouldIncludeRowBasedOnCursor(fields []*query.Field, row []sqltypes.Value, cursorFieldName string, lastCursor *SerializedCursor) (interface{}, bool) {
+	// Find the cursor field index
+	cursorFieldIndex := -1
+	for i, field := range fields {
+		if field.Name == cursorFieldName {
+			cursorFieldIndex = i
+			break
+		}
+	}
+	
+	if cursorFieldIndex == -1 || cursorFieldIndex >= len(row) {
+		// Cursor field not found, include the row
+		return nil, true
+	}
+	
+	cursorValue := row[cursorFieldIndex]
+	if cursorValue.IsNull() {
+		// Null cursor values are included
+		return nil, true
+	}
+	
+	// If this is the first sync or no previous cursor value, include all rows
+	if lastCursor == nil || lastCursor.UserDefinedCursorValue == nil {
+		return cursorValue.ToString(), true
+	}
+	
+	// Compare cursor values
+	comparison := p.compareCursorValues(cursorValue, lastCursor.UserDefinedCursorValue, fields[cursorFieldIndex].Type)
+	
+	// Include rows where cursor value is greater than last seen value
+	return cursorValue.ToString(), comparison > 0
+}
+
+// compareCursorValues compares two cursor values based on their type
+func (p PlanetScaleEdgeDatabase) compareCursorValues(newValue sqltypes.Value, lastValue interface{}, fieldType query.Type) int {
+	// Handle base64-encoded strings (from JSON serialization of byte arrays)
+	var lastValueStr string
+	switch v := lastValue.(type) {
+	case string:
+		// Try to decode base64 if it looks like base64
+		if decoded, err := base64.StdEncoding.DecodeString(v); err == nil {
+			lastValueStr = string(decoded)
+		} else {
+			lastValueStr = v
+		}
+	case []byte:
+		lastValueStr = string(v)
+	default:
+		lastValueStr = fmt.Sprintf("%v", lastValue)
+	}
+	
+	// Convert to sqltypes.Value for comparison
+	lastSQLValue, err := sqltypes.NewValue(newValue.Type(), []byte(lastValueStr))
+	if err != nil {
+		// If we can't convert, include the row
+		return 1
+	}
+	
+	// Handle numeric types specially
+	switch fieldType {
+	case query.Type_INT8, query.Type_INT16, query.Type_INT24, query.Type_INT32, query.Type_INT64,
+		query.Type_UINT8, query.Type_UINT16, query.Type_UINT24, query.Type_UINT32, query.Type_UINT64:
+		// Compare as integers
+		newInt, err1 := newValue.ToInt64()
+		lastInt, err2 := lastSQLValue.ToInt64()
+		if err1 == nil && err2 == nil {
+			if newInt > lastInt {
+				return 1
+			} else if newInt < lastInt {
+				return -1
+			}
+			return 0
+		}
+	case query.Type_NULL_TYPE, query.Type_FLOAT32, query.Type_FLOAT64, query.Type_TIMESTAMP,
+		query.Type_DATE, query.Type_TIME, query.Type_DATETIME, query.Type_YEAR, query.Type_DECIMAL,
+		query.Type_TEXT, query.Type_BLOB, query.Type_VARCHAR, query.Type_VARBINARY, query.Type_CHAR,
+		query.Type_BINARY, query.Type_BIT, query.Type_ENUM, query.Type_SET, query.Type_TUPLE,
+		query.Type_GEOMETRY, query.Type_JSON, query.Type_EXPRESSION, query.Type_HEXNUM,
+		query.Type_HEXVAL, query.Type_BITNUM:
+		// For all other types, fall through to string comparison
+	}
+	
+	// For all other types (dates, timestamps, strings), compare as strings
+	newStr := newValue.ToString()
+	lastStr := lastSQLValue.ToString()
+	
+	if newStr > lastStr {
+		return 1
+	} else if newStr < lastStr {
+		return -1
+	}
+	return 0
+}
+
+// updateMaxCursorValue updates the maximum cursor value seen
+func (p PlanetScaleEdgeDatabase) updateMaxCursorValue(currentMax interface{}, newValue interface{}) interface{} {
+	if currentMax == nil {
+		return newValue
+	}
+	
+	currentSQLValue, err1 := sqltypes.InterfaceToValue(currentMax)
+	newSQLValue, err2 := sqltypes.InterfaceToValue(newValue)
+	
+	if err1 != nil || err2 != nil {
+		// If conversion fails, keep current max
+		return currentMax
+	}
+	
+	// Compare by converting to string
+	if newSQLValue.ToString() > currentSQLValue.ToString() {
+		return newValue
+	}
+	
+	return currentMax
+}
+
 func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScaleSource) ([]string, error) {
 	return p.Mysql.GetVitessShards(ctx, psc)
 }
@@ -201,13 +321,28 @@ func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScale
 // 3. Ask vstream to stream from the last known vgtid
 // 4. When we reach the stopping point, read all rows available at this vgtid
 // 5. End the stream when (a) a vgtid newer than latest vgtid is encountered or (b) the timeout kicks in.
-func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleSource, s ConfiguredStream, lastKnownPosition *psdbconnect.TableCursor) (*SerializedCursor, error) {
+func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps PlanetScaleSource, s ConfiguredStream, lastKnownPosition *psdbconnect.TableCursor, lastCursor *SerializedCursor) (*SerializedCursor, error) {
 	var (
 		err                     error
 		sErr                    error
 		currentSerializedCursor *SerializedCursor
 		syncMode                string
+		maxCursorValue          interface{}
 	)
+	
+	// Initialize max cursor value from last sync if using user-defined cursor
+	if len(s.CursorField) > 0 && lastCursor != nil && lastCursor.UserDefinedCursorValue != nil {
+		maxCursorValue = lastCursor.UserDefinedCursorValue
+		
+		// Handle base64-encoded values from JSON serialization
+		if strVal, ok := maxCursorValue.(string); ok {
+			if decoded, err := base64.StdEncoding.DecodeString(strVal); err == nil {
+				maxCursorValue = string(decoded)
+			}
+		}
+		
+		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Using user-defined cursor field %v with last value: %v", s.CursorField[0], maxCursorValue))
+	}
 
 	tabletType := psdbconnect.TabletType_primary
 	if ps.UseRdonly {
@@ -256,12 +391,23 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	for {
 		syncCount += 1
 		p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sStarting sync #%v", preamble, syncCount))
-		newPosition, recordCount, err := p.sync(ctx, syncMode, currentPosition, stopPosition, table, ps, tabletType, timeout)
+		newPosition, recordCount, newMaxCursorValue, err := p.sync(ctx, syncMode, currentPosition, stopPosition, table, ps, tabletType, timeout, s, lastCursor, maxCursorValue)
 		totalRecordCount += recordCount
+		
+		// Update max cursor value if we found a larger one
+		if newMaxCursorValue != nil {
+			maxCursorValue = newMaxCursorValue
+		}
+		
 		currentSerializedCursor, sErr = TableCursorToSerializedCursor(currentPosition)
 		if sErr != nil {
 			// if we failed to serialize here, we should bail.
 			return currentSerializedCursor, errors.Wrap(sErr, "unable to serialize current position")
+		}
+		
+		// Add user-defined cursor value if applicable
+		if len(s.CursorField) > 0 && maxCursorValue != nil {
+			currentSerializedCursor.UserDefinedCursorValue = maxCursorValue
 		}
 		if err != nil {
 			if s, ok := status.FromError(err); ok {
@@ -282,7 +428,7 @@ func (p PlanetScaleEdgeDatabase) Read(ctx context.Context, w io.Writer, ps Plane
 	}
 }
 
-func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *psdbconnect.TableCursor, stopPosition string, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType, timeout time.Duration) (*psdbconnect.TableCursor, int, error) {
+func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *psdbconnect.TableCursor, stopPosition string, s Stream, ps PlanetScaleSource, tabletType psdbconnect.TabletType, timeout time.Duration, configuredStream ConfiguredStream, lastCursor *SerializedCursor, maxCursorValue interface{}) (*psdbconnect.TableCursor, int, interface{}, error) {
 	preamble := fmt.Sprintf("[%v:%v:%v shard : %v] ", s.Namespace, TabletTypeToString(tabletType), s.Name, tc.Shard)
 
 	defer p.Logger.Flush()
@@ -297,7 +443,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 
 	vtgateClient, conn, err := p.initializeVTGateClient(ctx, ps)
 	if err != nil {
-		return tc, 0, err
+		return tc, 0, maxCursorValue, err
 	}
 	if conn != nil {
 		defer conn.Close()
@@ -320,7 +466,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 	c, err := vtgateClient.VStream(ctx, vtgateReq)
 	if err != nil {
 		p.Logger.Log(LOGLEVEL_ERROR, fmt.Sprintf("%sExiting sync due to client sync error: %+v", preamble, err))
-		return tc, 0, err
+		return tc, 0, maxCursorValue, err
 	}
 
 	keyspaceOrDatabase := s.Namespace
@@ -339,14 +485,14 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 			if s, ok := status.FromError(err); ok && s.Code() == codes.DeadlineExceeded {
 				// No next VGTID found
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because no new VGTID found after last position or deadline exceeded %+v", preamble, tc))
-				return tc, resultCount, err
+				return tc, resultCount, maxCursorValue, err
 			} else if errors.Is(err, io.EOF) {
 				// EOF is an acceptable error indicating VStream is finished.
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting sync and flushing records because EOF encountered at position %+v", preamble, tc))
-				return tc, resultCount, io.EOF
+				return tc, resultCount, maxCursorValue, io.EOF
 			} else {
 				p.Logger.Log(LOGLEVEL_ERROR, fmt.Sprintf("%sExiting sync and flushing records due to error: %+v", preamble, err))
-				return tc, resultCount, err
+				return tc, resultCount, maxCursorValue, err
 			}
 		}
 
@@ -425,6 +571,31 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 			for _, result := range rows {
 				qr := sqltypes.Proto3ToResult(result)
 				for _, row := range qr.Rows {
+					// Handle user-defined cursor filtering
+					if len(configuredStream.CursorField) > 0 {
+						cursorFieldName := configuredStream.CursorField[0]
+						cursorValue, shouldInclude := p.shouldIncludeRowBasedOnCursor(fields, row, cursorFieldName, lastCursor)
+						
+						if !shouldInclude {
+							var lastCursorVal interface{}
+							if lastCursor != nil {
+								lastCursorVal = lastCursor.UserDefinedCursorValue
+							}
+							p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Filtering out row with %s=%v (last cursor=%v)", 
+								cursorFieldName, cursorValue, lastCursorVal))
+							continue // Skip this row
+						}
+						
+						// Update max cursor value if this row has a larger value
+						if cursorValue != nil {
+							oldMax := maxCursorValue
+							maxCursorValue = p.updateMaxCursorValue(maxCursorValue, cursorValue)
+							if oldMax != maxCursorValue {
+								p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("Updated max cursor value from %v to %v", oldMax, maxCursorValue))
+							}
+						}
+					}
+					
 					resultCount += 1
 					sqlResult := &sqltypes.Result{
 						Fields: fields,
@@ -443,7 +614,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 			} else {
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sExiting incremental sync and flushing records because current position %+v has reached or passed stop position %+v", preamble, tc.Position, stopPosition))
 			}
-			return tc, resultCount, io.EOF
+			return tc, resultCount, maxCursorValue, io.EOF
 		}
 	}
 }
@@ -492,16 +663,17 @@ func (p PlanetScaleEdgeDatabase) getStopCursorPosition(ctx context.Context, shar
 }
 
 func toTopoTabletType(tabletType psdbconnect.TabletType) topodata.TabletType {
-	if tabletType == psdbconnect.TabletType_replica {
+	switch tabletType {
+	case psdbconnect.TabletType_replica:
 		return topodata.TabletType_REPLICA
-	} else if tabletType == psdbconnect.TabletType_batch {
+	case psdbconnect.TabletType_batch:
 		return topodata.TabletType_RDONLY
-	} else if tabletType == psdbconnect.TabletType_primary {
+	case psdbconnect.TabletType_primary:
 		return topodata.TabletType_PRIMARY
+	default:
+		// Fall back to replica
+		return topodata.TabletType_REPLICA
 	}
-
-	// Fall back to replica
-	return topodata.TabletType_REPLICA
 }
 
 func (p PlanetScaleEdgeDatabase) initializeVTGateClient(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, grpcclient.ConnPool, error) {
