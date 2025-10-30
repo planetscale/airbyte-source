@@ -63,7 +63,7 @@ func (a *airbyteLogger) Record(tableNamespace, tableName string, data map[string
 			Namespace: tableNamespace,
 			Stream:    tableName,
 			Data:      data,
-			EmittedAt: now.UnixMilli(),
+			EmittedAt: now.UnixNano(),
 		},
 	}
 
