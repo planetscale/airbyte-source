@@ -350,7 +350,11 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 			}
 		}
 
-		var rows []*query.QueryResult
+		type rowWithPosition struct {
+			Result   *query.QueryResult
+			Position string
+		}
+		var rows []rowWithPosition
 		for _, event := range res.Events {
 			switch event.Type {
 			case binlogdata.VEventType_VGTID:
@@ -386,19 +390,21 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 				fields = event.FieldEvent.Fields
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sFIELD event found, setting fields to %+v", preamble, fields))
 			case binlogdata.VEventType_ROW:
-				// Collect rows for processing
 				for _, change := range event.RowEvent.RowChanges {
 					if change.After != nil {
-						rows = append(rows, &query.QueryResult{
-							Fields: fields,
-							Rows:   []*query.Row{change.After},
+						rows = append(rows, rowWithPosition{
+							Result: &query.QueryResult{
+								Fields: fields,
+								Rows:   []*query.Row{change.After},
+							},
+							Position: tc.Position,
 						})
 					}
 				}
 			case binlogdata.VEventType_COPY_COMPLETED:
 				p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sCOPY_COMPLETED event found, copy phase finished", preamble))
 				copyCompletedSeen = true
-			case binlogdata.VEventType_BEGIN, binlogdata.VEventType_COMMIT,
+			case binlogdata.VEventType_BEGIN, binlogdata.VEventType_COMMIT,	
 				binlogdata.VEventType_DDL, binlogdata.VEventType_DELETE,
 				binlogdata.VEventType_GTID, binlogdata.VEventType_HEARTBEAT,
 				binlogdata.VEventType_INSERT, binlogdata.VEventType_JOURNAL,
@@ -422,8 +428,8 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 		}
 
 		if len(rows) > 0 {
-			for _, result := range rows {
-				qr := sqltypes.Proto3ToResult(result)
+			for _, rwp := range rows {
+				qr := sqltypes.Proto3ToResult(rwp.Result)
 				for _, row := range qr.Rows {
 					resultCount += 1
 					sqlResult := &sqltypes.Result{
@@ -431,7 +437,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 					}
 					sqlResult.Rows = append(sqlResult.Rows, row)
 					// Results queued to Airbyte here, and flushed at the end of sync()
-					p.printQueryResult(sqlResult, keyspaceOrDatabase, s.Name, &ps)
+					p.printQueryResult(sqlResult, keyspaceOrDatabase, s.Name, &ps, tc.Position)
 				}
 			}
 		}
@@ -529,10 +535,23 @@ func (p PlanetScaleEdgeDatabase) initializeVTGateClient(ctx context.Context, ps 
 
 // printQueryResult will pretty-print an AirbyteRecordMessage to the logger.
 // Copied from vtctl/query.go
-func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableNamespace, tableName string, ps *PlanetScaleSource) {
+func (p PlanetScaleEdgeDatabase) printQueryResult( qr *sqltypes.Result, tableNamespace, tableName string, ps *PlanetScaleSource, position string) {
 	data := QueryResultToRecords(qr, ps)
 
 	for _, record := range data {
+		if record == nil {
+			continue
+		}
+
+		metadata, ok := record["_planetscale_metadata"].(map[string]interface{})
+		if !ok || metadata == nil {
+			metadata = map[string]interface{}{}
+		}
+
+		// Attach the VGTID position inside _metadata
+		metadata["vgtid_position"] = position
+		record["_planetscale_metadata"] = metadata
+
 		p.Logger.Record(tableNamespace, tableName, record)
 	}
 }

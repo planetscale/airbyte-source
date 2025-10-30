@@ -157,7 +157,8 @@ func (p planetScaleEdgeMySQLAccess) GetTableSchema(ctx context.Context, psc Plan
 
 	columnNamesQR, err := p.db.QueryContext(
 		ctx,
-		"select column_name, column_type, is_nullable from information_schema.columns where table_name=? AND table_schema=?;",
+		"select column_name, column_type, is_nullable from information_schema.columns where table_name=? AND table_schema=? " +
+		"union all select '_planetscale_metadata' as column_name, 'JSON' as column_type, false as is_nullable;",
 		tableName, psc.Database,
 	)
 	if err != nil {
