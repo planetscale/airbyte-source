@@ -157,8 +157,7 @@ func (p planetScaleEdgeMySQLAccess) GetTableSchema(ctx context.Context, psc Plan
 
 	columnNamesQR, err := p.db.QueryContext(
 		ctx,
-		"select column_name, column_type, is_nullable from information_schema.columns where table_name=? AND table_schema=? " +
-		"union all select '_planetscale_metadata' as column_name, 'JSON' as column_type, false as is_nullable;",
+		"select column_name, column_type, is_nullable from information_schema.columns where table_name=? AND table_schema=?;"
 		tableName, psc.Database,
 	)
 	if err != nil {
@@ -180,6 +179,14 @@ func (p planetScaleEdgeMySQLAccess) GetTableSchema(ctx context.Context, psc Plan
 
 	if err := columnNamesQR.Err(); err != nil {
 		return properties, errors.Wrapf(err, "unable to iterate columns for table %s", tableName)
+	}
+
+    // Inject metadata column when include_metadata is true.
+	if psc.IncludeMetadata {
+		properties["_planetscale_metadata"] = PropertyType{
+			Type:        []string{"object"},
+			AirbyteType: "object",
+		}
 	}
 
 	return properties, nil

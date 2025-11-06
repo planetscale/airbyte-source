@@ -19,6 +19,7 @@ type PlanetScaleSource struct {
 	Shards              string              `json:"shards"`
 	UseReplica          bool                `json:"use_replica"`
 	UseRdonly           bool                `json:"use_rdonly"`
+	IncludeMetadata	    bool                `json:"include_metadata"`
 	StartingGtids       string              `json:"starting_gtids"`
 	Options             CustomSourceOptions `json:"options"`
 	MaxRetries          uint                `json:"max_retries"`
