@@ -873,8 +873,9 @@ func TestRead_IncrementalSync_CanIncludesMetadata(t *testing.T) {
         metadata, ok := metadataRaw.(map[string]interface{})
         assert.True(t, ok, "metadata must be a map[string]interface{}")
 
-        _, hasPos := metadata["vgtid_position"]
+        pos, hasPos := metadata["vgtid_position"]
         assert.True(t, hasPos, "missing vgtid_position")
+		assert.Equal(t, middleVGtid, pos, "incorrect vgtid_position")
 
         _, hasExtractedAt := metadata["extracted_at"]
         assert.True(t, hasExtractedAt, "missing extracted_at")
