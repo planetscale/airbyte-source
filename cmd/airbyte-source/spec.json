@@ -59,19 +59,26 @@
           "default": false,
           "order": 5
         },
+        "include_metadata": {
+          "description": "Include PlanetScale metadata in the sync. When enabled, this adds a column named `_planetscale_metadata` to each table containing a JSON object with the following fields: `vgtid_position` (the Vitess VGTID replication position), `extracted_at` (the extraction timestamp in nanoseconds), and `sequence_number` (a monotonically increasing per-sync sequence number).",
+          "title": "Include metadata?",
+          "type": "boolean",
+          "default": false,
+          "order": 7
+        },
         "starting_gtids": {
           "type": "string",
           "title": "Starting GTIDs",
           "default": "",
           "description": "A JSON string containing start GTIDs for every { keyspace: { shard: starting_gtid } }",
-          "order": 7
+          "order": 8
         },
         "max_retries": {
           "type": "integer",
           "title": "Max retries",
           "default": 3,
           "description": "The max number of times we continue syncing after potential errors",
-          "order": 8
+          "order": 9
         },
         "timeout_seconds": {
           "type": "integer",
@@ -79,14 +86,14 @@
           "default": 300,
           "minimum": 300,
           "description": "Timeout in seconds for a sync attempt",
-          "order": 9
+          "order": 10
         },
         "use_gtid_with_table_pks": {
           "type": "boolean",
           "title": "Use GTID with table primary keys",
           "default": false,
           "description": "Use GTID position together with table primary keys",
-          "order": 10
+          "order": 11
         },
         "options": {
           "type": "object",

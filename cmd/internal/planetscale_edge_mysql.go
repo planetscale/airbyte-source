@@ -181,6 +181,14 @@ func (p planetScaleEdgeMySQLAccess) GetTableSchema(ctx context.Context, psc Plan
 		return properties, errors.Wrapf(err, "unable to iterate columns for table %s", tableName)
 	}
 
+    // Inject metadata column when include_metadata is true.
+	if psc.IncludeMetadata {
+		properties["_planetscale_metadata"] = PropertyType{
+			Type:        []string{"object"},
+			AirbyteType: "object",
+		}
+	}
+
 	return properties, nil
 }
 

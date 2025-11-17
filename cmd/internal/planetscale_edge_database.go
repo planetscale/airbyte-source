@@ -350,7 +350,11 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 			}
 		}
 
-		var rows []*query.QueryResult
+		type rowWithPosition struct {
+			Result   *query.QueryResult
+			Position string
+		}
+		var rows []rowWithPosition
 		for _, event := range res.Events {
 			switch event.Type {
 			case binlogdata.VEventType_VGTID:
@@ -389,9 +393,12 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 				// Collect rows for processing
 				for _, change := range event.RowEvent.RowChanges {
 					if change.After != nil {
-						rows = append(rows, &query.QueryResult{
-							Fields: fields,
-							Rows:   []*query.Row{change.After},
+						rows = append(rows, rowWithPosition{
+							Result: &query.QueryResult{
+								Fields: fields,
+								Rows:   []*query.Row{change.After},
+							},
+							Position: tc.Position,
 						})
 					}
 				}
@@ -422,8 +429,8 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 		}
 
 		if len(rows) > 0 {
-			for _, result := range rows {
-				qr := sqltypes.Proto3ToResult(result)
+			for _, rwp := range rows {
+				qr := sqltypes.Proto3ToResult(rwp.Result)
 				for _, row := range qr.Rows {
 					resultCount += 1
 					sqlResult := &sqltypes.Result{
@@ -431,7 +438,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 					}
 					sqlResult.Rows = append(sqlResult.Rows, row)
 					// Results queued to Airbyte here, and flushed at the end of sync()
-					p.printQueryResult(sqlResult, keyspaceOrDatabase, s.Name, &ps)
+					p.printQueryResult(sqlResult, keyspaceOrDatabase, s.Name, &ps, tc.Position, resultCount)
 				}
 			}
 		}
@@ -529,10 +536,36 @@ func (p PlanetScaleEdgeDatabase) initializeVTGateClient(ctx context.Context, ps 
 
 // printQueryResult will pretty-print an AirbyteRecordMessage to the logger.
 // Copied from vtctl/query.go
-func (p PlanetScaleEdgeDatabase) printQueryResult(qr *sqltypes.Result, tableNamespace, tableName string, ps *PlanetScaleSource) {
+func (p PlanetScaleEdgeDatabase) printQueryResult(
+	qr *sqltypes.Result,
+	tableNamespace, tableName string,
+	ps *PlanetScaleSource,
+	position string,
+	resultCounter int,
+) {
 	data := QueryResultToRecords(qr, ps)
 
 	for _, record := range data {
+		if record == nil {
+			continue
+		}
+
+		if ps.IncludeMetadata {
+			// Ensure there's a _metadata field (map[string]interface{})
+			metadata, ok := record["_planetscale_metadata"].(map[string]interface{})
+			if !ok || metadata == nil {
+				metadata = map[string]interface{}{}
+			}
+	
+			// Attach the VGTID position inside _metadata
+			metadata["vgtid_position"] = position
+			// Attach the extraction timestamp inside _metadata
+			metadata["extracted_at"] = time.Now().UnixNano()
+			// Attach a per sync sequence number inside _metadata
+			metadata["sequence_number"] = resultCounter
+			record["_planetscale_metadata"] = metadata
+		}
+
 		p.Logger.Record(tableNamespace, tableName, record)
 	}
 }
