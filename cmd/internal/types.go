@@ -274,13 +274,28 @@ func parseEnumOrSetValues(columnType string) []string {
 func formatISO8601(mysqlType query.Type, value sqltypes.Value) Value {
 	var formatString string
 	var layout string
-	if mysqlType == query.Type_DATE {
+
+	switch mysqlType {
+	case query.Type_DATE:
 		formatString = "2006-01-02"
 		layout = time.DateOnly
-	} else if mysqlType == query.Type_DATETIME {
+
+	case query.Type_DATETIME:
 		formatString = "2006-01-02 15:04:05"
 		layout = "2006-01-02T15:04:05.000000" // No timezone offset
-	} else {
+	case query.Type_NULL_TYPE, query.Type_INT8, query.Type_UINT8,
+		query.Type_INT16, query.Type_UINT16, query.Type_INT24,
+		query.Type_UINT24, query.Type_INT32, query.Type_UINT32,
+		query.Type_INT64, query.Type_UINT64, query.Type_FLOAT32,
+		query.Type_FLOAT64, query.Type_TIMESTAMP, query.Type_TIME,
+		query.Type_YEAR, query.Type_DECIMAL, query.Type_TEXT, query.Type_BLOB,
+		query.Type_VARCHAR, query.Type_VARBINARY, query.Type_CHAR,
+		query.Type_BINARY, query.Type_BIT, query.Type_ENUM, query.Type_SET,
+		query.Type_TUPLE, query.Type_GEOMETRY, query.Type_JSON,
+		query.Type_EXPRESSION, query.Type_HEXNUM, query.Type_HEXVAL,
+		query.Type_BITNUM:
+		fallthrough
+	default:
 		formatString = "2006-01-02 15:04:05"
 		layout = "2006-01-02T15:04:05.000000-07:00" // Timezone offset
 	}

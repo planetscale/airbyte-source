@@ -19,7 +19,7 @@ type PlanetScaleSource struct {
 	Shards              string              `json:"shards"`
 	UseReplica          bool                `json:"use_replica"`
 	UseRdonly           bool                `json:"use_rdonly"`
-	IncludeMetadata	    bool                `json:"include_metadata"`
+	IncludeMetadata     bool                `json:"include_metadata"`
 	StartingGtids       string              `json:"starting_gtids"`
 	Options             CustomSourceOptions `json:"options"`
 	MaxRetries          uint                `json:"max_retries"`
@@ -93,7 +93,7 @@ func (psc PlanetScaleSource) GetInitialState(keyspaceOrDatabase string, shards [
 	}
 
 	for _, shard := range shards {
-		var position string = ""
+		var position string
 
 		// If a starting GTID was specified, use it
 		if startingGtids != nil {

@@ -1,7 +1,6 @@
 package airbyte_source
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -26,6 +25,8 @@ func ReadCommand(ch *Helper) *cobra.Command {
 		Use:   "read",
 		Short: "Converts rows from a PlanetScale database into AirbyteRecordMessages",
 		Run: func(cmd *cobra.Command, args []string) {
+			ctx := cmd.Context()
+
 			ch.Logger = internal.NewLogger(cmd.OutOrStdout())
 			if readSourceConfigFilePath == "" {
 				fmt.Fprintf(cmd.ErrOrStderr(), "Please pass path to a valid source config file via the [%v] argument", "config")
@@ -56,7 +57,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				}
 			}()
 
-			cs, err := checkConnectionStatus(ch.Database, psc)
+			cs, err := checkConnectionStatus(ctx, ch.Database, psc)
 			if err != nil {
 				ch.Logger.ConnectionStatus(cs)
 				return
@@ -83,7 +84,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				}
 				state = string(b)
 			}
-			shards, err := ch.Database.ListShards(context.Background(), psc)
+			shards, err := ch.Database.ListShards(ctx, psc)
 			if err != nil {
 				ch.Logger.Error(fmt.Sprintf("Unable to list shards : %v", err))
 				os.Exit(1)
@@ -117,7 +118,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 						os.Exit(1)
 					}
 
-					sc, err := ch.Database.Read(context.Background(), cmd.OutOrStdout(), psc, table, tc)
+					sc, err := ch.Database.Read(ctx, cmd.OutOrStdout(), psc, table, tc)
 					if err != nil {
 						ch.Logger.Error(err.Error())
 						os.Exit(1)
