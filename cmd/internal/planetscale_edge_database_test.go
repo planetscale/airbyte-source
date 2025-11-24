@@ -846,7 +846,7 @@ func TestRead_IncrementalSync_CanIncludesMetadata(t *testing.T) {
 	}
 
 	ps := PlanetScaleSource{
-		Database: "connect-test",
+		Database:        "connect-test",
 		IncludeMetadata: true,
 	}
 	cs := ConfiguredStream{
@@ -867,22 +867,22 @@ func TestRead_IncrementalSync_CanIncludesMetadata(t *testing.T) {
 	records := tal.records["connect-test.products"]
 
 	for _, r := range records {
-        metadataRaw, ok := r["_planetscale_metadata"]
-        assert.True(t, ok, "metadata must be present when IncludeMetadata=true")
+		metadataRaw, ok := r["_planetscale_metadata"]
+		assert.True(t, ok, "metadata must be present when IncludeMetadata=true")
 
-        metadata, ok := metadataRaw.(map[string]interface{})
-        assert.True(t, ok, "metadata must be a map[string]interface{}")
+		metadata, ok := metadataRaw.(map[string]interface{})
+		assert.True(t, ok, "metadata must be a map[string]interface{}")
 
-        pos, hasPos := metadata["vgtid_position"]
-        assert.True(t, hasPos, "missing vgtid_position")
+		pos, hasPos := metadata["vgtid_position"]
+		assert.True(t, hasPos, "missing vgtid_position")
 		assert.Equal(t, middleVGtid, pos, "incorrect vgtid_position")
 
-        _, hasExtractedAt := metadata["extracted_at"]
-        assert.True(t, hasExtractedAt, "missing extracted_at")
+		_, hasExtractedAt := metadata["extracted_at"]
+		assert.True(t, hasExtractedAt, "missing extracted_at")
 
-        _, hasSeq := metadata["sequence_number"]
-        assert.True(t, hasSeq, "missing sequence_number")
-    }
+		_, hasSeq := metadata["sequence_number"]
+		assert.True(t, hasSeq, "missing sequence_number")
+	}
 }
 
 // CanReturnNewCursorIfNewFound tests returning the same GTID as stop position

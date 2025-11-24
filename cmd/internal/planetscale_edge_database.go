@@ -76,7 +76,10 @@ func (p PlanetScaleEdgeDatabase) checkEdgePassword(ctx context.Context, psc Plan
 func (p PlanetScaleEdgeDatabase) DiscoverSchema(ctx context.Context, psc PlanetScaleSource) (Catalog, error) {
 	var c Catalog
 
-	tables, err := p.Mysql.GetTableNames(ctx, psc)
+	namesCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	tables, err := p.Mysql.GetTableNames(namesCtx, psc)
 	if err != nil {
 		return c, errors.Wrap(err, "Unable to query database for schema")
 	}
@@ -192,7 +195,10 @@ func (p PlanetScaleEdgeDatabase) Close() error {
 }
 
 func (p PlanetScaleEdgeDatabase) ListShards(ctx context.Context, psc PlanetScaleSource) ([]string, error) {
-	return p.Mysql.GetVitessShards(ctx, psc)
+	shardsCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	return p.Mysql.GetVitessShards(shardsCtx, psc)
 }
 
 // Read streams rows from a table given a starting cursor.
@@ -499,11 +505,12 @@ func (p PlanetScaleEdgeDatabase) getStopCursorPosition(ctx context.Context, shar
 }
 
 func toTopoTabletType(tabletType psdbconnect.TabletType) topodata.TabletType {
-	if tabletType == psdbconnect.TabletType_replica {
+	switch tabletType {
+	case psdbconnect.TabletType_replica:
 		return topodata.TabletType_REPLICA
-	} else if tabletType == psdbconnect.TabletType_batch {
+	case psdbconnect.TabletType_batch:
 		return topodata.TabletType_RDONLY
-	} else if tabletType == psdbconnect.TabletType_primary {
+	case psdbconnect.TabletType_primary:
 		return topodata.TabletType_PRIMARY
 	}
 
@@ -556,7 +563,7 @@ func (p PlanetScaleEdgeDatabase) printQueryResult(
 			if !ok || metadata == nil {
 				metadata = map[string]interface{}{}
 			}
-	
+
 			// Attach the VGTID position inside _metadata
 			metadata["vgtid_position"] = position
 			// Attach the extraction timestamp inside _metadata

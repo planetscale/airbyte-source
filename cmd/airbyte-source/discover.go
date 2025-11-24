@@ -1,7 +1,6 @@
 package airbyte_source
 
 import (
-	"context"
 	"fmt"
 	"os"
 
@@ -20,6 +19,8 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 		Use:   "discover",
 		Short: "Discovers the schema for a PlanetScale database",
 		Run: func(cmd *cobra.Command, args []string) {
+			ctx := cmd.Context()
+
 			if sourceConfigFilePath == "" {
 				fmt.Fprintln(cmd.OutOrStdout(), "Please provide path to a valid configuration file")
 				return
@@ -40,7 +41,7 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 				return
 			}
 
-			cs, err := checkConnectionStatus(ch.Database, psc)
+			cs, err := checkConnectionStatus(ctx, ch.Database, psc)
 			if err != nil {
 				ch.Logger.ConnectionStatus(cs)
 				return
@@ -52,7 +53,7 @@ func DiscoverCommand(ch *Helper) *cobra.Command {
 				}
 			}()
 
-			c, err := ch.Database.DiscoverSchema(context.Background(), psc)
+			c, err := ch.Database.DiscoverSchema(ctx, psc)
 			if err != nil {
 				ch.Logger.Log(internal.LOGLEVEL_ERROR, fmt.Sprintf("Unable to discover database, failed with [%v]", err))
 				return

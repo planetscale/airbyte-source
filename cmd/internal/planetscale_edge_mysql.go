@@ -80,7 +80,10 @@ func (p planetScaleEdgeMySQLAccess) GetVitessShards(ctx context.Context, psc Pla
 func (p planetScaleEdgeMySQLAccess) GetVitessTablets(ctx context.Context, psc PlanetScaleSource) ([]VitessTablet, error) {
 	var tablets []VitessTablet
 
-	tabletsQR, err := p.db.QueryContext(ctx, "Show vitess_tablets")
+	tabletsCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	tabletsQR, err := p.db.QueryContext(tabletsCtx, "Show vitess_tablets")
 	if err != nil {
 		return tablets, err
 	}
@@ -105,7 +108,6 @@ func (p planetScaleEdgeMySQLAccess) GetVitessTablets(ctx context.Context, psc Pl
 }
 
 func (p planetScaleEdgeMySQLAccess) PingContext(ctx context.Context, psc PlanetScaleSource) error {
-
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	return p.db.PingContext(ctx)
@@ -124,7 +126,10 @@ var (
 func (p planetScaleEdgeMySQLAccess) GetTableNames(ctx context.Context, psc PlanetScaleSource) ([]string, error) {
 	var tables []string
 
-	tableNamesQR, err := p.db.Query(fmt.Sprintf("show tables from `%s`;", psc.Database))
+	namesCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	tableNamesQR, err := p.db.QueryContext(namesCtx, fmt.Sprintf("show tables from `%s`;", psc.Database))
 	if err != nil {
 		return tables, errors.Wrap(err, "Unable to query database for schema")
 	}
@@ -153,10 +158,13 @@ func filterTable(name string) bool {
 }
 
 func (p planetScaleEdgeMySQLAccess) GetTableSchema(ctx context.Context, psc PlanetScaleSource, tableName string) (map[string]PropertyType, error) {
+	schemaCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	properties := map[string]PropertyType{}
 
 	columnNamesQR, err := p.db.QueryContext(
-		ctx,
+		schemaCtx,
 		"select column_name, column_type, is_nullable from information_schema.columns where table_name=? AND table_schema=?;",
 		tableName, psc.Database,
 	)
@@ -181,7 +189,7 @@ func (p planetScaleEdgeMySQLAccess) GetTableSchema(ctx context.Context, psc Plan
 		return properties, errors.Wrapf(err, "unable to iterate columns for table %s", tableName)
 	}
 
-    // Inject metadata column when include_metadata is true.
+	// Inject metadata column when include_metadata is true.
 	if psc.IncludeMetadata {
 		properties["_planetscale_metadata"] = PropertyType{
 			Type:        []string{"object"},
@@ -195,8 +203,11 @@ func (p planetScaleEdgeMySQLAccess) GetTableSchema(ctx context.Context, psc Plan
 func (p planetScaleEdgeMySQLAccess) GetTablePrimaryKeys(ctx context.Context, psc PlanetScaleSource, tableName string) ([]string, error) {
 	var primaryKeys []string
 
+	pkCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	primaryKeysQR, err := p.db.QueryContext(
-		ctx,
+		pkCtx,
 		"select column_name from information_schema.columns where table_schema=? AND table_name=? AND column_key='PRI';",
 		psc.Database, tableName,
 	)

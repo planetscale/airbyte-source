@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
-	"github.com/planetscale/airbyte-source/cmd/airbyte-source"
 	"os"
 	"os/signal"
+
+	airbytesource "github.com/planetscale/airbyte-source/cmd/airbyte-source"
 )
 
 var (
@@ -16,5 +17,5 @@ var (
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
-	airbyte_source.Execute(ctx, version, commit, date)
+	airbytesource.Execute(ctx, version, commit, date)
 }

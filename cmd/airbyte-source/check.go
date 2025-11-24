@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/planetscale/airbyte-source/cmd/internal"
 	"github.com/spf13/cobra"
@@ -21,6 +22,8 @@ func CheckCommand(ch *Helper) *cobra.Command {
 		Use:   "check",
 		Short: "Validates the credentials to connect to a PlanetScale database",
 		Run: func(cmd *cobra.Command, args []string) {
+			ctx := cmd.Context()
+
 			ch.Logger = internal.NewLogger(cmd.OutOrStdout())
 
 			if configFilePath == "" {
@@ -49,7 +52,7 @@ func CheckCommand(ch *Helper) *cobra.Command {
 				}
 			}()
 
-			cs, _ := checkConnectionStatus(ch.Database, psc)
+			cs, _ := checkConnectionStatus(ctx, ch.Database, psc)
 			ch.Logger.ConnectionStatus(cs)
 		},
 	}
@@ -70,9 +73,11 @@ func parseSource(reader FileReader, configFilePath string) (internal.PlanetScale
 	return psc, nil
 }
 
-func checkConnectionStatus(database internal.PlanetScaleDatabase, psc internal.PlanetScaleSource) (internal.ConnectionStatus, error) {
+func checkConnectionStatus(ctx context.Context, database internal.PlanetScaleDatabase, psc internal.PlanetScaleSource) (internal.ConnectionStatus, error) {
+	connCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 
-	if err := database.CanConnect(context.Background(), psc); err != nil {
+	if err := database.CanConnect(connCtx, psc); err != nil {
 		return internal.ConnectionStatus{
 			Status:  "FAILED",
 			Message: fmt.Sprintf("Unable to connect to PlanetScale database %v at host %v with username %v. Failed with \n %v", psc.Database, psc.Host, psc.Username, err),

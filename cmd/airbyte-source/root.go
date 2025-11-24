@@ -17,7 +17,7 @@ var rootCmd = &cobra.Command{
 }
 
 func Execute(ctx context.Context, ver, commit, buildDate string) {
-	if err := rootCmd.Execute(); err != nil {
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
