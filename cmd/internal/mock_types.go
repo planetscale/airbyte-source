@@ -50,14 +50,17 @@ func (tal *testAirbyteLogger) Record(tableNamespace, tableName string, data map[
 func (testAirbyteLogger) Flush() {
 }
 
-func (testAirbyteLogger) State(syncState SyncState) {
-	// TODO implement me
-	panic("implement me")
+func (testAirbyteLogger) StreamState(namespace, streamName string, shardStates ShardStates) {
+	// no-op for tests
 }
 
 func (testAirbyteLogger) Error(error string) {
 	// TODO implement me
 	panic("implement me")
+}
+
+func (testAirbyteLogger) StreamStatus(namespace, streamName, status string) {
+	// no-op for tests
 }
 
 type vstreamClientMock struct {
