@@ -357,8 +357,9 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 		}
 
 		type rowWithPosition struct {
-			Result   *query.QueryResult
-			Position string
+			Result    *query.QueryResult
+			Position  string
+			Operation string
 		}
 		var rows []rowWithPosition
 		for _, event := range res.Events {
@@ -398,13 +399,18 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 			case binlogdata.VEventType_ROW:
 				// Collect rows for processing
 				for _, change := range event.RowEvent.RowChanges {
-					if change.After != nil {
+					row, operation, ok := getRowChangeRecord(change, ps.CaptureDeletes)
+					if ok {
+						if operation == "delete" {
+							p.Logger.Log(LOGLEVEL_INFO, fmt.Sprintf("%sCaptured delete row for emission at position [%s]", preamble, tc.Position))
+						}
 						rows = append(rows, rowWithPosition{
 							Result: &query.QueryResult{
 								Fields: fields,
-								Rows:   []*query.Row{change.After},
+								Rows:   []*query.Row{row},
 							},
-							Position: tc.Position,
+							Position:  tc.Position,
+							Operation: operation,
 						})
 					}
 				}
@@ -444,7 +450,7 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 					}
 					sqlResult.Rows = append(sqlResult.Rows, row)
 					// Results queued to Airbyte here, and flushed at the end of sync()
-					p.printQueryResult(sqlResult, keyspaceOrDatabase, s.Name, &ps, tc.Position, resultCount)
+					p.printQueryResult(sqlResult, keyspaceOrDatabase, s.Name, &ps, rwp.Position, rwp.Operation, resultCount)
 				}
 			}
 		}
@@ -458,6 +464,22 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 			}
 			return tc, resultCount, io.EOF
 		}
+	}
+}
+
+func getRowChangeRecord(change *binlogdata.RowChange, captureDeletes bool) (*query.Row, string, bool) {
+	switch {
+	case change.After != nil && change.Before == nil:
+		return change.After, "insert", true
+	case change.After != nil && change.Before != nil:
+		return change.After, "update", true
+	case change.Before != nil && change.After == nil:
+		if !captureDeletes {
+			return nil, "", false
+		}
+		return change.Before, "delete", true
+	default:
+		return nil, "", false
 	}
 }
 
@@ -548,6 +570,7 @@ func (p PlanetScaleEdgeDatabase) printQueryResult(
 	tableNamespace, tableName string,
 	ps *PlanetScaleSource,
 	position string,
+	operation string,
 	resultCounter int,
 ) {
 	data := QueryResultToRecords(qr, ps)
@@ -556,6 +579,8 @@ func (p PlanetScaleEdgeDatabase) printQueryResult(
 		if record == nil {
 			continue
 		}
+
+		record["_planetscale_operation"] = operation
 
 		if ps.IncludeMetadata {
 			// Ensure there's a _metadata field (map[string]interface{})

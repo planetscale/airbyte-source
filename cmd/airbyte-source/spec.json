@@ -66,19 +66,26 @@
           "default": false,
           "order": 7
         },
+        "capture_deletes": {
+          "description": "Emit delete events as records using the deleted row values and mark them with `_planetscale_operation = delete`.",
+          "title": "Capture deletes?",
+          "type": "boolean",
+          "default": false,
+          "order": 8
+        },
         "starting_gtids": {
           "type": "string",
           "title": "Starting GTIDs",
           "default": "",
           "description": "A JSON string containing start GTIDs for every { keyspace: { shard: starting_gtid } }",
-          "order": 8
+          "order": 9
         },
         "max_retries": {
           "type": "integer",
           "title": "Max retries",
           "default": 3,
           "description": "The max number of times we continue syncing after potential errors",
-          "order": 9
+          "order": 10
         },
         "timeout_seconds": {
           "type": "integer",
@@ -86,14 +93,14 @@
           "default": 300,
           "minimum": 300,
           "description": "Timeout in seconds for a sync attempt",
-          "order": 10
+          "order": 11
         },
         "use_gtid_with_table_pks": {
           "type": "boolean",
           "title": "Use GTID with table primary keys",
           "default": false,
           "description": "Use GTID position together with table primary keys",
-          "order": 11
+          "order": 12
         },
         "options": {
           "type": "object",

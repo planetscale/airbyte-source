@@ -22,6 +22,55 @@ import (
 	"vitess.io/vitess/go/vt/proto/vtgateservice"
 )
 
+func metadataFromRecord(t *testing.T, record map[string]interface{}) map[string]interface{} {
+	t.Helper()
+
+	metadataRaw, ok := record["_planetscale_metadata"]
+	if !ok {
+		t.Fatalf("metadata must be present when IncludeMetadata=true")
+	}
+
+	metadata, ok := metadataRaw.(map[string]interface{})
+	if !ok {
+		t.Fatalf("metadata must be a map[string]interface{}")
+	}
+
+	return metadata
+}
+
+func productFields(database, table string) []*query.Field {
+	return []*query.Field{
+		{
+			Name:         "pid",
+			Type:         query.Type_INT64,
+			Table:        table,
+			OrgTable:     table,
+			Database:     database,
+			ColumnLength: 20,
+			Charset:      63,
+			ColumnType:   "bigint",
+		},
+		{
+			Name:         "description",
+			Type:         query.Type_VARCHAR,
+			Table:        table,
+			OrgTable:     table,
+			Database:     database,
+			ColumnLength: 1024,
+			Charset:      255,
+			ColumnType:   "varchar(256)",
+		},
+	}
+}
+
+func productRow(pid int, description string) *query.Row {
+	pidStr := fmt.Sprintf("%d", pid)
+	return &query.Row{
+		Lengths: []int64{int64(len(pidStr)), int64(len(description))},
+		Values:  []byte(pidStr + description),
+	}
+}
+
 func TestRead_CanPeekBeforeRead(t *testing.T) {
 	tma := getTestMysqlAccess()
 	b := bytes.NewBufferString("")
@@ -727,28 +776,7 @@ func TestRead_IncrementalSync_CanIncludesMetadata(t *testing.T) {
 							Type: binlogdata.VEventType_FIELD,
 							FieldEvent: &binlogdata.FieldEvent{
 								TableName: table,
-								Fields: []*query.Field{
-									{
-										Name:         "pid",
-										Type:         query.Type_INT64,
-										Table:        table,
-										OrgTable:     table,
-										Database:     keyspace,
-										ColumnLength: 20,
-										Charset:      63,
-										ColumnType:   "bigint",
-									},
-									{
-										Name:         "description",
-										Type:         query.Type_VARCHAR,
-										Table:        table,
-										OrgTable:     table,
-										Database:     keyspace,
-										ColumnLength: 1024,
-										Charset:      255,
-										ColumnType:   "varchar(256)",
-									},
-								},
+								Fields:    productFields(keyspace, table),
 							},
 						},
 					},
@@ -866,13 +894,9 @@ func TestRead_IncrementalSync_CanIncludesMetadata(t *testing.T) {
 	assert.Equal(t, 2, len(tal.records["connect-test.products"]))
 	records := tal.records["connect-test.products"]
 
-	for _, r := range records {
-		metadataRaw, ok := r["_planetscale_metadata"]
-		assert.True(t, ok, "metadata must be present when IncludeMetadata=true")
-
-		metadata, ok := metadataRaw.(map[string]interface{})
-		assert.True(t, ok, "metadata must be a map[string]interface{}")
-
+	for i, r := range records {
+		metadata := metadataFromRecord(t, r)
+		assert.Equal(t, "insert", r["_planetscale_operation"], "incorrect operation")
 		pos, hasPos := metadata["vgtid_position"]
 		assert.True(t, hasPos, "missing vgtid_position")
 		assert.Equal(t, middleVGtid, pos, "incorrect vgtid_position")
@@ -880,9 +904,618 @@ func TestRead_IncrementalSync_CanIncludesMetadata(t *testing.T) {
 		_, hasExtractedAt := metadata["extracted_at"]
 		assert.True(t, hasExtractedAt, "missing extracted_at")
 
-		_, hasSeq := metadata["sequence_number"]
+		seq, hasSeq := metadata["sequence_number"]
 		assert.True(t, hasSeq, "missing sequence_number")
+		assert.Equal(t, i+1, seq)
 	}
+}
+
+func TestRead_IncrementalSync_CanCaptureDeleteAndClassifyOperations(t *testing.T) {
+	tma := getTestMysqlAccess()
+	tal := testAirbyteLogger{}
+	ped := PlanetScaleEdgeDatabase{
+		Logger: &tal,
+		Mysql:  tma,
+	}
+
+	keyspace := "connect-test"
+	shard := "-"
+	table := "products"
+	startVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-2,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2"
+	middleVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-3,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2"
+	stopVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-4,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2"
+
+	startCursor := &psdbconnect.TableCursor{
+		Shard:    shard,
+		Position: startVGtid,
+		Keyspace: keyspace,
+	}
+
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vstreamResponse{
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{{
+									Shard:    shard,
+									Gtid:     stopVGtid,
+									Keyspace: keyspace,
+								}},
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{{
+									Shard:    shard,
+									Gtid:     startVGtid,
+									Keyspace: keyspace,
+								}},
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{{
+									Shard:    shard,
+									Gtid:     middleVGtid,
+									Keyspace: keyspace,
+								}},
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_FIELD,
+							FieldEvent: &binlogdata.FieldEvent{
+								TableName: table,
+								Fields:    productFields(keyspace, table),
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_ROW,
+							RowEvent: &binlogdata.RowEvent{
+								TableName: table,
+								Keyspace:  keyspace,
+								Shard:     shard,
+								RowChanges: []*binlogdata.RowChange{
+									{
+										After: productRow(1, "keyboard"),
+									},
+									{
+										Before: productRow(2, "monitor"),
+										After:  productRow(2, "display"),
+									},
+									{
+										Before: productRow(3, "mouse"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{{
+									Shard:    shard,
+									Gtid:     stopVGtid,
+									Keyspace: keyspace,
+								}},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			assert.Equal(t, topodata.TabletType_PRIMARY, in.TabletType)
+			return vstreamSyncClient, nil
+		},
+	}
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
+	}
+
+	ps := PlanetScaleSource{
+		Database:        "connect-test",
+		IncludeMetadata: true,
+		CaptureDeletes:  true,
+	}
+	cs := ConfiguredStream{
+		Stream: Stream{
+			Name:      table,
+			Namespace: keyspace,
+		},
+	}
+
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	assert.NoError(t, err)
+	assert.NotNil(t, sc)
+	assert.Equal(t, 3, len(tal.records["connect-test.products"]))
+
+	records := tal.records["connect-test.products"]
+	assert.Equal(t, 1, records[0]["pid"])
+	assert.Equal(t, "keyboard", records[0]["description"])
+	assert.Equal(t, 2, records[1]["pid"])
+	assert.Equal(t, "display", records[1]["description"])
+	assert.Equal(t, 3, records[2]["pid"])
+	assert.Equal(t, "mouse", records[2]["description"])
+
+	expectedOperations := []string{"insert", "update", "delete"}
+	for i, record := range records {
+		metadata := metadataFromRecord(t, record)
+		assert.Equal(t, expectedOperations[i], record["_planetscale_operation"])
+		assert.Equal(t, middleVGtid, metadata["vgtid_position"])
+		assert.Equal(t, i+1, metadata["sequence_number"])
+	}
+}
+
+func TestRead_IncrementalSync_SkipsDeleteRowsWhenCaptureDeletesDisabled(t *testing.T) {
+	tma := getTestMysqlAccess()
+	tal := testAirbyteLogger{}
+	ped := PlanetScaleEdgeDatabase{
+		Logger: &tal,
+		Mysql:  tma,
+	}
+
+	keyspace := "connect-test"
+	shard := "-"
+	table := "products"
+	startVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-2,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2"
+	middleVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-3,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2"
+	stopVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-4,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2"
+
+	startCursor := &psdbconnect.TableCursor{
+		Shard:    shard,
+		Position: startVGtid,
+		Keyspace: keyspace,
+	}
+
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vstreamResponse{
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{{
+									Shard:    shard,
+									Gtid:     stopVGtid,
+									Keyspace: keyspace,
+								}},
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{{
+									Shard:    shard,
+									Gtid:     startVGtid,
+									Keyspace: keyspace,
+								}},
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{{
+									Shard:    shard,
+									Gtid:     middleVGtid,
+									Keyspace: keyspace,
+								}},
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_FIELD,
+							FieldEvent: &binlogdata.FieldEvent{
+								TableName: table,
+								Fields:    productFields(keyspace, table),
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_ROW,
+							RowEvent: &binlogdata.RowEvent{
+								TableName: table,
+								Keyspace:  keyspace,
+								Shard:     shard,
+								RowChanges: []*binlogdata.RowChange{
+									{
+										Before: productRow(3, "mouse"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{{
+									Shard:    shard,
+									Gtid:     stopVGtid,
+									Keyspace: keyspace,
+								}},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			return vstreamSyncClient, nil
+		},
+	}
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
+	}
+
+	ps := PlanetScaleSource{
+		Database:        "connect-test",
+		IncludeMetadata: true,
+	}
+	cs := ConfiguredStream{
+		Stream: Stream{
+			Name:      table,
+			Namespace: keyspace,
+		},
+	}
+
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	assert.NoError(t, err)
+	assert.NotNil(t, sc)
+	assert.Equal(t, 0, len(tal.records["connect-test.products"]))
+}
+
+func TestRead_IncrementalSync_CanCaptureDeletesWithoutMetadata(t *testing.T) {
+	tma := getTestMysqlAccess()
+	tal := testAirbyteLogger{}
+	ped := PlanetScaleEdgeDatabase{
+		Logger: &tal,
+		Mysql:  tma,
+	}
+
+	keyspace := "connect-test"
+	shard := "-"
+	table := "products"
+	startVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-2,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2"
+	middleVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-3,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2"
+	stopVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-2,e1e896df-dae3-11ef-895b-626e6780cb50:1-4,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-2"
+
+	startCursor := &psdbconnect.TableCursor{
+		Shard:    shard,
+		Position: startVGtid,
+		Keyspace: keyspace,
+	}
+
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vstreamResponse{
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{{
+									Shard:    shard,
+									Gtid:     stopVGtid,
+									Keyspace: keyspace,
+								}},
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{{
+									Shard:    shard,
+									Gtid:     startVGtid,
+									Keyspace: keyspace,
+								}},
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{{
+									Shard:    shard,
+									Gtid:     middleVGtid,
+									Keyspace: keyspace,
+								}},
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_FIELD,
+							FieldEvent: &binlogdata.FieldEvent{
+								TableName: table,
+								Fields:    productFields(keyspace, table),
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_ROW,
+							RowEvent: &binlogdata.RowEvent{
+								TableName: table,
+								Keyspace:  keyspace,
+								Shard:     shard,
+								RowChanges: []*binlogdata.RowChange{
+									{
+										Before: productRow(3, "mouse"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{{
+									Shard:    shard,
+									Gtid:     stopVGtid,
+									Keyspace: keyspace,
+								}},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			return vstreamSyncClient, nil
+		},
+	}
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
+	}
+
+	ps := PlanetScaleSource{
+		Database:       "connect-test",
+		CaptureDeletes: true,
+	}
+	cs := ConfiguredStream{
+		Stream: Stream{
+			Name:      table,
+			Namespace: keyspace,
+		},
+	}
+
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	assert.NoError(t, err)
+	assert.NotNil(t, sc)
+	assert.Equal(t, 1, len(tal.records["connect-test.products"]))
+
+	record := tal.records["connect-test.products"][0]
+	assert.Equal(t, 3, record["pid"])
+	assert.Equal(t, "mouse", record["description"])
+	assert.Equal(t, "delete", record["_planetscale_operation"])
+	_, hasMetadata := record["_planetscale_metadata"]
+	assert.False(t, hasMetadata)
+}
+
+func TestRead_FullSync_LabelsCopyRowsAsInsert(t *testing.T) {
+	tma := getTestMysqlAccess()
+	tal := testAirbyteLogger{}
+	ped := PlanetScaleEdgeDatabase{
+		Logger: &tal,
+		Mysql:  tma,
+	}
+
+	keyspace := "connect-test"
+	shard := "-"
+	table := "products"
+	copyVGtid := "MySQL56/0d5afdd6-da80-11ef-844c-26dc1854a614:1-5,e1e896df-dae3-11ef-895b-626e6780cb50:1-5,e50c022a-dade-11ef-8083-d2b0b749d1bb:1-5"
+
+	startCursor := &psdbconnect.TableCursor{
+		Shard:    shard,
+		Position: "",
+		Keyspace: keyspace,
+	}
+
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vstreamResponse{
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{{
+									Shard:    shard,
+									Gtid:     copyVGtid,
+									Keyspace: keyspace,
+								}},
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{{
+									Shard:    shard,
+									Gtid:     copyVGtid,
+									Keyspace: keyspace,
+								}},
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_FIELD,
+							FieldEvent: &binlogdata.FieldEvent{
+								TableName: table,
+								Fields:    productFields(keyspace, table),
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_ROW,
+							RowEvent: &binlogdata.RowEvent{
+								TableName: table,
+								Keyspace:  keyspace,
+								Shard:     shard,
+								RowChanges: []*binlogdata.RowChange{
+									{
+										After: productRow(1, "keyboard"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_COPY_COMPLETED,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			return vstreamSyncClient, nil
+		},
+	}
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
+	}
+
+	ps := PlanetScaleSource{
+		Database:        "connect-test",
+		IncludeMetadata: true,
+	}
+	cs := ConfiguredStream{
+		Stream: Stream{
+			Name:      table,
+			Namespace: keyspace,
+		},
+	}
+
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	assert.NoError(t, err)
+	assert.NotNil(t, sc)
+	assert.Equal(t, 1, len(tal.records["connect-test.products"]))
+
+	metadata := metadataFromRecord(t, tal.records["connect-test.products"][0])
+	assert.Equal(t, "insert", tal.records["connect-test.products"][0]["_planetscale_operation"])
+	assert.Equal(t, copyVGtid, metadata["vgtid_position"])
+	assert.Equal(t, 1, metadata["sequence_number"])
 }
 
 // CanReturnNewCursorIfNewFound tests returning the same GTID as stop position

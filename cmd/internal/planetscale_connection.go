@@ -20,6 +20,7 @@ type PlanetScaleSource struct {
 	UseReplica          bool                `json:"use_replica"`
 	UseRdonly           bool                `json:"use_rdonly"`
 	IncludeMetadata     bool                `json:"include_metadata"`
+	CaptureDeletes      bool                `json:"capture_deletes"`
 	StartingGtids       string              `json:"starting_gtids"`
 	Options             CustomSourceOptions `json:"options"`
 	MaxRetries          uint                `json:"max_retries"`
@@ -143,4 +144,8 @@ func (psc PlanetScaleSource) GetStartingGtids() (StartingGtids, error) {
 	}
 
 	return startingGtids, nil
+}
+
+func (psc PlanetScaleSource) Validate() error {
+	return nil
 }

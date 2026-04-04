@@ -45,6 +45,46 @@ func TestCheckInvalidCatalogJSON(t *testing.T) {
 	assert.Equal(t, "FAILED", amsg.ConnectionStatus.Status)
 }
 
+func TestParseSource_AllowsCaptureDeletesWithoutMetadata(t *testing.T) {
+	tfr := testFileReader{
+		content: []byte("{\"host\":\"something.us-east-3.psdb.cloud\",\"database\":\"database\",\"username\":\"username\",\"password\":\"password\",\"capture_deletes\":true}"),
+	}
+
+	psc, err := parseSource(tfr, "source.json")
+	require.NoError(t, err)
+	assert.True(t, psc.CaptureDeletes)
+	assert.False(t, psc.IncludeMetadata)
+}
+
+func TestCheckAllowsCaptureDeletesWithoutMetadata(t *testing.T) {
+	tfr := testFileReader{
+		content: []byte("{\"host\":\"something.us-east-3.psdb.cloud\",\"database\":\"database\",\"username\":\"username\",\"password\":\"password\",\"capture_deletes\":true}"),
+	}
+
+	td := testDatabase{
+		connectResponse: canConnectResponse{
+			err: nil,
+		},
+	}
+
+	checkCommand := CheckCommand(&Helper{
+		Database:   td,
+		FileReader: tfr,
+		Logger:     internal.NewLogger(os.Stdout),
+	})
+	b := bytes.NewBufferString("")
+	checkCommand.SetOut(b)
+	assert.NoError(t, checkCommand.Flag("config").Value.Set("catalog.json"))
+	assert.NoError(t, checkCommand.Execute())
+
+	var amsg internal.AirbyteMessage
+	err := json.NewDecoder(b).Decode(&amsg)
+	require.NoError(t, err)
+	assert.Equal(t, internal.CONNECTION_STATUS, amsg.Type)
+	require.NotNil(t, amsg.ConnectionStatus)
+	assert.Equal(t, "SUCCEEDED", amsg.ConnectionStatus.Status)
+}
+
 func TestCheckCredentialsInvalid(t *testing.T) {
 	tfr := testFileReader{
 		content: []byte("{\"host\": \"something.us-east-3.psdb.cloud\",\"database\":\"database\",\"username\":\"username\",\"password\":\"password\"}"),
