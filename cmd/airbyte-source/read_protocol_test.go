@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -337,7 +338,9 @@ func TestRead_ReadErrorEmitsIncompleteNotComplete(t *testing.T) {
 	cmd.SetOut(b)
 	require.NoError(t, cmd.Flag("config").Value.Set(configFile))
 	require.NoError(t, cmd.Flag("catalog").Value.Set(catalogFile))
-	require.NoError(t, cmd.Execute())
+
+	err := cmd.Execute()
+	require.Error(t, err, "command should return an error when a stream fails")
 
 	messages := parseOutputMessages(t, b)
 
@@ -355,7 +358,8 @@ func TestRead_ReadErrorEmitsIncompleteNotComplete(t *testing.T) {
 	assert.Equal(t, []string{internal.STREAM_STATUS_STARTED, internal.STREAM_STATUS_INCOMPLETE},
 		streamStatuses["bad_table"])
 
-	// good_table should have a STATE message, bad_table should NOT
+	// Both streams should have STATE messages: state is always emitted to
+	// checkpoint whatever progress was made, even on failure.
 	hasGoodState := false
 	hasBadState := false
 	for _, msg := range messages {
@@ -369,5 +373,65 @@ func TestRead_ReadErrorEmitsIncompleteNotComplete(t *testing.T) {
 		}
 	}
 	assert.True(t, hasGoodState, "good_table should have a STATE message")
-	assert.False(t, hasBadState, "bad_table should NOT have a STATE message (it failed)")
+	assert.True(t, hasBadState, "bad_table should have a STATE message (checkpointing progress)")
+}
+
+func TestRead_MultiShardPartialFailureCheckpointsProgress(t *testing.T) {
+	db := &mockDatabase{
+		shards: []string{"-80", "80-"},
+		readFunc: func(ctx context.Context, w io.Writer, ps internal.PlanetScaleSource, s internal.ConfiguredStream, tc *psdbconnect.TableCursor) (*internal.SerializedCursor, error) {
+			// Fail the "80-" shard to simulate a partial failure.
+			if tc.Shard == "80-" {
+				return nil, fmt.Errorf("shard read error")
+			}
+			newCursor, _ := internal.TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+				Shard:    tc.Shard,
+				Keyspace: tc.Keyspace,
+				Position: "MySQL56/advanced-position",
+			})
+			return newCursor, nil
+		},
+	}
+	catalogJSON := newTestCatalog(t, "events")
+
+	configFile := writeTempFile(t, newTestConfig())
+	catalogFile := writeTempFile(t, []byte(catalogJSON))
+
+	b, h := setupReadCommand(t, db, catalogJSON)
+	cmd := ReadCommand(h)
+	cmd.SetOut(b)
+	require.NoError(t, cmd.Flag("config").Value.Set(configFile))
+	require.NoError(t, cmd.Flag("catalog").Value.Set(catalogFile))
+
+	err := cmd.Execute()
+	require.Error(t, err, "command should fail when a shard errors")
+
+	messages := parseOutputMessages(t, b)
+
+	// A state message must be emitted even on partial failure so that
+	// progress from successful shards is checkpointed.
+	var stateMsg *internal.AirbyteMessage
+	for _, msg := range messages {
+		if msg.Type == internal.STATE && msg.State != nil {
+			stateMsg = &msg
+		}
+	}
+	require.NotNil(t, stateMsg, "state should be emitted even on partial failure")
+	require.NotNil(t, stateMsg.State.Stream)
+	require.NotNil(t, stateMsg.State.Stream.StreamState)
+	assert.Len(t, stateMsg.State.Stream.StreamState.Shards, 2,
+		"state should contain both shards")
+
+	// Stream should be marked INCOMPLETE, not COMPLETE.
+	var statuses []string
+	for _, msg := range messages {
+		if msg.Type == internal.TRACE && msg.Trace != nil &&
+			msg.Trace.StreamStatus != nil &&
+			msg.Trace.StreamStatus.StreamDescriptor.Name == "events" {
+			statuses = append(statuses, msg.Trace.StreamStatus.Status)
+		}
+	}
+	assert.Contains(t, statuses, internal.STREAM_STATUS_STARTED)
+	assert.Contains(t, statuses, internal.STREAM_STATUS_INCOMPLETE)
+	assert.NotContains(t, statuses, internal.STREAM_STATUS_COMPLETE)
 }

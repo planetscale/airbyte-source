@@ -22,32 +22,33 @@ func init() {
 
 func ReadCommand(ch *Helper) *cobra.Command {
 	readCmd := &cobra.Command{
-		Use:   "read",
-		Short: "Converts rows from a PlanetScale database into AirbyteRecordMessages",
-		Run: func(cmd *cobra.Command, args []string) {
+		Use:          "read",
+		Short:        "Converts rows from a PlanetScale database into AirbyteRecordMessages",
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
 			ch.Logger = internal.NewLogger(cmd.OutOrStdout())
 			if readSourceConfigFilePath == "" {
 				fmt.Fprintf(cmd.ErrOrStderr(), "Please pass path to a valid source config file via the [%v] argument", "config")
-				os.Exit(1)
+				return fmt.Errorf("missing config file path")
 			}
 
 			if readSourceCatalogPath == "" {
 				fmt.Fprintf(cmd.OutOrStdout(), "Please pass path to a valid source catalog file via the [%v] argument", "config")
-				os.Exit(1)
+				return fmt.Errorf("missing catalog file path")
 			}
 
 			psc, err := parseSource(ch.FileReader, readSourceConfigFilePath)
 			if err != nil {
 				fmt.Fprintln(cmd.OutOrStdout(), "Please provide path to a valid configuration file")
-				return
+				return err
 			}
 
 			ch.Logger.Log(internal.LOGLEVEL_INFO, "Ensure database")
 			if err := ch.EnsureDB(psc); err != nil {
 				fmt.Fprintln(cmd.OutOrStdout(), "Unable to connect to PlanetScale Database")
-				return
+				return err
 			}
 
 			defer func() {
@@ -60,19 +61,19 @@ func ReadCommand(ch *Helper) *cobra.Command {
 			cs, err := checkConnectionStatus(ctx, ch.Database, psc)
 			if err != nil {
 				ch.Logger.ConnectionStatus(cs)
-				return
+				return err
 			}
 
 			ch.Logger.Log(internal.LOGLEVEL_INFO, "Reading catalog")
 			catalog, err := readCatalog(readSourceCatalogPath)
 			if err != nil {
 				ch.Logger.Error(fmt.Sprintf("Unable to read catalog: %+v", err))
-				os.Exit(1)
+				return fmt.Errorf("unable to read catalog: %w", err)
 			}
 
 			if len(catalog.Streams) == 0 {
 				ch.Logger.Log(internal.LOGLEVEL_ERROR, "Catalog has no streams")
-				return
+				return nil
 			}
 
 			state := ""
@@ -81,7 +82,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				b, err := os.ReadFile(stateFilePath)
 				if err != nil {
 					ch.Logger.Error(fmt.Sprintf("Unable to read state : %v", err))
-					os.Exit(1)
+					return fmt.Errorf("unable to read state: %w", err)
 				}
 				state = string(b)
 			}
@@ -90,16 +91,17 @@ func ReadCommand(ch *Helper) *cobra.Command {
 			shards, err := ch.Database.ListShards(ctx, psc)
 			if err != nil {
 				ch.Logger.Error(fmt.Sprintf("Unable to list shards : %v", err))
-				os.Exit(1)
+				return fmt.Errorf("unable to list shards: %w", err)
 			}
 
 			ch.Logger.Log(internal.LOGLEVEL_INFO, "Reading state")
 			syncState, err := readState(state, psc, catalog.Streams, shards, ch.Logger)
 			if err != nil {
 				ch.Logger.Error(fmt.Sprintf("Unable to read state : %v", err))
-				os.Exit(1)
+				return fmt.Errorf("unable to read state: %w", err)
 			}
 
+			var readErr error
 			for _, configuredStream := range catalog.Streams {
 				keyspaceOrDatabase := configuredStream.Stream.Namespace
 				if keyspaceOrDatabase == "" {
@@ -110,7 +112,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 				if !ok {
 					ch.Logger.Error(fmt.Sprintf("Unable to read state for stream %v", streamStateKey))
 					ch.Logger.StreamStatus(keyspaceOrDatabase, configuredStream.Stream.Name, internal.STREAM_STATUS_INCOMPLETE)
-					os.Exit(1)
+					return fmt.Errorf("unable to read state for stream %v", streamStateKey)
 				}
 
 				ch.Logger.StreamStatus(keyspaceOrDatabase, configuredStream.Stream.Name, internal.STREAM_STATUS_STARTED)
@@ -123,7 +125,6 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					ch.Logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("Using serialized cursor for stream %s", streamStateKey))
 					if err != nil {
 						ch.Logger.Error(fmt.Sprintf("Invalid serialized cursor for stream %v, failed with [%v]", streamStateKey, err))
-						ch.Logger.StreamStatus(keyspaceOrDatabase, configuredStream.Stream.Name, internal.STREAM_STATUS_INCOMPLETE)
 						streamFailed = true
 						break
 					}
@@ -131,7 +132,6 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					sc, err := ch.Database.Read(ctx, cmd.OutOrStdout(), psc, configuredStream, tc)
 					if err != nil {
 						ch.Logger.Error(err.Error())
-						ch.Logger.StreamStatus(keyspaceOrDatabase, configuredStream.Stream.Name, internal.STREAM_STATUS_INCOMPLETE)
 						streamFailed = true
 						break
 					}
@@ -141,11 +141,19 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					}
 				}
 
-				if !streamFailed {
-					ch.Logger.StreamState(keyspaceOrDatabase, configuredStream.Stream.Name, syncState.Streams[streamStateKey])
+				// Always emit state to checkpoint whatever progress was made,
+				// including partial progress when only some shards succeeded.
+				ch.Logger.StreamState(keyspaceOrDatabase, configuredStream.Stream.Name, syncState.Streams[streamStateKey])
+
+				if streamFailed {
+					ch.Logger.StreamStatus(keyspaceOrDatabase, configuredStream.Stream.Name, internal.STREAM_STATUS_INCOMPLETE)
+					readErr = fmt.Errorf("read failed for stream %v", streamStateKey)
+				} else {
 					ch.Logger.StreamStatus(keyspaceOrDatabase, configuredStream.Stream.Name, internal.STREAM_STATUS_COMPLETE)
 				}
 			}
+
+			return readErr
 		},
 	}
 	readCmd.Flags().StringVar(&readSourceCatalogPath, "catalog", "", "Path to the PlanetScale catalog configuration")
