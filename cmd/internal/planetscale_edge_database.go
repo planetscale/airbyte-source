@@ -15,7 +15,7 @@ import (
 	clientoptions "github.com/planetscale/psdb/core/pool/options"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	vtmysql "vitess.io/vitess/go/mysql"
+	vtreplication "vitess.io/vitess/go/mysql/replication"
 	"vitess.io/vitess/go/sqlescape"
 	"vitess.io/vitess/go/sqltypes"
 	"vitess.io/vitess/go/vt/proto/binlogdata"
@@ -619,12 +619,12 @@ func positionEqual(a string, b string) bool {
 		return false
 	}
 
-	parsedA, err := vtmysql.DecodePosition(a)
+	parsedA, err := vtreplication.DecodePosition(a)
 	if err != nil {
 		return false
 	}
 
-	parsedB, err := vtmysql.DecodePosition(b)
+	parsedB, err := vtreplication.DecodePosition(b)
 	if err != nil {
 		return false
 	}
@@ -638,12 +638,12 @@ func positionAfter(a string, b string) bool {
 		return false
 	}
 
-	parsedA, err := vtmysql.DecodePosition(a)
+	parsedA, err := vtreplication.DecodePosition(a)
 	if err != nil {
 		return false
 	}
 
-	parsedB, err := vtmysql.DecodePosition(b)
+	parsedB, err := vtreplication.DecodePosition(b)
 	if err != nil {
 		return false
 	}
