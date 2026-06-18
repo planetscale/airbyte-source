@@ -103,11 +103,7 @@ func ReadCommand(ch *Helper) *cobra.Command {
 
 			var readErr error
 			for _, configuredStream := range catalog.Streams {
-				keyspaceOrDatabase := configuredStream.Stream.Namespace
-				if keyspaceOrDatabase == "" {
-					keyspaceOrDatabase = psc.Database
-				}
-				streamStateKey := keyspaceOrDatabase + ":" + configuredStream.Stream.Name
+				keyspaceOrDatabase, streamStateKey := streamStateKeyFor(configuredStream.Stream.Namespace, configuredStream.Stream.Name, psc.Database)
 				streamState, ok := syncState.Streams[streamStateKey]
 				if !ok {
 					ch.Logger.Error(fmt.Sprintf("Unable to read state for stream %v", streamStateKey))
@@ -126,18 +122,24 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					if err != nil {
 						ch.Logger.Error(fmt.Sprintf("Invalid serialized cursor for stream %v, failed with [%v]", streamStateKey, err))
 						streamFailed = true
-						break
+						// A bad cursor only affects this shard; keep going so the
+						// other shards in this stream can still sync.
+						continue
 					}
 
 					sc, err := ch.Database.Read(ctx, cmd.OutOrStdout(), psc, configuredStream, tc)
+					// Read can return a cursor reflecting the progress made so far
+					// alongside an error (e.g. on a server timeout), so persist it
+					// before handling the error to avoid re-reading already-synced
+					// data on the next attempt.
+					if sc != nil {
+						syncState.Streams[streamStateKey].Shards[shardName] = sc
+					}
 					if err != nil {
 						ch.Logger.Error(err.Error())
 						streamFailed = true
-						break
-					}
-
-					if sc != nil {
-						syncState.Streams[streamStateKey].Shards[shardName] = sc
+						// One shard failing shouldn't stop the others from syncing.
+						continue
 					}
 				}
 
@@ -166,6 +168,17 @@ type State struct {
 	Shards map[string]map[string]interface{} `json:"shards"`
 }
 
+// streamStateKeyFor resolves the effective namespace for a stream (defaulting
+// to the source database when the catalog leaves it empty) and the composite
+// key used to look that stream up in the sync state. Keeping this in one place
+// avoids the namespace/key logic drifting between the read loop and readState.
+func streamStateKeyFor(namespace, streamName, database string) (string, string) {
+	if namespace == "" {
+		namespace = database
+	}
+	return namespace, namespace + ":" + streamName
+}
+
 func readState(state string, psc internal.PlanetScaleSource, streams []internal.ConfiguredStream, shards []string, logger internal.AirbyteLogger) (internal.SyncState, error) {
 	syncState := internal.SyncState{
 		Streams: map[string]internal.ShardStates{},
@@ -177,11 +190,7 @@ func readState(state string, psc internal.PlanetScaleSource, streams []internal.
 			logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("Parsing Airbyte v2 per-stream state (%d streams)", len(perStreamStates)))
 			for _, s := range perStreamStates {
 				if s.Stream != nil && s.Stream.StreamState != nil {
-					ns := s.Stream.StreamDescriptor.Namespace
-					if ns == "" {
-						ns = psc.Database
-					}
-					key := ns + ":" + s.Stream.StreamDescriptor.Name
+					_, key := streamStateKeyFor(s.Stream.StreamDescriptor.Namespace, s.Stream.StreamDescriptor.Name, psc.Database)
 					syncState.Streams[key] = *s.Stream.StreamState
 				}
 			}
@@ -195,11 +204,7 @@ func readState(state string, psc internal.PlanetScaleSource, streams []internal.
 	}
 
 	for _, s := range streams {
-		keyspaceOrDatabase := s.Stream.Namespace
-		if keyspaceOrDatabase == "" {
-			keyspaceOrDatabase = psc.Database
-		}
-		stateKey := keyspaceOrDatabase + ":" + s.Stream.Name
+		keyspaceOrDatabase, stateKey := streamStateKeyFor(s.Stream.Namespace, s.Stream.Name, psc.Database)
 		logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("Syncing stream %s with sync mode %s", s.Stream.Name, s.SyncMode))
 		ignoreCurrentCursor := !s.IncrementalSyncRequested()
 

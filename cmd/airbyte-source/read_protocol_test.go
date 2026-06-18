@@ -435,3 +435,86 @@ func TestRead_MultiShardPartialFailureCheckpointsProgress(t *testing.T) {
 	assert.Contains(t, statuses, internal.STREAM_STATUS_INCOMPLETE)
 	assert.NotContains(t, statuses, internal.STREAM_STATUS_COMPLETE)
 }
+
+// One failing shard must not stop the remaining shards in the same stream from
+// being read (continue, not break).
+func TestRead_ShardErrorStillProcessesOtherShards(t *testing.T) {
+	db := &mockDatabase{
+		shards: []string{"-40", "40-80", "80-"},
+		readFunc: func(ctx context.Context, w io.Writer, ps internal.PlanetScaleSource, s internal.ConfiguredStream, tc *psdbconnect.TableCursor) (*internal.SerializedCursor, error) {
+			if tc.Shard == "40-80" {
+				return nil, fmt.Errorf("shard read error")
+			}
+			newCursor, _ := internal.TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+				Shard:    tc.Shard,
+				Keyspace: tc.Keyspace,
+				Position: "MySQL56/advanced-position",
+			})
+			return newCursor, nil
+		},
+	}
+	catalogJSON := newTestCatalog(t, "events")
+
+	configFile := writeTempFile(t, newTestConfig())
+	catalogFile := writeTempFile(t, []byte(catalogJSON))
+
+	b, h := setupReadCommand(t, db, catalogJSON)
+	cmd := ReadCommand(h)
+	cmd.SetOut(b)
+	require.NoError(t, cmd.Flag("config").Value.Set(configFile))
+	require.NoError(t, cmd.Flag("catalog").Value.Set(catalogFile))
+
+	err := cmd.Execute()
+	require.Error(t, err, "command should fail when a shard errors")
+
+	// Every shard should have been attempted regardless of which one failed
+	// and regardless of map iteration order.
+	assert.Equal(t, 3, db.readCalls, "all shards should be read even when one fails")
+}
+
+// Read can hand back a cursor reflecting progress-so-far together with an error
+// (e.g. a server timeout). That cursor must be checkpointed, not discarded.
+func TestRead_ProgressCursorPersistedOnError(t *testing.T) {
+	advancedCursor, _ := internal.TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+		Shard:    "-",
+		Keyspace: "testdb",
+		Position: "MySQL56/progress-before-timeout",
+	})
+	db := &mockDatabase{
+		shards: []string{"-"},
+		readFunc: func(ctx context.Context, w io.Writer, ps internal.PlanetScaleSource, s internal.ConfiguredStream, tc *psdbconnect.TableCursor) (*internal.SerializedCursor, error) {
+			// Return progress so far alongside the error.
+			return advancedCursor, fmt.Errorf("timed out mid-sync")
+		},
+	}
+	catalogJSON := newTestCatalog(t, "events")
+
+	configFile := writeTempFile(t, newTestConfig())
+	catalogFile := writeTempFile(t, []byte(catalogJSON))
+
+	b, h := setupReadCommand(t, db, catalogJSON)
+	cmd := ReadCommand(h)
+	cmd.SetOut(b)
+	require.NoError(t, cmd.Flag("config").Value.Set(configFile))
+	require.NoError(t, cmd.Flag("catalog").Value.Set(catalogFile))
+
+	err := cmd.Execute()
+	require.Error(t, err, "command should fail when the shard read errors")
+
+	messages := parseOutputMessages(t, b)
+
+	var stateMsg *internal.AirbyteMessage
+	for _, msg := range messages {
+		if msg.Type == internal.STATE && msg.State != nil {
+			stateMsg = &msg
+		}
+	}
+	require.NotNil(t, stateMsg, "state should be emitted even when the read errors")
+	require.NotNil(t, stateMsg.State.Stream)
+	require.NotNil(t, stateMsg.State.Stream.StreamState)
+	persisted, ok := stateMsg.State.Stream.StreamState.Shards["-"]
+	require.True(t, ok, "state should contain the shard that errored")
+	require.NotNil(t, persisted)
+	assert.Equal(t, advancedCursor.Cursor, persisted.Cursor,
+		"the progress-so-far cursor returned alongside the error should be checkpointed")
+}
