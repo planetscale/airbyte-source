@@ -96,7 +96,7 @@ func parseOutputMessages(t *testing.T, buf *bytes.Buffer) []internal.AirbyteMess
 	return messages
 }
 
-func setupReadCommand(t *testing.T, db *mockDatabase, catalogJSON string) (*bytes.Buffer, *Helper) {
+func setupReadCommand(t *testing.T, db *mockDatabase) (*bytes.Buffer, *Helper) {
 	t.Helper()
 	b := bytes.NewBufferString("")
 	h := &Helper{
@@ -114,7 +114,7 @@ func TestRead_EmitsPerStreamStateNotLegacy(t *testing.T) {
 	configFile := writeTempFile(t, newTestConfig())
 	catalogFile := writeTempFile(t, []byte(catalogJSON))
 
-	b, h := setupReadCommand(t, db, catalogJSON)
+	b, h := setupReadCommand(t, db)
 	cmd := ReadCommand(h)
 	cmd.SetOut(b)
 	require.NoError(t, cmd.Flag("config").Value.Set(configFile))
@@ -153,7 +153,7 @@ func TestRead_EmitsStartedAndCompletePerStream(t *testing.T) {
 	configFile := writeTempFile(t, newTestConfig())
 	catalogFile := writeTempFile(t, []byte(catalogJSON))
 
-	b, h := setupReadCommand(t, db, catalogJSON)
+	b, h := setupReadCommand(t, db)
 	cmd := ReadCommand(h)
 	cmd.SetOut(b)
 	require.NoError(t, cmd.Flag("config").Value.Set(configFile))
@@ -194,7 +194,7 @@ func TestRead_StatePerStreamContainsCorrectDescriptor(t *testing.T) {
 	configFile := writeTempFile(t, newTestConfig())
 	catalogFile := writeTempFile(t, []byte(catalogJSON))
 
-	b, h := setupReadCommand(t, db, catalogJSON)
+	b, h := setupReadCommand(t, db)
 	cmd := ReadCommand(h)
 	cmd.SetOut(b)
 	require.NoError(t, cmd.Flag("config").Value.Set(configFile))
@@ -224,7 +224,7 @@ func TestRead_StateEmittedAfterStartedBeforeComplete(t *testing.T) {
 	configFile := writeTempFile(t, newTestConfig())
 	catalogFile := writeTempFile(t, []byte(catalogJSON))
 
-	b, h := setupReadCommand(t, db, catalogJSON)
+	b, h := setupReadCommand(t, db)
 	cmd := ReadCommand(h)
 	cmd.SetOut(b)
 	require.NoError(t, cmd.Flag("config").Value.Set(configFile))
@@ -270,7 +270,7 @@ func TestRead_MultiShardStateContainsAllShards(t *testing.T) {
 	configFile := writeTempFile(t, newTestConfig())
 	catalogFile := writeTempFile(t, []byte(catalogJSON))
 
-	b, h := setupReadCommand(t, db, catalogJSON)
+	b, h := setupReadCommand(t, db)
 	cmd := ReadCommand(h)
 	cmd.SetOut(b)
 	require.NoError(t, cmd.Flag("config").Value.Set(configFile))
@@ -397,7 +397,7 @@ func TestRead_MultiShardPartialFailureCheckpointsProgress(t *testing.T) {
 	configFile := writeTempFile(t, newTestConfig())
 	catalogFile := writeTempFile(t, []byte(catalogJSON))
 
-	b, h := setupReadCommand(t, db, catalogJSON)
+	b, h := setupReadCommand(t, db)
 	cmd := ReadCommand(h)
 	cmd.SetOut(b)
 	require.NoError(t, cmd.Flag("config").Value.Set(configFile))
@@ -458,7 +458,7 @@ func TestRead_ShardErrorStillProcessesOtherShards(t *testing.T) {
 	configFile := writeTempFile(t, newTestConfig())
 	catalogFile := writeTempFile(t, []byte(catalogJSON))
 
-	b, h := setupReadCommand(t, db, catalogJSON)
+	b, h := setupReadCommand(t, db)
 	cmd := ReadCommand(h)
 	cmd.SetOut(b)
 	require.NoError(t, cmd.Flag("config").Value.Set(configFile))
@@ -492,7 +492,7 @@ func TestRead_ProgressCursorPersistedOnError(t *testing.T) {
 	configFile := writeTempFile(t, newTestConfig())
 	catalogFile := writeTempFile(t, []byte(catalogJSON))
 
-	b, h := setupReadCommand(t, db, catalogJSON)
+	b, h := setupReadCommand(t, db)
 	cmd := ReadCommand(h)
 	cmd.SetOut(b)
 	require.NoError(t, cmd.Flag("config").Value.Set(configFile))

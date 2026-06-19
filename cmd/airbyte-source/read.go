@@ -2,6 +2,7 @@ package airbyte_source
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
@@ -135,6 +136,10 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					if sc != nil {
 						syncState.Streams[streamStateKey].Shards[shardName] = sc
 					}
+					// Checkpoint after every shard so that if we crash mid-stream
+					// the progress of shards that already completed isn't lost and
+					// re-read on the next attempt.
+					ch.Logger.StreamState(keyspaceOrDatabase, configuredStream.Stream.Name, syncState.Streams[streamStateKey])
 					if err != nil {
 						ch.Logger.Error(err.Error())
 						streamFailed = true
@@ -143,13 +148,9 @@ func ReadCommand(ch *Helper) *cobra.Command {
 					}
 				}
 
-				// Always emit state to checkpoint whatever progress was made,
-				// including partial progress when only some shards succeeded.
-				ch.Logger.StreamState(keyspaceOrDatabase, configuredStream.Stream.Name, syncState.Streams[streamStateKey])
-
 				if streamFailed {
 					ch.Logger.StreamStatus(keyspaceOrDatabase, configuredStream.Stream.Name, internal.STREAM_STATUS_INCOMPLETE)
-					readErr = fmt.Errorf("read failed for stream %v", streamStateKey)
+					readErr = errors.Join(readErr, fmt.Errorf("read failed for stream %v", streamStateKey))
 				} else {
 					ch.Logger.StreamStatus(keyspaceOrDatabase, configuredStream.Stream.Name, internal.STREAM_STATUS_COMPLETE)
 				}
@@ -184,9 +185,13 @@ func readState(state string, psc internal.PlanetScaleSource, streams []internal.
 		Streams: map[string]internal.ShardStates{},
 	}
 	if state != "" {
-		// Try parsing as Airbyte v2 per-stream state array first
+		// Try parsing as Airbyte v2 per-stream state array first. An empty
+		// array is valid v2 state (no checkpoints yet) and must be treated as
+		// v2 rather than falling through to the legacy object parser, which
+		// would fail to unmarshal it; the stream loop below then initializes
+		// fresh cursors.
 		var perStreamStates []internal.AirbyteState
-		if err := json.Unmarshal([]byte(state), &perStreamStates); err == nil && len(perStreamStates) > 0 && perStreamStates[0].Type == internal.STATE_TYPE_STREAM {
+		if err := json.Unmarshal([]byte(state), &perStreamStates); err == nil && (len(perStreamStates) == 0 || perStreamStates[0].Type == internal.STATE_TYPE_STREAM) {
 			logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("Parsing Airbyte v2 per-stream state (%d streams)", len(perStreamStates)))
 			for _, s := range perStreamStates {
 				if s.Stream != nil && s.Stream.StreamState != nil {
