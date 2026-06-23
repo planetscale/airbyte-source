@@ -14,8 +14,9 @@ type AirbyteLogger interface {
 	ConnectionStatus(status ConnectionStatus)
 	Record(tableNamespace, tableName string, data map[string]interface{})
 	Flush()
-	State(syncState SyncState)
+	StreamState(namespace, streamName string, shardStates ShardStates)
 	Error(error string)
+	StreamStatus(namespace, streamName, status string)
 }
 
 const MaxBatchSize = 10000
@@ -82,10 +83,19 @@ func (a *airbyteLogger) Flush() {
 	a.records = a.records[:0]
 }
 
-func (a *airbyteLogger) State(syncState SyncState) {
+func (a *airbyteLogger) StreamState(namespace, streamName string, shardStates ShardStates) {
 	if err := a.recordEncoder.Encode(AirbyteMessage{
-		Type:  STATE,
-		State: &AirbyteState{syncState},
+		Type: STATE,
+		State: &AirbyteState{
+			Type: STATE_TYPE_STREAM,
+			Stream: &AirbyteStreamState{
+				StreamDescriptor: StreamDescriptor{
+					Name:      streamName,
+					Namespace: namespace,
+				},
+				StreamState: &shardStates,
+			},
+		},
 	}); err != nil {
 		a.Error(fmt.Sprintf("state encoding error: %v", err))
 	}
@@ -100,6 +110,26 @@ func (a *airbyteLogger) Error(error string) {
 		},
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "%sFailed to write error: %v", preamble(), err)
+	}
+}
+
+func (a *airbyteLogger) StreamStatus(namespace, streamName, status string) {
+	now := time.Now()
+	if err := a.recordEncoder.Encode(AirbyteMessage{
+		Type: TRACE,
+		Trace: &AirbyteTraceMessage{
+			Type:      TRACE_TYPE_STREAM_STATUS,
+			EmittedAt: float64(now.UnixMilli()),
+			StreamStatus: &AirbyteStreamStatus{
+				StreamDescriptor: StreamDescriptor{
+					Name:      streamName,
+					Namespace: namespace,
+				},
+				Status: status,
+			},
+		},
+	}); err != nil {
+		a.Error(fmt.Sprintf("stream status encoding error: %v", err))
 	}
 }
 
