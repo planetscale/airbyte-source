@@ -31,9 +31,10 @@ jobs:
       - name: Create and push tag
         env:
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git tag "$RELEASE_TAG"
-          git push origin "$RELEASE_TAG"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "$RELEASE_TAG"
 
       - name: Log in to Docker Hub
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
