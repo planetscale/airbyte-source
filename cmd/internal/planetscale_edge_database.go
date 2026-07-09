@@ -55,9 +55,6 @@ func (p PlanetScaleEdgeDatabase) CanConnect(ctx context.Context, psc PlanetScale
 }
 
 func (p PlanetScaleEdgeDatabase) checkEdgePassword(ctx context.Context, psc PlanetScaleSource) error {
-	if !strings.HasSuffix(psc.Host, ".connect.psdb.cloud") {
-		return errors.New("This password is not connect-enabled, please ensure that your organization is enrolled in the Connect beta.")
-	}
 	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, fmt.Sprintf("https://%v", psc.Host), nil)
