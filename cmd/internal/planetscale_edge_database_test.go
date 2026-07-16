@@ -1672,6 +1672,269 @@ func TestRead_IncrementalSync_CanStopIfNoRows(t *testing.T) {
 	assert.Equal(t, 0, len(tal.records["connect-test.products"]))
 }
 
+func TestRead_IncrementalSync_SkipsAllNullPrimaryKeyRowAfterDDLBoundary(t *testing.T) {
+	tma := getTestMysqlAccess()
+	tal := testAirbyteLogger{}
+	ped := PlanetScaleEdgeDatabase{
+		Logger: &tal,
+		Mysql:  tma,
+	}
+
+	keyspace := "connect-test"
+	shard := "-"
+	table := "receipts"
+	startVGtid := "MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-2"
+	stopVGtid := "MySQL56/e4e20f06-e28f-11ec-8d20-8e7ac09cb64c:1-3"
+
+	startCursor := &psdbconnect.TableCursor{
+		Shard:    shard,
+		Position: startVGtid,
+		Keyspace: keyspace,
+	}
+	expectedCursor := &psdbconnect.TableCursor{
+		Shard:    shard,
+		Position: stopVGtid,
+		Keyspace: keyspace,
+	}
+
+	getCurrentVGtidClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vstreamResponse{
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    shard,
+										Gtid:     stopVGtid,
+										Keyspace: keyspace,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vstreamResponse{
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    shard,
+										Gtid:     startVGtid,
+										Keyspace: keyspace,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_FIELD,
+							FieldEvent: &binlogdata.FieldEvent{
+								TableName: table,
+								Fields: []*query.Field{
+									{
+										Name:         "id",
+										Type:         query.Type_INT64,
+										Table:        table,
+										OrgTable:     table,
+										Database:     keyspace,
+										ColumnLength: 20,
+										Charset:      63,
+										ColumnType:   "bigint",
+									},
+									{
+										Name:         "status",
+										Type:         query.Type_VARCHAR,
+										Table:        table,
+										OrgTable:     table,
+										Database:     keyspace,
+										ColumnLength: 255,
+										Charset:      255,
+										ColumnType:   "varchar(255)",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type:      binlogdata.VEventType_DDL,
+							Keyspace:  keyspace,
+							Shard:     shard,
+							Statement: "ALTER TABLE receipts ADD COLUMN settlement_currency varchar(3)",
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_ROW,
+							RowEvent: &binlogdata.RowEvent{
+								TableName: table,
+								Keyspace:  keyspace,
+								Shard:     shard,
+								RowChanges: []*binlogdata.RowChange{
+									{
+										After: &query.Row{
+											Lengths: []int64{-1, 4},
+											Values:  []byte("paid"),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			{
+				response: &vtgate.VStreamResponse{
+					Events: []*binlogdata.VEvent{
+						{
+							Type: binlogdata.VEventType_VGTID,
+							Vgtid: &binlogdata.VGtid{
+								ShardGtids: []*binlogdata.ShardGtid{
+									{
+										Shard:    shard,
+										Gtid:     stopVGtid,
+										Keyspace: keyspace,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			assert.Equal(t, topodata.TabletType_PRIMARY, in.TabletType)
+			if in.Vgtid.ShardGtids[0].Gtid == "current" {
+				return getCurrentVGtidClient, nil
+			}
+			return vstreamSyncClient, nil
+		},
+	}
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
+	}
+
+	ps := PlanetScaleSource{
+		Database: "connect-test",
+	}
+	cs := ConfiguredStream{
+		SyncMode: SYNC_MODE_INCREMENTAL,
+		Stream: Stream{
+			Name:        table,
+			Namespace:   keyspace,
+			PrimaryKeys: [][]string{{"id"}},
+		},
+	}
+
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, startCursor)
+	assert.NoError(t, err)
+	assert.NotNil(t, sc)
+	records := tal.records["connect-test.receipts"]
+	for _, record := range records {
+		id, ok := record["id"]
+		if !ok || id == nil {
+			assert.Failf(t, "Read emitted a record with a null or missing configured primary key", "record: %#v", record)
+		}
+	}
+	assert.Equal(t, 0, len(records), "DDL-boundary null-primary-key rows should be skipped")
+
+	esc, err := TableCursorToSerializedCursor(expectedCursor)
+	assert.NoError(t, err)
+	assert.Equal(t, esc, sc)
+	assert.Equal(t, 2, vsc.vstreamFnInvokedCount)
+}
+
+func TestRecordHasOnlyNullOrMissingPrimaryKeys(t *testing.T) {
+	tests := []struct {
+		name        string
+		record      map[string]interface{}
+		primaryKeys [][]string
+		want        bool
+	}{
+		{
+			name:        "no configured primary keys keeps record",
+			record:      map[string]interface{}{"id": nil},
+			primaryKeys: nil,
+			want:        false,
+		},
+		{
+			name:        "single primary key is nil",
+			record:      map[string]interface{}{"id": nil},
+			primaryKeys: [][]string{{"id"}},
+			want:        true,
+		},
+		{
+			name:        "single primary key is missing",
+			record:      map[string]interface{}{"status": "paid"},
+			primaryKeys: [][]string{{"id"}},
+			want:        true,
+		},
+		{
+			name:        "single primary key has value",
+			record:      map[string]interface{}{"id": sqltypes.NewInt64(1)},
+			primaryKeys: [][]string{{"id"}},
+			want:        false,
+		},
+		{
+			name:        "composite primary key has one value",
+			record:      map[string]interface{}{"id": nil, "tenant_id": sqltypes.NewInt64(7)},
+			primaryKeys: [][]string{{"id"}, {"tenant_id"}},
+			want:        false,
+		},
+		{
+			name: "nested primary key has value",
+			record: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"id": "receipt_1",
+				},
+			},
+			primaryKeys: [][]string{{"metadata", "id"}},
+			want:        false,
+		},
+		{
+			name:        "sqltypes null is treated as nil",
+			record:      map[string]interface{}{"id": sqltypes.NULL},
+			primaryKeys: [][]string{{"id"}},
+			want:        true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, recordHasOnlyNullOrMissingPrimaryKeys(tt.record, tt.primaryKeys))
+		})
+	}
+}
+
 func getTestMysqlAccess() *mysqlAccessMock {
 	tma := mysqlAccessMock{
 		PingContextFn: func(ctx context.Context, source PlanetScaleSource) error {

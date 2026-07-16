@@ -435,13 +435,12 @@ func (p PlanetScaleEdgeDatabase) sync(ctx context.Context, syncMode string, tc *
 			for _, rwp := range rows {
 				qr := sqltypes.Proto3ToResult(rwp.Result)
 				for _, row := range qr.Rows {
-					resultCount += 1
 					sqlResult := &sqltypes.Result{
 						Fields: fields,
 					}
 					sqlResult.Rows = append(sqlResult.Rows, row)
 					// Results queued to Airbyte here, and flushed at the end of sync()
-					p.printQueryResult(sqlResult, keyspaceOrDatabase, s.Name, &ps, tc.Position, resultCount)
+					resultCount += p.printQueryResult(sqlResult, keyspaceOrDatabase, s.Name, s.PrimaryKeys, &ps, tc.Position, resultCount+1)
 				}
 			}
 		}
@@ -543,14 +542,19 @@ func (p PlanetScaleEdgeDatabase) initializeVTGateClient(ctx context.Context, ps 
 func (p PlanetScaleEdgeDatabase) printQueryResult(
 	qr *sqltypes.Result,
 	tableNamespace, tableName string,
+	primaryKeys [][]string,
 	ps *PlanetScaleSource,
 	position string,
 	resultCounter int,
-) {
+) int {
 	data := QueryResultToRecords(qr, ps)
+	recordsQueued := 0
 
 	for _, record := range data {
 		if record == nil {
+			continue
+		}
+		if recordHasOnlyNullOrMissingPrimaryKeys(record, primaryKeys) {
 			continue
 		}
 
@@ -566,12 +570,48 @@ func (p PlanetScaleEdgeDatabase) printQueryResult(
 			// Attach the extraction timestamp inside _metadata
 			metadata["extracted_at"] = time.Now().UnixNano()
 			// Attach a per sync sequence number inside _metadata
-			metadata["sequence_number"] = resultCounter
+			metadata["sequence_number"] = resultCounter + recordsQueued
 			record["_planetscale_metadata"] = metadata
 		}
 
 		p.Logger.Record(tableNamespace, tableName, record)
+		recordsQueued += 1
 	}
+
+	return recordsQueued
+}
+
+func recordHasOnlyNullOrMissingPrimaryKeys(record map[string]interface{}, primaryKeys [][]string) bool {
+	hasConfiguredPrimaryKey := false
+	for _, primaryKey := range primaryKeys {
+		if len(primaryKey) == 0 {
+			continue
+		}
+		hasConfiguredPrimaryKey = true
+		value, ok := recordValueForPath(record, primaryKey)
+		if ok && value != nil {
+			if sqlValue, ok := value.(sqltypes.Value); !ok || !sqlValue.IsNull() {
+				return false
+			}
+		}
+	}
+
+	return hasConfiguredPrimaryKey
+}
+
+func recordValueForPath(record map[string]interface{}, path []string) (interface{}, bool) {
+	var value interface{} = record
+	for _, component := range path {
+		nestedRecord, ok := value.(map[string]interface{})
+		if !ok {
+			return nil, false
+		}
+		value, ok = nestedRecord[component]
+		if !ok {
+			return nil, false
+		}
+	}
+	return value, true
 }
 
 func buildVStreamRequest(tabletType psdbconnect.TabletType, table string, shard string, keyspace string, gtid string, lastKnownPk *query.QueryResult) *vtgate.VStreamRequest {
