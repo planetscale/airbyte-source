@@ -69,6 +69,9 @@ func parseSource(reader FileReader, configFilePath string) (internal.PlanetScale
 	if err = json.Unmarshal(contents, &psc); err != nil {
 		return psc, err
 	}
+	if err = psc.Validate(); err != nil {
+		return psc, err
+	}
 
 	return psc, nil
 }

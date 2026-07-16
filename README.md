@@ -196,6 +196,19 @@ fe8e2a3c-f91a-11ee-9812-82f5834c1ba7:1-46602355
 
 **Note**: Remember to prepend the prefix `MySQL56/` onto your starting GTIDs.
 
+### 3b. Metadata and delete capture
+Each emitted record includes a `_planetscale_operation` field with one of:
+- `insert`
+- `update`
+- `delete`
+
+When `include_metadata` is enabled, each emitted record also includes a `_planetscale_metadata` object with:
+- `vgtid_position`: the Vitess VGTID replication position
+- `extracted_at`: the extraction timestamp in nanoseconds
+- `sequence_number`: a monotonically increasing per-sync sequence number
+
+Delete events are only emitted when `capture_deletes` is enabled.
+
 ## Interpreting logs
 Airbyte logs will include logs from the source (this library), the Airbyte connector, and the destination. All source logs will be prefixed with `[source]` and `PlanetScale Source ::`.
 
@@ -234,6 +247,4 @@ Vitess cells that the Airbyte source will sync from.
 
 `Finished reading <recordCount> records for table [<table>]`
 Airbyte source has detected that the client has ended its connection. `recordCount` records were counted as having been sent to connector for table `table`.
-
-
 
