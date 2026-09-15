@@ -222,7 +222,40 @@ func readState(state string, psc internal.PlanetScaleSource, streams []internal.
 				return syncState, err
 			}
 			syncState.Streams[stateKey] = initialState
+			continue
 		}
+
+		// Keep valid cursors for currently discovered shards, drop stale keys
+		// (e.g. a sibling keyspace leaked by a previous LIKE "%<db>%" match),
+		// and seed empty cursors for newly discovered shards.
+		streamState := syncState.Streams[stateKey]
+		if streamState.Shards == nil {
+			streamState.Shards = map[string]*internal.SerializedCursor{}
+		}
+		discovered := make(map[string]struct{}, len(shards))
+		for _, shard := range shards {
+			discovered[shard] = struct{}{}
+			if _, exists := streamState.Shards[shard]; exists {
+				continue
+			}
+			cursor, err := internal.TableCursorToSerializedCursor(&psdbconnectv1alpha1.TableCursor{
+				Shard:    shard,
+				Keyspace: keyspaceOrDatabase,
+			})
+			if err != nil {
+				return syncState, err
+			}
+			logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("Adding newly discovered shard %q to stream %s", shard, stateKey))
+			streamState.Shards[shard] = cursor
+		}
+		for shard := range streamState.Shards {
+			if _, ok := discovered[shard]; ok {
+				continue
+			}
+			logger.Log(internal.LOGLEVEL_INFO, fmt.Sprintf("Dropping stale shard %q from stream %s; it is not in the current keyspace", shard, stateKey))
+			delete(streamState.Shards, shard)
+		}
+		syncState.Streams[stateKey] = streamState
 	}
 
 	return syncState, nil

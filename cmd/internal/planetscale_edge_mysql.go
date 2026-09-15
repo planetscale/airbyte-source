@@ -51,30 +51,47 @@ func (p planetScaleEdgeMySQLAccess) Close() error {
 }
 
 func (p planetScaleEdgeMySQLAccess) GetVitessShards(ctx context.Context, psc PlanetScaleSource) ([]string, error) {
-	var shards []string
+	var shardNames []string
 
 	// TODO: is there a prepared statement equivalent?
+	// LIKE "<keyspace>/%" matches only shards in this keyspace. A looser
+	// "%<keyspace>%" pattern also matches sibling keyspaces that share a
+	// prefix (e.g. "trengo_etl/-" when querying for "trengo").
 	shardNamesQR, err := p.db.QueryContext(
 		ctx,
-		`show vitess_shards like "%`+psc.Database+`%";`,
+		`show vitess_shards like "`+psc.Database+`/%";`,
 	)
 	if err != nil {
-		return shards, errors.Wrap(err, "Unable to query database for shards")
+		return nil, errors.Wrap(err, "Unable to query database for shards")
 	}
 
 	for shardNamesQR.Next() {
 		var name string
 		if err = shardNamesQR.Scan(&name); err != nil {
-			return shards, errors.Wrap(err, "unable to get shard names")
+			return nil, errors.Wrap(err, "unable to get shard names")
 		}
 
-		shards = append(shards, strings.TrimPrefix(name, psc.Database+"/"))
+		shardNames = append(shardNames, name)
 	}
 
 	if err := shardNamesQR.Err(); err != nil {
-		return shards, errors.Wrapf(err, "unable to iterate shard names for %s", psc.Database)
+		return nil, errors.Wrapf(err, "unable to iterate shard names for %s", psc.Database)
 	}
-	return shards, nil
+	return shardsForKeyspace(psc.Database, shardNames), nil
+}
+
+// shardsForKeyspace extracts the shard names belonging to exactly keyspace from
+// the "<keyspace>/<shard>" rows returned by "show vitess_shards".
+func shardsForKeyspace(keyspace string, shardNames []string) []string {
+	var shards []string
+	for _, name := range shardNames {
+		ks, shard, ok := strings.Cut(name, "/")
+		if !ok || ks != keyspace {
+			continue
+		}
+		shards = append(shards, shard)
+	}
+	return shards
 }
 
 func (p planetScaleEdgeMySQLAccess) GetVitessTablets(ctx context.Context, psc PlanetScaleSource) ([]VitessTablet, error) {
