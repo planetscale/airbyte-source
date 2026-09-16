@@ -11,6 +11,7 @@ import (
 
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -21,6 +22,90 @@ import (
 	"vitess.io/vitess/go/vt/proto/vtgate"
 	"vitess.io/vitess/go/vt/proto/vtgateservice"
 )
+
+func TestRead_ReturnsErrorWhenCursorPeekFails(t *testing.T) {
+	tma := getTestMysqlAccess()
+	tal := testAirbyteLogger{}
+	ped := PlanetScaleEdgeDatabase{
+		Logger: &tal,
+		Mysql:  tma,
+	}
+	tc := &psdbconnect.TableCursor{
+		Shard:    "trengo_etl/-",
+		Position: "THIS_IS_A_SHARD_GTID",
+		Keyspace: "trengo",
+	}
+
+	peekErr := status.Error(codes.InvalidArgument, "shard provided in VGTID, trengo_etl/-, not found in the trengo keyspace")
+	vstreamSyncClient := &vtgateVStreamClientMock{
+		vstreamResponses: []*vstreamResponse{
+			{err: peekErr},
+		},
+	}
+
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			return vstreamSyncClient, nil
+		},
+	}
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
+	}
+
+	ps := PlanetScaleSource{Database: "trengo"}
+	cs := ConfiguredStream{
+		Stream: Stream{
+			Name:      "tickets",
+			Namespace: "trengo",
+		},
+	}
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "Unable to get latest cursor position")
+	assert.ErrorContains(t, err, "trengo_etl/-")
+	assert.Nil(t, sc)
+	assert.Equal(t, 1, vsc.vstreamFnInvokedCount)
+	require.NotEmpty(t, tal.logMessagesByLevel[LOGLEVEL_ERROR])
+	assert.Contains(t, tal.logMessagesByLevel[LOGLEVEL_ERROR][0], "Error fetching latest cursor position")
+}
+
+func TestRead_ReturnsErrorWhenCursorPeekStopPositionEmpty(t *testing.T) {
+	tma := getTestMysqlAccess()
+	tal := testAirbyteLogger{}
+	ped := PlanetScaleEdgeDatabase{
+		Logger: &tal,
+		Mysql:  tma,
+	}
+	tc := &psdbconnect.TableCursor{
+		Shard:    "-",
+		Position: "THIS_IS_A_SHARD_GTID",
+		Keyspace: "trengo",
+	}
+
+	vsc := vstreamClientMock{
+		vstreamFn: func(ctx context.Context, in *vtgate.VStreamRequest, opts ...grpc.CallOption) (vtgateservice.Vitess_VStreamClient, error) {
+			return nil, status.Error(codes.Unavailable, "vtgate unavailable")
+		},
+	}
+
+	ped.vtgateClientFn = func(ctx context.Context, ps PlanetScaleSource) (vtgateservice.VitessClient, error) {
+		return &vsc, nil
+	}
+
+	ps := PlanetScaleSource{Database: "trengo"}
+	cs := ConfiguredStream{
+		Stream: Stream{
+			Name:      "tickets",
+			Namespace: "trengo",
+		},
+	}
+	sc, err := ped.Read(context.Background(), os.Stdout, ps, cs, tc)
+	assert.Error(t, err)
+	assert.EqualError(t, err, "Unable to get latest cursor position")
+	assert.Nil(t, sc)
+	assert.Equal(t, 1, vsc.vstreamFnInvokedCount)
+}
 
 func TestRead_CanPeekBeforeRead(t *testing.T) {
 	tma := getTestMysqlAccess()

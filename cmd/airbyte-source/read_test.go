@@ -139,3 +139,68 @@ func TestRead_StartingGtidsAndState(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedStates, syncStates)
 }
+
+// Saved state can contain a stale shard key from a sibling keyspace that leaked
+// in via a previous LIKE "%<db>%" match (e.g. "trengo_etl/-" while syncing
+// "trengo"). After discovery is fixed, those keys must be dropped so Read
+// does not peek a VGTID for a shard that is not in the current keyspace.
+func TestReadState_PrunesStaleSiblingKeyspaceShards(t *testing.T) {
+	psc := internal.PlanetScaleSource{
+		Host:     "aws.connect.psdb.cloud",
+		Database: "trengo",
+		Username: "user",
+		Password: "pscale_password",
+	}
+	streams := []internal.ConfiguredStream{
+		{
+			Stream:   internal.Stream{Name: "tickets", Namespace: "trengo"},
+			SyncMode: "incremental",
+		},
+	}
+
+	validCursor, err := internal.TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+		Shard:    "-",
+		Keyspace: "trengo",
+		Position: "MySQL56/valid-gtid:1-3",
+	})
+	require.NoError(t, err)
+	staleCursor, err := internal.TableCursorToSerializedCursor(&psdbconnect.TableCursor{
+		Shard:    "trengo_etl/-",
+		Keyspace: "trengo",
+		Position: "MySQL56/stale-gtid:1-3",
+	})
+	require.NoError(t, err)
+
+	state := fmt.Sprintf(
+		`{"streams":{"trengo:tickets":{"shards":{"-":{"cursor":"%s"},"trengo_etl/-":{"cursor":"%s"}}}}}`,
+		validCursor.Cursor,
+		staleCursor.Cursor,
+	)
+
+	t.Run("drops stale sibling shard and keeps the real cursor", func(t *testing.T) {
+		syncState, err := readState(state, psc, streams, []string{"-"}, internal.NewLogger(os.Stdout))
+		require.NoError(t, err)
+		require.Contains(t, syncState.Streams, "trengo:tickets")
+		shards := syncState.Streams["trengo:tickets"].Shards
+		require.Contains(t, shards, "-")
+		assert.Equal(t, validCursor, shards["-"])
+		assert.NotContains(t, shards, "trengo_etl/-")
+		assert.Len(t, shards, 1)
+	})
+
+	t.Run("seeds empty cursors for newly discovered shards", func(t *testing.T) {
+		syncState, err := readState(state, psc, streams, []string{"-", "80-"}, internal.NewLogger(os.Stdout))
+		require.NoError(t, err)
+		shards := syncState.Streams["trengo:tickets"].Shards
+		require.Contains(t, shards, "-")
+		assert.Equal(t, validCursor, shards["-"])
+		require.Contains(t, shards, "80-")
+		assert.NotContains(t, shards, "trengo_etl/-")
+
+		newCursor, err := shards["80-"].SerializedCursorToTableCursor(streams[0])
+		require.NoError(t, err)
+		assert.Equal(t, "80-", newCursor.Shard)
+		assert.Equal(t, "trengo", newCursor.Keyspace)
+		assert.Empty(t, newCursor.Position)
+	})
+}
