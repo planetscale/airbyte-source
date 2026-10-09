@@ -100,6 +100,14 @@ func (x *vstreamClientMock) ExecuteBatch(context.Context, *vtgate.ExecuteBatchRe
 	return nil, nil
 }
 
+func (x *vstreamClientMock) ExecuteMulti(context.Context, *vtgate.ExecuteMultiRequest, ...grpc.CallOption) (*vtgate.ExecuteMultiResponse, error) {
+	return nil, nil
+}
+
+func (x *vstreamClientMock) StreamExecuteMulti(context.Context, *vtgate.StreamExecuteMultiRequest, ...grpc.CallOption) (vtgateservice.Vitess_StreamExecuteMultiClient, error) {
+	return nil, nil
+}
+
 func (x *vstreamClientMock) Prepare(context.Context, *vtgate.PrepareRequest, ...grpc.CallOption) (*vtgate.PrepareResponse, error) {
 	return nil, nil
 }
