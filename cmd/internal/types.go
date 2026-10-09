@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/pkg/errors"
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
@@ -158,7 +159,11 @@ func QueryResultToRecords(qr *sqltypes.Result, ps *PlanetScaleSource) []map[stri
 		record := make(map[string]interface{})
 		for idx, val := range row {
 			if idx < len(columns) {
-				parsedValue := parseValue(val, qr.Fields[idx].GetColumnType(), qr.Fields[idx].GetType(), ps)
+				field := qr.Fields[idx]
+				// Convert before parseValue so latin1 text is valid UTF-8
+				// before JSON encoding, while enum/set index mapping still sees ASCII digits.
+				val = convertTextToUTF8(val, field)
+				parsedValue := parseValue(val, field.GetColumnType(), field.GetType(), ps)
 				if parsedValue.isBool {
 					record[columns[idx]] = parsedValue.boolValue
 				} else if parsedValue.isNull {
@@ -172,6 +177,82 @@ func QueryResultToRecords(qr *sqltypes.Result, ps *PlanetScaleSource) []map[stri
 	}
 
 	return data
+}
+
+// MySQL latin1 collation IDs. MySQL's latin1 is Windows-1252, not ISO-8859-1.
+// VStream Field.Charset is the column collation ID (e.g. 8 = latin1_swedish_ci).
+var latin1Collations = map[uint32]struct{}{
+	5:  {}, // latin1_german1_ci
+	8:  {}, // latin1_swedish_ci
+	15: {}, // latin1_danish_ci
+	31: {}, // latin1_german2_ci
+	47: {}, // latin1_bin
+	48: {}, // latin1_general_ci
+	49: {}, // latin1_general_cs
+	94: {}, // latin1_spanish_ci
+}
+
+// cp1252Map is the Unicode code point for each byte 0x80-0x9F in Windows-1252.
+// All other latin1 bytes map directly to the same Unicode code point.
+var cp1252Map = [32]rune{
+	0x20AC, 0x0081, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021,
+	0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0x008D, 0x017D, 0x008F,
+	0x0090, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
+	0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x009D, 0x017E, 0x0178,
+}
+
+func isTextColumn(t query.Type) bool {
+	switch t {
+	case query.Type_CHAR, query.Type_VARCHAR, query.Type_TEXT, query.Type_ENUM, query.Type_SET:
+		return true
+	default:
+		return false
+	}
+}
+
+// convertTextToUTF8 rewrites latin1 text values to UTF-8 so JSON encoding
+// does not replace non-ASCII bytes with U+FFFD or truncate the string.
+// Binary columns (charset 63) and already-UTF-8 text are left unchanged.
+func convertTextToUTF8(val sqltypes.Value, field *query.Field) sqltypes.Value {
+	if val.IsNull() || field == nil || !isTextColumn(field.GetType()) {
+		return val
+	}
+	if _, ok := latin1Collations[field.GetCharset()]; !ok {
+		return val
+	}
+
+	converted := decodeWindows1252(val.Raw())
+	newVal, err := sqltypes.NewValue(val.Type(), converted)
+	if err != nil {
+		return val
+	}
+	return newVal
+}
+
+func decodeWindows1252(src []byte) []byte {
+	ascii := true
+	for _, b := range src {
+		if b >= 0x80 {
+			ascii = false
+			break
+		}
+	}
+	if ascii {
+		return src
+	}
+
+	dst := make([]byte, 0, len(src)+len(src)/2)
+	for _, b := range src {
+		var r rune
+		switch {
+		case b < 0x80, b >= 0xA0:
+			r = rune(b)
+		default:
+			r = cp1252Map[b-0x80]
+		}
+		dst = utf8.AppendRune(dst, r)
+	}
+	return dst
 }
 
 type Value struct {
@@ -406,8 +487,8 @@ type AirbyteStreamState struct {
 }
 
 type AirbyteState struct {
-	Type   string               `json:"type"`
-	Stream *AirbyteStreamState  `json:"stream,omitempty"`
+	Type   string              `json:"type"`
+	Stream *AirbyteStreamState `json:"stream,omitempty"`
 }
 
 type StreamDescriptor struct {
