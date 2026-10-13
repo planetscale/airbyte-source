@@ -336,10 +336,11 @@ func TestConvertsLatin1EnumAndSetInBothVStreamPhases(t *testing.T) {
 	fields := []*query.Field{
 		{Name: "city", Type: sqltypes.Enum, ColumnType: "enum('Brasília','Portland')", Charset: latin1Swedish},
 		{Name: "tags", Type: sqltypes.Set, ColumnType: "set('café','bar')", Charset: latin1Swedish},
+		{Name: "owner", Type: sqltypes.Enum, ColumnType: "enum('café''s','x')", Charset: latin1Swedish},
 	}
-	phases := map[string][2]string{
-		"copy":   {"Bras\xEDlia", "caf\xE9,bar"},
-		"binlog": {"Brasília", "café,bar"},
+	phases := map[string][3]string{
+		"copy":   {"Bras\xEDlia", "caf\xE9,bar", "caf\xE9's"},
+		"binlog": {"Brasília", "café,bar", "café's"},
 	}
 	for phase, raw := range phases {
 		t.Run(phase, func(t *testing.T) {
@@ -347,14 +348,37 @@ func TestConvertsLatin1EnumAndSetInBothVStreamPhases(t *testing.T) {
 			require.NoError(t, err)
 			tags, err := sqltypes.NewValue(query.Type_SET, []byte(raw[1]))
 			require.NoError(t, err)
+			owner, err := sqltypes.NewValue(query.Type_ENUM, []byte(raw[2]))
+			require.NoError(t, err)
 
-			input := sqltypes.Result{Fields: fields, Rows: [][]sqltypes.Value{{city, tags}}}
+			input := sqltypes.Result{Fields: fields, Rows: [][]sqltypes.Value{{city, tags, owner}}}
 			output := QueryResultToRecords(&input, &PlanetScaleSource{})
 			require.Len(t, output, 1)
 			assert.Equal(t, "Brasília", output[0]["city"].(sqltypes.Value).ToString())
 			assert.Equal(t, "café,bar", output[0]["tags"].(sqltypes.Value).ToString())
+			assert.Equal(t, "café's", output[0]["owner"].(sqltypes.Value).ToString())
 		})
 	}
+}
+
+func TestLeavesValidUTF8InLatin1ColumnsUnchanged(t *testing.T) {
+	// UTF-8 bytes stored in a latin1 column (written through a latin1 connection) pass through unchanged.
+	sao, err := sqltypes.NewValue(query.Type_VARCHAR, []byte("S\xC3\xA3o"))
+	require.NoError(t, err)
+
+	const latin1Swedish = 8
+	input := sqltypes.Result{
+		Fields: []*query.Field{
+			{Name: "location", Type: sqltypes.VarChar, ColumnType: "varchar(255)", Charset: latin1Swedish},
+		},
+		Rows: [][]sqltypes.Value{
+			{sao},
+		},
+	}
+
+	output := QueryResultToRecords(&input, &PlanetScaleSource{})
+	require.Len(t, output, 1)
+	assert.Equal(t, "São", output[0]["location"].(sqltypes.Value).ToString())
 }
 
 func TestConvertsWindows1252ControlRange(t *testing.T) {

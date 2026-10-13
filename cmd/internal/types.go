@@ -202,7 +202,7 @@ var cp1252Map = [32]rune{
 
 // convertTextToUTF8 rewrites latin1 text values to UTF-8 so JSON encoding
 // does not replace non-ASCII bytes with U+FFFD.
-// Binary columns (charset 63) and already-UTF-8 text are left unchanged.
+// Binary columns (charset 63) and values that are already valid UTF-8 are left unchanged.
 func convertTextToUTF8(val sqltypes.Value, field *query.Field) sqltypes.Value {
 	// Gate on collation, not type: latin1_bin columns arrive typed BINARY/VARBINARY/BLOB.
 	if val.IsNull() || field == nil {
@@ -211,8 +211,8 @@ func convertTextToUTF8(val sqltypes.Value, field *query.Field) sqltypes.Value {
 	if _, ok := latin1Collations[field.GetCharset()]; !ok {
 		return val
 	}
-	// Binlog ENUM/SET values are already UTF-8 labels taken from column_type (vitess v21+).
-	if t := field.GetType(); (t == query.Type_ENUM || t == query.Type_SET) && isDeclaredLabel(val.Raw(), field.GetColumnType()) {
+	// Valid UTF-8 passes through unchanged: binlog ENUM/SET labels (vitess v21+) and UTF-8 stored in latin1 columns.
+	if utf8.Valid(val.Raw()) {
 		return val
 	}
 
@@ -222,23 +222,6 @@ func convertTextToUTF8(val sqltypes.Value, field *query.Field) sqltypes.Value {
 		return val
 	}
 	return newVal
-}
-
-// isDeclaredLabel reports whether raw is valid UTF-8 made up only of labels declared in columnType.
-func isDeclaredLabel(raw []byte, columnType string) bool {
-	if !utf8.Valid(raw) {
-		return false
-	}
-	labels := map[string]struct{}{}
-	for _, l := range parseEnumOrSetValues(columnType) {
-		labels[l] = struct{}{}
-	}
-	for _, part := range strings.Split(string(raw), ",") {
-		if _, ok := labels[part]; !ok {
-			return false
-		}
-	}
-	return true
 }
 
 func decodeWindows1252(src []byte) []byte {
