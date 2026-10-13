@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"testing"
 
 	psdbconnect "github.com/planetscale/airbyte-source/proto/psdbconnect/v1alpha1"
@@ -239,4 +240,163 @@ func TestCanLeadDecimalWithZero(t *testing.T) {
 	assert.Equal(t, "-5.55", row["d5"].(sqltypes.Value).ToString())
 	assert.Equal(t, "-0.66", row["d6"].(sqltypes.Value).ToString())
 	assert.Equal(t, "-0.77", row["d7"].(sqltypes.Value).ToString())
+}
+
+func TestConvertsLatin1TextToUTF8(t *testing.T) {
+	// HEX 53E36F… is latin1 for "São". 0xED is í, 0xE9 is é.
+	sao, err := sqltypes.NewValue(query.Type_VARCHAR, []byte{0x53, 0xE3, 0x6F, 0x20, 0x50, 0x61, 0x75, 0x6C, 0x6F})
+	require.NoError(t, err)
+	brasilia, err := sqltypes.NewValue(query.Type_VARCHAR, []byte("Bras\xEDlia"))
+	require.NoError(t, err)
+	nordAm, err := sqltypes.NewValue(query.Type_TEXT, []byte("nord-am\xE9ricain"))
+	require.NoError(t, err)
+	ascii, err := sqltypes.NewValue(query.Type_VARCHAR, []byte("Portland"))
+	require.NoError(t, err)
+
+	const latin1Swedish = 8
+	input := sqltypes.Result{
+		Fields: []*query.Field{
+			{Name: "location", Type: sqltypes.VarChar, ColumnType: "varchar(255)", Charset: latin1Swedish},
+			{Name: "check_in_timezone", Type: sqltypes.VarChar, ColumnType: "varchar(255)", Charset: latin1Swedish},
+			{Name: "label", Type: sqltypes.Text, ColumnType: "text", Charset: latin1Swedish},
+			{Name: "city", Type: sqltypes.VarChar, ColumnType: "varchar(255)", Charset: latin1Swedish},
+		},
+		Rows: [][]sqltypes.Value{
+			{sao, brasilia, nordAm, ascii},
+		},
+	}
+
+	output := QueryResultToRecords(&input, &PlanetScaleSource{})
+	require.Len(t, output, 1)
+	row := output[0]
+	assert.Equal(t, "São Paulo", row["location"].(sqltypes.Value).ToString())
+	assert.Equal(t, "Brasília", row["check_in_timezone"].(sqltypes.Value).ToString())
+	assert.Equal(t, "nord-américain", row["label"].(sqltypes.Value).ToString())
+	assert.Equal(t, "Portland", row["city"].(sqltypes.Value).ToString())
+
+	encoded, err := json.Marshal(row)
+	require.NoError(t, err)
+	assert.Contains(t, string(encoded), `"São Paulo"`)
+	assert.Contains(t, string(encoded), `"Brasília"`)
+	assert.Contains(t, string(encoded), `"nord-américain"`)
+	assert.NotContains(t, string(encoded), "\ufffd")
+}
+
+func TestLeavesUTF8AndBinaryColumnsUnchanged(t *testing.T) {
+	utf8Sao, err := sqltypes.NewValue(query.Type_VARCHAR, []byte("São Paulo"))
+	require.NoError(t, err)
+	// Same latin1 bytes as "São", but this is a binary column so they must not be transcoded.
+	rawLatin1, err := sqltypes.NewValue(query.Type_VARBINARY, []byte{0x53, 0xE3, 0x6F})
+	require.NoError(t, err)
+
+	const (
+		utf8mb4    = 255
+		binaryColl = 63
+	)
+	input := sqltypes.Result{
+		Fields: []*query.Field{
+			{Name: "location", Type: sqltypes.VarChar, ColumnType: "varchar(255)", Charset: utf8mb4},
+			{Name: "payload", Type: sqltypes.VarBinary, ColumnType: "varbinary(16)", Charset: binaryColl},
+		},
+		Rows: [][]sqltypes.Value{
+			{utf8Sao, rawLatin1},
+		},
+	}
+
+	output := QueryResultToRecords(&input, &PlanetScaleSource{})
+	require.Len(t, output, 1)
+	row := output[0]
+	assert.Equal(t, "São Paulo", row["location"].(sqltypes.Value).ToString())
+	assert.Equal(t, []byte{0x53, 0xE3, 0x6F}, row["payload"].(sqltypes.Value).Raw())
+}
+
+func TestConvertsLatin1BinColumnsToUTF8(t *testing.T) {
+	// MySQL sets BINARY_FLAG on _bin collations, so latin1_bin columns arrive typed VARBINARY.
+	kaka, err := sqltypes.NewValue(query.Type_VARBINARY, []byte("Kak\xE1"))
+	require.NoError(t, err)
+
+	const latin1Bin = 47
+	input := sqltypes.Result{
+		Fields: []*query.Field{
+			{Name: "tag", Type: sqltypes.VarBinary, ColumnType: "varchar(8)", Charset: latin1Bin},
+		},
+		Rows: [][]sqltypes.Value{
+			{kaka},
+		},
+	}
+
+	output := QueryResultToRecords(&input, &PlanetScaleSource{})
+	require.Len(t, output, 1)
+	assert.Equal(t, "Kaká", output[0]["tag"].(sqltypes.Value).ToString())
+}
+
+func TestConvertsLatin1EnumAndSetInBothVStreamPhases(t *testing.T) {
+	// The copy phase sends latin1 label bytes; the binlog phase sends UTF-8 labels from column_type.
+	const latin1Swedish = 8
+	fields := []*query.Field{
+		{Name: "city", Type: sqltypes.Enum, ColumnType: "enum('Brasília','Portland')", Charset: latin1Swedish},
+		{Name: "tags", Type: sqltypes.Set, ColumnType: "set('café','bar')", Charset: latin1Swedish},
+		{Name: "owner", Type: sqltypes.Enum, ColumnType: "enum('café''s','x')", Charset: latin1Swedish},
+	}
+	phases := map[string][3]string{
+		"copy":   {"Bras\xEDlia", "caf\xE9,bar", "caf\xE9's"},
+		"binlog": {"Brasília", "café,bar", "café's"},
+	}
+	for phase, raw := range phases {
+		t.Run(phase, func(t *testing.T) {
+			city, err := sqltypes.NewValue(query.Type_ENUM, []byte(raw[0]))
+			require.NoError(t, err)
+			tags, err := sqltypes.NewValue(query.Type_SET, []byte(raw[1]))
+			require.NoError(t, err)
+			owner, err := sqltypes.NewValue(query.Type_ENUM, []byte(raw[2]))
+			require.NoError(t, err)
+
+			input := sqltypes.Result{Fields: fields, Rows: [][]sqltypes.Value{{city, tags, owner}}}
+			output := QueryResultToRecords(&input, &PlanetScaleSource{})
+			require.Len(t, output, 1)
+			assert.Equal(t, "Brasília", output[0]["city"].(sqltypes.Value).ToString())
+			assert.Equal(t, "café,bar", output[0]["tags"].(sqltypes.Value).ToString())
+			assert.Equal(t, "café's", output[0]["owner"].(sqltypes.Value).ToString())
+		})
+	}
+}
+
+func TestLeavesValidUTF8InLatin1ColumnsUnchanged(t *testing.T) {
+	// UTF-8 bytes stored in a latin1 column (written through a latin1 connection) pass through unchanged.
+	sao, err := sqltypes.NewValue(query.Type_VARCHAR, []byte("S\xC3\xA3o"))
+	require.NoError(t, err)
+
+	const latin1Swedish = 8
+	input := sqltypes.Result{
+		Fields: []*query.Field{
+			{Name: "location", Type: sqltypes.VarChar, ColumnType: "varchar(255)", Charset: latin1Swedish},
+		},
+		Rows: [][]sqltypes.Value{
+			{sao},
+		},
+	}
+
+	output := QueryResultToRecords(&input, &PlanetScaleSource{})
+	require.Len(t, output, 1)
+	assert.Equal(t, "São", output[0]["location"].(sqltypes.Value).ToString())
+}
+
+func TestConvertsWindows1252ControlRange(t *testing.T) {
+	// MySQL latin1 is cp1252; its undefined bytes (e.g. 0x81, 0x9D) map to C1 controls.
+	note, err := sqltypes.NewValue(query.Type_VARCHAR, []byte("\x80\x91\x92\x93\x94\x81\x9D"))
+	require.NoError(t, err)
+
+	const latin1Swedish = 8
+	input := sqltypes.Result{
+		Fields: []*query.Field{
+			{Name: "note", Type: sqltypes.VarChar, ColumnType: "varchar(255)", Charset: latin1Swedish},
+		},
+		Rows: [][]sqltypes.Value{
+			{note},
+		},
+	}
+
+	output := QueryResultToRecords(&input, &PlanetScaleSource{})
+	require.Len(t, output, 1)
+	assert.Equal(t, "€‘’“”\u0081\u009d", output[0]["note"].(sqltypes.Value).ToString())
 }
