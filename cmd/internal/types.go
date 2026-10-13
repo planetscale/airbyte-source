@@ -160,8 +160,7 @@ func QueryResultToRecords(qr *sqltypes.Result, ps *PlanetScaleSource) []map[stri
 		for idx, val := range row {
 			if idx < len(columns) {
 				field := qr.Fields[idx]
-				// Convert before parseValue so latin1 text is valid UTF-8
-				// before JSON encoding, while enum/set index mapping still sees ASCII digits.
+				// Convert before parseValue so latin1 text is valid UTF-8 before JSON encoding.
 				val = convertTextToUTF8(val, field)
 				parsedValue := parseValue(val, field.GetColumnType(), field.GetType(), ps)
 				if parsedValue.isBool {
