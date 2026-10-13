@@ -309,3 +309,70 @@ func TestLeavesUTF8AndBinaryColumnsUnchanged(t *testing.T) {
 	assert.Equal(t, "São Paulo", row["location"].(sqltypes.Value).ToString())
 	assert.Equal(t, []byte{0x53, 0xE3, 0x6F}, row["payload"].(sqltypes.Value).Raw())
 }
+
+func TestConvertsLatin1BinColumnsToUTF8(t *testing.T) {
+	// MySQL sets BINARY_FLAG on _bin collations, so latin1_bin columns arrive typed VARBINARY.
+	kaka, err := sqltypes.NewValue(query.Type_VARBINARY, []byte("Kak\xE1"))
+	require.NoError(t, err)
+
+	const latin1Bin = 47
+	input := sqltypes.Result{
+		Fields: []*query.Field{
+			{Name: "tag", Type: sqltypes.VarBinary, ColumnType: "varchar(8)", Charset: latin1Bin},
+		},
+		Rows: [][]sqltypes.Value{
+			{kaka},
+		},
+	}
+
+	output := QueryResultToRecords(&input, &PlanetScaleSource{})
+	require.Len(t, output, 1)
+	assert.Equal(t, "Kaká", output[0]["tag"].(sqltypes.Value).ToString())
+}
+
+func TestConvertsLatin1EnumAndSetInBothVStreamPhases(t *testing.T) {
+	// The copy phase sends latin1 label bytes; the binlog phase sends UTF-8 labels from column_type.
+	const latin1Swedish = 8
+	fields := []*query.Field{
+		{Name: "city", Type: sqltypes.Enum, ColumnType: "enum('Brasília','Portland')", Charset: latin1Swedish},
+		{Name: "tags", Type: sqltypes.Set, ColumnType: "set('café','bar')", Charset: latin1Swedish},
+	}
+	phases := map[string][2]string{
+		"copy":   {"Bras\xEDlia", "caf\xE9,bar"},
+		"binlog": {"Brasília", "café,bar"},
+	}
+	for phase, raw := range phases {
+		t.Run(phase, func(t *testing.T) {
+			city, err := sqltypes.NewValue(query.Type_ENUM, []byte(raw[0]))
+			require.NoError(t, err)
+			tags, err := sqltypes.NewValue(query.Type_SET, []byte(raw[1]))
+			require.NoError(t, err)
+
+			input := sqltypes.Result{Fields: fields, Rows: [][]sqltypes.Value{{city, tags}}}
+			output := QueryResultToRecords(&input, &PlanetScaleSource{})
+			require.Len(t, output, 1)
+			assert.Equal(t, "Brasília", output[0]["city"].(sqltypes.Value).ToString())
+			assert.Equal(t, "café,bar", output[0]["tags"].(sqltypes.Value).ToString())
+		})
+	}
+}
+
+func TestConvertsWindows1252ControlRange(t *testing.T) {
+	// MySQL latin1 is cp1252; its undefined bytes (e.g. 0x81, 0x9D) map to C1 controls.
+	note, err := sqltypes.NewValue(query.Type_VARCHAR, []byte("\x80\x91\x92\x93\x94\x81\x9D"))
+	require.NoError(t, err)
+
+	const latin1Swedish = 8
+	input := sqltypes.Result{
+		Fields: []*query.Field{
+			{Name: "note", Type: sqltypes.VarChar, ColumnType: "varchar(255)", Charset: latin1Swedish},
+		},
+		Rows: [][]sqltypes.Value{
+			{note},
+		},
+	}
+
+	output := QueryResultToRecords(&input, &PlanetScaleSource{})
+	require.Len(t, output, 1)
+	assert.Equal(t, "€‘’“”\u0081\u009d", output[0]["note"].(sqltypes.Value).ToString())
+}
